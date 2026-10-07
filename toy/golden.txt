@@ -1,13 +1,13 @@
 # cell, digest, warm medians: check.py's cells (run.py --nodes 60 --degree 30 --msgs 3 --seed 7 ... --digest)
-push bb4b37d12916f31e p50 491ms p99 570ms copies 2.41
-hold 90e490c77d294e5a p50 489ms p99 573ms copies 1.88
-announce f836a2c7f266a0aa p50 489ms p99 576ms copies 2.06
-none 90e490c77d294e5a p50 489ms p99 573ms copies 1.88
-withholders 8a960ec2922e7666 p50 593ms p99 696ms copies 2.29
-silent d0787fe9adaea18e p50 677ms p99 825ms copies 1.89
-cap-wait f5c676c820dcf15f p50 675ms p99 846ms copies 1.66
-dcb20 e090c9527c57c937 p50 247ms p99 353ms copies 3.32
-rr-stripe b3a1f11fe5960d88 p50 426ms p99 541ms copies 2.53
-without-a 6df10d0cc2e88a1e p50 491ms p99 578ms copies 4.03
-without-b 5e4cdd9f7a3cf455 p50 434ms p99 489ms copies 2.96
-loss-thin e5a7758f4854c10d p50 861ms p99 984ms copies 1.92
+push 224576ee904d4830 p50 473ms p99 557ms copies 2.47
+hold ce46eea9619feb1c p50 475ms p99 577ms copies 1.93
+announce 3c0e5853b58518ee p50 473ms p99 568ms copies 2.09
+none ce46eea9619feb1c p50 475ms p99 577ms copies 1.93
+withholders bbea3991adf6e619 p50 539ms p99 640ms copies 2.29
+silent 53d1b6d584bd6a6c p50 576ms p99 716ms copies 1.92
+cap-wait f74b7e3a7d0a0e1c p50 577ms p99 744ms copies 1.70
+dcb20 68bbde79b4d067a9 p50 244ms p99 338ms copies 3.31
+rr-stripe c475be5595b44985 p50 416ms p99 521ms copies 2.46
+without-a 0b41df6252042239 p50 471ms p99 562ms copies 3.96
+without-b f844374582032589 p50 448ms p99 497ms copies 2.99
+loss-thin 700d2eec16068e9e p50 829ms p99 953ms copies 1.91

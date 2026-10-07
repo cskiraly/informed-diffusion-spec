@@ -138,6 +138,7 @@ class Node:
             # state (§8.1); missing entries read as empty
             "desc": {}, "state": DefaultMap(None), "frames": AutoMap(dict), "known_id": AutoMap(dict),
             "received": AutoMap(Bits), "mine": AutoMap(Bits), "stop_pull": DefaultMap(False),
+            "origin": {},
             "peer_has": AutoMap(lambda: LazyMap(HaveEntry)),
             "pushed": AutoMap(lambda: LazyMap(PushEntry)),
             "holders": AutoMap(lambda: AutoMap(set)), "sent_to": AutoMap(lambda: AutoMap(Bits)),

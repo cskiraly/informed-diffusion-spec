@@ -18,6 +18,9 @@ set of cards it enables:
 | 3 | + 6 | the erasure code over the compressed payload, stop-pull |
 | 4 | + 7–17 | HAVE bitmaps, cancel, rarest at pop, decode claim and repair, r = 2, projection, striped publishing, the static window, paced gossip, furthest behind first, push by uplink class |
 
+One rule carries the tag [P4] instead of a card: it is there for the source's privacy, not for
+speed or bytes (§5.1).
+
 The code runs as written: [`toy/`](toy/) executes every block of this document, once per node, on
 a simulated network.
 
@@ -372,7 +375,10 @@ def on_block_installed(root):                        # resumes level 1
         on_validated(p, f, validate_frame(f))
 
 def send_have(p, g):                                 # [c7] always the whole bitmap, as it is now
-    enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=mine[g].copy())), urgent=True)
+    enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=have_bits(g))), urgent=True)
+
+def have_bits(g):                                    # what our HAVE says of g: what we hold, or, for a
+    return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what we have sent [P4]
 ```
 
 A node announces a frame once its proof checks, not on arrival as stock IDONTWANT does: a held
@@ -563,19 +569,29 @@ def publish(block, d, shards):
         store(g, s.index, f); mark_seen(message_id(f))
         gossip_history.put(f)                         # stock: heartbeat gossip may announce it (§6.4)
     mine[g] = all_bits(N(d)); state[g] = COMPLETE; stop_pull[g] = True
-    for p in mesh:
-        send_have(p, g)                     # one HAVE naming all N frames, before any data   [c7]
+    origin[g] = bitmap(set())               # [P4] our HAVE names only frames we have sent: none yet
     plan = []
     for i in range(N(d)):                   # index order; each frame's targets see earlier plans
         f = frames[g][i]
         targets = choose_push(f, candidates_for_source(f), budget=R, at_source=True)   # §5.3
         for p in targets: note_push(p, g, i)
         plan.append((f, targets))
+    led = set()
     for copy in range(R):                   # the first copy of every frame before any second  [c2]
         for f, targets in plan:
-            if copy < len(targets): enqueue(targets[copy], f, urgent=False)
+            if copy < len(targets):
+                p = targets[copy]
+                if p not in led:            # [P4] a peer's first frame from us follows our HAVE naming
+                    led.add(p)              #   it, as a relay's HAVE precedes its pushes
+                    enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=origin[g] | bitmap({f.index}))), urgent=True)
+                enqueue(p, f, urgent=False)
     for i in range(N(d)):
         for p in mesh: announce(p, g, bitmap({i}))  # [c3] mesh peers not pushed a frame are announced it
+
+def origin_sent(f):                         # [P4] a frame of a group we publish leaves for the first
+    if origin[f.group].has(f.index): return     # time (§7.2): it joins our HAVE, which goes to the
+    origin[f.group].set(f.index)                # mesh as a relay's does when a frame arrives (§4.2)
+    for q in mesh: send_have(q, f.group)
 
 def candidates_for_source(f):
     pool = connected_topic_peers() if UPLINK >= STRIPE_UPLINK else mesh    # [c13] configured uplink
@@ -594,6 +610,17 @@ def candidates_for_source(f):
   frames. Only mesh peers that were not pushed a frame are announced it; other connections get no
   announcement from this step, though heartbeat gossip may announce to them later (§6.4).
 - The source pushes each frame to R = 2 peers. It never uses the fast-class degree of card 17.
+- **The source's HAVE is paced** [P4], for the source's privacy. A HAVE that names every frame
+  before any frame has left can come only from the source, so it tells each mesh peer who published
+  the payload. The source's HAVE therefore names only frames it has sent: a frame joins it when the
+  source's writer first sends it, and the HAVE then goes to the mesh, as a relay's does when a frame
+  arrives. A peer the source pushes to gets a HAVE naming its first frame just ahead of it, as a
+  relay's HAVE precedes its pushes. The HAVE still keeps relays from pushing the source's frames
+  back to it, a frame at a time. HAVEs to the mesh that would leave together may be merged into one,
+  as the research implementation merges those of the frames sent between two of its router's turns. This removes the one certain sign of the source; others remain (its
+  HAVE grows faster than any relay's, it announces every frame at publish, it is everyone's first
+  sender), and are the subject of separate work on the source's privacy, where P4 is this measure's
+  name. The research implementation has it as an option, measured at no cost in delivery.
 
 ### 5.2 A relay forwards [c3, c4, c11, c17]
 
@@ -842,6 +869,7 @@ def next_to_send(p):
         if out:
             if out.frame:
                 track_in_flight(p, out.frame); slot_held[p] = False    # [c14] the slot is used
+                if out.frame.group in origin: origin_sent(out.frame)   # [P4] our HAVE grows (§5.1)
             return out
         # nothing was left of the entry: start again from the urgent lane
 
@@ -894,6 +922,7 @@ act.
 | state | kept per | lives | when it goes |
 |---|---|---|---|
 | own frames, ids, `mine`, `received`, `desc`, `state` | group | its active lifetime: `GROUP_TTL` after its last frame arrived or it completed | at expiry, leaving a tombstone (the group id) until the seen cache forgets its frames |
+| `origin` | group we publish | the group's active lifetime | with the group [P4] |
 | `asked_at` | ask | `IWANT_WINDOW` after the last ask | at expiry, or when the frame arrives |
 | `peer_has` (and `holders`, `sent_to` for that peer) | connection and group | `HAVE_TTL` after the peer's last HAVE for the group | at expiry, or when the connection closes; the peer leaves `holders` |
 | `pushed` (with `first_push`) | connection and group | `PUSH_TTL` after the last push | at expiry, or when the connection closes |
@@ -1051,9 +1080,9 @@ does not specify, and what that means for the numbers:
 - *Announcing on arrival.* With no validation, a node claimed a frame as it arrived. This document
   claims it after level 1 (§4.2).
 - *The source's HAVE* went out once per frame as each was added to the batch: N cumulative HAVEs to
-  each mesh peer, all before the data. This document sends one. The final bitmap carries the same
-  holdings; dropping the others reduces control traffic, and may change queue scheduling, since
-  urgent messages go first. That timing effect was not isolated.
+  each mesh peer, all before the data, which names the source to its mesh. This document paces it
+  instead (§5.1, [P4]). A change of 2026-10-07 makes the implementation send one HAVE before the
+  data by default, and pace it as an option (`SEGMENT_SRC_HAVE=paced`).
 - *The sender counts as a holder* in a relay's budget (§5.2), so R = 2 means one further push per
   received frame. This is what was measured. The sender is also excluded from the candidates here;
   in the code it could take a budget slot and then be skipped, which is rare.
@@ -1069,7 +1098,10 @@ does not specify, and what that means for the numbers:
   document counts distinct live holders.
 - *An ask by index for a frame the asker had claimed* was answered: the measured node cleared that
   claim in the asker's send queue, for cancel and projection only, and kept it everywhere else. This
-  document drops such an ask (§4.5), and the asker drops queued asks for frames it holds (§7.2).
+  document drops such an ask (§4.5), and the asker drops queued asks for frames it holds (§7.2). The
+  asker's queue kept such asks, and its HAVE, on the urgent lane, overtook them: the answers arrived
+  as duplicates, 0.1 % of them at home and 2 to 3 % on the datacenter mix. A change of 2026-10-07
+  makes the implementation do as this document does.
 - *Promises were not closed on decode* for the park. Asks still open when a node decoded broke at
   400 ms and parked the asked peers for the completed group only, which changed no later decision.
   This document closes them.
