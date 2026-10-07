@@ -124,6 +124,9 @@ class Recorder:
         self.asked = defaultdict(dict)          # node id -> (group, index) -> time of the last ask
         self.peak = Counter()                   # node id -> most slots in flight
         self.have_ever = {}                     # (node, peer, group) -> every HAVE bit the peer sent it
+        self.times = {"ihave": [], "push": [], "answer": []}   # the source's sends, s after publish
+        self.asks_sent = Counter()              # (node, group, index) -> asks it has written for the frame
+        self.ask_first = self.ask_retry = 0     # asks written to the source: their asker's first, or later
 
     # -- hooks
 
@@ -186,6 +189,12 @@ class Recorder:
     def sent(self, node, p, e):
         c, nid, ns = self.c[node.id], node.id, node.ns
         f = e.frame
+        if nid == self.pub:
+            t = self.sim.now - self.t0
+            if f is not None:
+                self.times["answer" if e.solicited else "push"].append(t)
+            if e.control is not None and any(m.kind == "ihave" and m.ids for m in e.control.items):
+                self.times["ihave"].append(t)
         if f is not None:
             if e.solicited:
                 c["answer"] += 1
@@ -212,10 +221,24 @@ class Recorder:
             elif m.kind == "iwant":
                 c["iwant_ids"] += len(m.ids)
                 c["ask"] += sum(1 for x in m.ids if isinstance(x, Wm.WantIndex))
+                for x in m.ids:
+                    if not isinstance(x, Wm.WantIndex):
+                        continue
+                    k = (nid, x.group, x.index)
+                    if p == self.pub:
+                        if self.asks_sent[k]:
+                            self.ask_retry += 1
+                        else:
+                            self.ask_first += 1
+                    self.asks_sent[k] += 1
 
     def received(self, src, dst, e):
         if e.control is not None:
             for m in e.control.items:
+                if m.kind == "iwant" and m.ids:      # asks received, as the harness counts them on receipt
+                    self.c[dst]["asks_in"] += len(m.ids)
+                    if src in self.sim.nodes[dst].ns["mesh"]:
+                        self.c[dst]["asks_in_mesh"] += len(m.ids)
                 if m.kind == "idontwant":
                     for x in m.ids:
                         if isinstance(x, Wm.HaveBitmap):
@@ -237,7 +260,7 @@ class Recorder:
     def publish(self, m, pub):
         """Called at message m's publish: start its counts. run.py reads them at the horizon
         (take), between two of its own run() calls, so the recorder schedules no event."""
-        self.msg, self.pub = m, pub
+        self.msg, self.pub, self.t0 = m, pub, self.sim.now
         self._reset()
 
     def take(self, m):
@@ -274,7 +297,15 @@ class Recorder:
               f"inv_overlap={tot['inv_overlap']}", f"inv_late={tot['inv_late']}", f"inv_fault={tot['inv_fault']}",
               "|", f"push_max={push_max}", f"peak={peak}", f"w={w_hi}", "late_same=0",
               f"late_live={tot['late_live']}",
-              f"ask_window_ms={round(self.window * 1000)}"]
+              f"ask_window_ms={round(self.window * 1000)}",
+              "|", f"asks_in={tot['asks_in']}", f"asks_in_mesh={tot['asks_in_mesh']}"]
+        if list(nodes) == [self.pub]:               # the source's timeline, ms after publish
+            for name in ("ihave", "push", "answer"):
+                ts = sorted(self.times[name])
+                ms = [round(t * 1000) for t in ts] or [-1]
+                f += [f"{name}_n={len(ts)}", f"{name}_first_ms={ms[0]}", f"{name}_p50_ms={ms[len(ms) // 2]}",
+                      f"{name}_last_ms={ms[-1]}"]
+            f += [f"asks_first={self.ask_first}", f"asks_retry={self.ask_retry}"]
         return " ".join(f)
 
     def degree_mismatches(self, degree):

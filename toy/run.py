@@ -95,6 +95,9 @@ def main(argv):
                     help="rule: STRIPE_UPLINK as §5.1 sets it; on: every source stripes, as the harness's tier-4 cells did")
     ap.add_argument("--uplink", default="ps", choices=("ps", "rr"),
                     help="ps: processor sharing over busy connections (FQ-CoDel's fluid limit); rr: whole entries in turn")
+    ap.add_argument("--send-buffer", type=int, default=0,
+                    help="bytes a connection's transport accepts ahead of the link; a writer waits while its backlog "
+                         "is at it, as a QUIC stream write blocks (0: writes complete at once)")
     ap.add_argument("--rebuilt", default="push", choices=("push", "hold", "announce", "none"),
                     help="what a decoded node does with the frames it rebuilt: push (the document, §4.6), hold or "
                          "announce (the decoding note's variants); none: it rebuilds nothing (the harness's tier-4 cells)")
@@ -120,6 +123,7 @@ def main(argv):
     if a.stripe == "on":
         cfg["STRIPE_UPLINK"] = 0
     cfg["uplink"] = a.uplink
+    cfg["send_buffer"] = a.send_buffer or None
     cfg["classes"] = scenario.net(a.net, a.up * 1e6, a.down * 1e6)
     cfg.update(rebuilt=a.rebuilt, rb_jitter=a.rb_jitter_ms / 1000, rb_max=a.rb_max, fault=a.fault, loss_data=a.loss_data)
     cfg["latency"] = scenario.geo_latency(a.seed)
