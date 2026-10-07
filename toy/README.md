@@ -15,7 +15,7 @@ network is simpler (below), and its numbers are not to be quoted in place of the
 ## Running it
 
 ```
-python3 run.py --net home --seed 7                 # tier 4 on the 50 Mbps floor, 500 nodes, 6 payloads
+python3 run.py --net home --seed 7                 # tier 4 in the all-home network, 500 nodes, 6 payloads
 python3 run.py --net dcb20 --seed 7 --without 17   # the datacenter mix, without card 17
 python3 run.py --net home --stripe on              # every source stripes, as the harness's tier-4 cells did
 python3 run.py --net home --rebuilt none           # nothing rebuilt, as in the harness's tier-4 cells
@@ -73,7 +73,7 @@ What the toy adds to the document, and nothing else:
 - **Variants and stresses the document does not specify:** rebuilt frames held or announced
   instead of pushed, or none rebuilt at all (`--rebuilt`), a cap on the frames pushed per peer
   (`--rb-max`) and a random wait before the push (`--rb-jitter-ms`); the harness's withholders and
-  silent relays (`--fault`; a silent relay pushes nothing it rebuilt, as in the harness), frames
+  silent nodes (`--fault`; a silent node pushes nothing it rebuilt, as in the harness), frames
   lost at admission (`--loss-data`) and thin links (`--up`, `--down`).
 
 ## The network

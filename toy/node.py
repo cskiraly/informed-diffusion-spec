@@ -379,7 +379,7 @@ class Node:
                     put(f)
                 ns["forward"] = forward
                 if c.get("rebuilt", "push") == "push":  # nor pushes what it rebuilt, as the
-                    ns["push_rebuilt"] = lambda g, new: None    # harness's silent relays do
+                    ns["push_rebuilt"] = lambda g, new: None    # harness's silent nodes do
         if c.get("loss_data"):
             pct, spec_enqueue, node = c["loss_data"], ns["enqueue"], self
 
