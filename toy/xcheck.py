@@ -18,8 +18,9 @@ without it. Per message it resets at the publish and is read at the horizon, pub
 The invariants, each a count that must be zero:
 - budget: relays that pushed one frame more often than their push degree (R_NODE);
 - window: nodes whose slots in flight exceeded W;
-- overlap: asks for a frame sent while an earlier ask for it was open (inside IWANT_WINDOW, the
-  frame not yet held);
+- overlap: an ask for a frame decided while an earlier ask for it was open (inside IWANT_WINDOW,
+  the frame not yet held), timed at may_ask, where the harness's request ledger also times asks
+  (when the router sends them, not when the writer writes them);
 - late: frames sent to a mesh peer whose HAVE (in an IDONTWANT, the only carrier that feeds
   peer_has, §4.4) for them had reached the sender earlier in the message, whether or not the sender
   still holds it: the harness's ledger reads it the same way. late_live, a diagnostic, counts those
@@ -145,6 +146,21 @@ class Recorder:
     def _wrap_node(self, nd):
         ns, rec, nid = nd.ns, self, nd.id
         spec_filter, spec_acquire, spec_track = ns["filter_entry"], ns["acquire_slot"], ns["track_in_flight"]
+        spec_may_ask, group_index = ns["may_ask"], ns["group_index"]
+
+        def may_ask(a, p):
+            ok = spec_may_ask(a, p)
+            if ok:
+                gi = group_index(a)
+                if gi is not None:
+                    key, now = (gi.group, gi.index), rec.sim.now
+                    last = rec.asked[nid].get(key)
+                    mine = ns["mine"].get(gi.group)
+                    held = mine is not None and mine.has(gi.index)
+                    if last is not None and now - last < rec.window - 0.001 and not held:
+                        rec.c[nid]["inv_overlap"] += 1
+                    rec.asked[nid][key] = now
+            return ok
 
         def filter_entry(p, entry):
             f = entry.frame
@@ -165,6 +181,7 @@ class Recorder:
             rec.peak[nid] = max(rec.peak[nid], ns["in_flight"])
             return out
         ns["filter_entry"], ns["acquire_slot"], ns["track_in_flight"] = filter_entry, acquire_slot, track_in_flight
+        ns["may_ask"] = may_ask
 
     def sent(self, node, p, e):
         c, nid, ns = self.c[node.id], node.id, node.ns
@@ -185,7 +202,6 @@ class Recorder:
                 c["inv_fault"] += 1
         if e.control is None:
             return
-        now = self.sim.now
         for m in e.control.items:
             if m.kind == "ihave":
                 c["ihave_ids"] += len(m.ids)
@@ -195,17 +211,7 @@ class Recorder:
                 c["have_idontwant"] += sum(1 for x in m.ids if isinstance(x, Wm.HaveBitmap))
             elif m.kind == "iwant":
                 c["iwant_ids"] += len(m.ids)
-                for x in m.ids:
-                    if not isinstance(x, Wm.WantIndex):
-                        continue
-                    c["ask"] += 1
-                    key = (x.group, x.index)
-                    last = self.asked[nid].get(key)
-                    mine = ns["mine"].get(x.group)
-                    held = mine is not None and mine.has(x.index)
-                    if last is not None and now - last < self.window - 0.001 and not held:
-                        c["inv_overlap"] += 1
-                    self.asked[nid][key] = now
+                c["ask"] += sum(1 for x in m.ids if isinstance(x, Wm.WantIndex))
 
     def received(self, src, dst, e):
         if e.control is not None:
