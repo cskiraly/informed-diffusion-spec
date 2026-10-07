@@ -26,7 +26,7 @@ a simulated network.
 
 Related documents, with the short names used below:
 - [Wen fast payload broadcast? Segment, code, push, pull, and everything in between](https://ethresear.ch/t/wen-fast-payload-broadcast-segment-code-push-pull-and-everything-in-between/25913)
-  (*Segment, code, push-pull*, 2026): the design space, the commitment and the relay rules;
+  (*Segment, code, push-pull*, 2026): the design space, the commitment and the forwarding rules;
 - [EIP-8411: what segmented payload diffusion is made of](https://ethresear.ch/t/eip-8411-what-segmented-payload-diffusion-is-made-of/26025)
   (*What segmented payload diffusion is made of*, 2026): tiers 1 to 3, cards 0 to 6;
 - *Informed diffusion: making home builders publish fast* (*Informed diffusion*, forthcoming):
@@ -241,7 +241,7 @@ from. Validation therefore comes in three levels, and only the first fits a fram
 def validate_frame(f: Frame) -> Result:
     block = installed_block(f.slot, f.beacon_block_root)    # validated and applied locally
     if block is None:
-        return DEFER                    # held in a bounded store (§8.2); not claimed, not relayed
+        return DEFER                    # held in a bounded store (§8.2); not claimed, not forwarded
     d = committed_descriptor(block, f)
     if d is None or group_id(d) != f.group or not valid_descriptor(d): return REJECT
     if f.index >= d.count: return REJECT
@@ -257,7 +257,7 @@ def committed_descriptor(block, f: Frame) -> Optional[SegmentDescriptor]:
     return bid.execution_payload_segment_descriptor                 # design B
 ```
 
-It costs a Merkle proof, so every node runs it before it claims, relays or serves a frame. A frame
+It costs a Merkle proof, so every node runs it before it claims, forwards or serves a frame. A frame
 that fails it is therefore the fault of the peer that sent it, and counts against that peer.
 
 **Level 2, per group, after any K frames: the code's consistency.** Decode, re-encode the parity,
@@ -271,14 +271,14 @@ the payload against the bid, then execution. A frame carries nothing these could
 compression before coding, a frame is not even a parseable fragment.
 
 **What each level gates.**
-- Level 1 gates everything a node does with a frame: holding it, claiming it, relaying it, serving
+- Level 1 gates everything a node does with a frame: holding it, claiming it, forwarding it, serving
   it, counting it toward K.
 - Level 2 gates delivery and every frame the node rebuilt. The decode claim goes out at K, before
   it: a group that fails level 2 fails it at every node, so the claim can only be wrong about a
   group every node drops (§4.6).
 - Level 3 gates what consensus consumes: fork choice, the payload timeliness vote, import. It gates
-  nothing in diffusion: relaying never waits for it.
-- When level 2 or 3 fails, the node drops the group (§4.6): it stops relaying, answering and
+  nothing in diffusion: forwarding never waits for it.
+- When level 2 or 3 fails, the node drops the group (§4.6): it stops forwarding, answering and
   pushing it, and retracts nothing, because what it claimed were authentic pieces.
 
 **What bounds the damage: the builder's cost.** A frame authenticates only against the bid an
@@ -291,9 +291,9 @@ the cost: a proposer that signs a second block for the slot is slashed, and the 
 that slot's pending payment. The nodes that forwarded it could not have known, so a payload that fails level 2
 or 3 never counts against them.
 
-**Relay gating.** These rules are from *Segment, code, push-pull* (2026). None of them ran in the
-measured cells (section 9).
-- **Do not relay a frame whose block is not installed.** Deferred frames wait in a bounded store
+**Gated forwarding.** These rules are from *Segment, code, push-pull* (2026), which calls the
+first one non-relay. None of them ran in the measured cells (section 9).
+- **Do not forward a frame whose block is not installed.** Deferred frames wait in a bounded store
   with per-peer reservations, and are validated when the block installs, or dropped when their slot
   leaves the live window (§4.2, §8).
 - **A receiver may decline to ask for what it cannot yet authenticate.** A declined announcement is
@@ -341,7 +341,7 @@ def on_frame(p, f):
     on_validated(p, f, validate_frame(f))            # level 1 (§3)
 
 def on_validated(p, f, result):
-    if result == DEFER: return defer(p, f)           # ahead of its block: no claim, no relay
+    if result == DEFER: return defer(p, f)           # ahead of its block: not claimed, not forwarded
     mark_seen(message_id(f))                         # accepted or rejected: never validated again
     if result == REJECT: return penalise(p)          # level 1 failures are the sender's (§3)
     g, i = f.group, f.index
@@ -354,7 +354,7 @@ def on_validated(p, f, result):
     if claim: mine[g].set(i)                         # [c7] only frames that passed level 1
     for q in (mesh | {p}) if claim else {p}:
         send_have(q, g)                              # [c7] the claim to the mesh, and [c14] the sender's ack
-    forward(f, p)                                    # §5.2: relaying never waits for levels 2 and 3
+    forward(f, p)                                    # §5.2: forwarding never waits for levels 2 and 3
     if state[g] == COLLECTING and popcount(received[g]) >= K(desc[g]):
         state[g] = DECODING                          # once per group
         claim_group(g)                               # [c10] the decode claim, at K (§4.6)
@@ -477,7 +477,7 @@ def decode_group(g):                                  # level 2, off the frame p
     if rebuilt is None: return drop_group(g)          # an inconsistent code: the builder's fault
     new = [i for i in rebuilt if not received[g].has(i)]      # rebuilt, and not received meanwhile
     for i in new: store(g, i, rebuilt[i])             # servable from now on; not marked seen,
-    state[g] = COMPLETE                               #   so a copy that arrives later is still relayed
+    state[g] = COMPLETE                               #   so a copy that arrives later is still forwarded
     push_rebuilt(g, new)                              # [c10] repair: level 2 has passed
     deliver(g, payload_of(rebuilt))                   # level 3: the application's checks (§3)
 
@@ -507,7 +507,7 @@ def drop_group(g):                                    # level 2 or level 3 faile
   waits for level 2 is everything that hands out rebuilt data: delivery, and the rebuilt frames,
   which the node pushes, and `resolve` finds, only once they are stored. *What a forwarding node checks,
   and when it decodes* (2026) maps the alternatives.
-- **Relaying continues** while a node decodes: the frames it received were authentic whatever
+- **Forwarding continues** while a node decodes: the frames it received were authentic whatever
   levels 2 and 3 find, so it forwards later arrivals as before (§4.2).
 - **The decode claim makes the node a holder.** Its peers stop pushing to it and count it as a
   holder of every frame. The claim is not an announcement, and asks go to announcers (§6.1), so a
@@ -526,9 +526,9 @@ def drop_group(g):                                    # level 2 or level 3 faile
   holds draws at most its claimed shortfall from each decoded neighbour, once per group; repair
   skips card 16's guard and draw.
 - **What a receiver sees.** A rebuilt frame is the source's frame, byte for byte: the same id and
-  the same proof. Its receiver checks it at level 1 and relays it like any other. Nothing marks it
+  the same proof. Its receiver checks it at level 1 and forwards it like any other. Nothing marks it
   as rebuilt, and nothing needs to. Repair waits for level 2 but not for level 3: once the group
-  has passed level 2, a rebuilt frame is an authentic leaf, as a relayed one is.
+  has passed level 2, a rebuilt frame is an authentic leaf, as a forwarded one is.
 - **Why push, and not hold or announce.** A builder may release only the K frames needed to
   decode. Every node then needs every one of them, the slowest to reach it included, and the other
   K exist only in the nodes that have decoded. Completion times spread out, and a builder that
@@ -985,7 +985,7 @@ A node checks a message's shape before it allocates state for it.
 | a HAVE bitmap | `MAX_HAVE_BYTES` (8192 indices); no index at or beyond N once the descriptor is known | the HAVE is ignored and counts against the sender |
 | a descriptor | `valid_descriptor` (§1) | the frame is rejected |
 | groups not yet tied to an installed block, named in a peer's HAVEs, IHAVEs or deferred frames | `MAX_PENDING_GROUPS` per peer | the peer's further unknown groups are ignored until one resolves or expires |
-| deferred frames | a bounded store with per-peer reservations | the peer's further deferred frames are dropped, neither claimed nor relayed |
+| deferred frames | a bounded store with per-peer reservations | the peer's further deferred frames are dropped, neither claimed nor forwarded |
 | offers | 16 announcers per id, 256 entries per announcer | new offers are refused |
 | IHAVE handling | `MAX_IHAVE_MESSAGES` IHAVE-bearing RPCs per peer and heartbeat, and the stock `MAX_IHAVE_LENGTH` ids | further IHAVEs are ignored for the rest of the heartbeat |
 | per-peer queue | client-chosen, shared by both lanes | a new entry is dropped, urgent control included: urgency orders dispatch, not admission. A dropped HAVE costs its window slot a timeout |
@@ -1035,9 +1035,9 @@ The measurements in the post come from a research harness. Where it does somethi
 does not specify, and what that means for the numbers:
 
 **Harness shortcuts, not part of the protocol.**
-- *No validation.* Frames were accepted, claimed and relayed on arrival, with no proof check and no
+- *No validation.* Frames were accepted, claimed and forwarded on arrival, with no proof check and no
   block gate (section 3); the simulated slot has no blocks. The measurements therefore exclude block
-  propagation, relay gating and proof validation, and do not quantify what those add. With the block
+  propagation, gated forwarding and proof validation, and do not quantify what those add. With the block
   installed, the proof check before a claim adds microseconds; a frame ahead of its block waits for
   it.
 - *The wire format.* The measured frames used a 101-byte structured id (slot, a synthetic block

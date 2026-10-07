@@ -375,7 +375,7 @@ class Node:
             if c.get("silent"):
                 put = ns["gossip_history"].put
 
-                def forward(f, from_peer):             # relays nothing; heartbeat gossip still announces
+                def forward(f, from_peer):             # forwards nothing; heartbeat gossip still announces
                     put(f)
                 ns["forward"] = forward
                 if c.get("rebuilt", "push") == "push":  # nor pushes what it rebuilt, as the
