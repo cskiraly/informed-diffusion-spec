@@ -775,6 +775,7 @@ def acquire_slot(p):                  # True: p's writer holds a slot; False: it
     if in_flight < W and (not waiters or waiters[0] == p):
         if waiters: waiters.popleft()
         in_flight += 1
+        if waiters and in_flight < W: wake(waiters[0])    # slots remain: the next in line takes one too
         return True
     if p not in waiters: waiters.append(p)        # a writer keeps its place while it waits
     return False
