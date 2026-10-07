@@ -1,6 +1,6 @@
-# segmented-broadcast-spec
+# informed-diffusion-spec
 
-Segmented payload diffusion, the design studied for
+Informed diffusion, a design of segmented payload diffusion studied for
 [EIP-8411](https://eips.ethereum.org/EIPS/eip-8411) (Fast Execution Payload Broadcast), written as
 Python-like pseudocode in the style of the consensus specs, with a toy simulator that runs it.
 

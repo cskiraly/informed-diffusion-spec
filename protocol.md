@@ -1,4 +1,4 @@
-# Segmented payload diffusion, tier 4: the protocol in pseudocode
+# Informed diffusion: the protocol in pseudocode
 
 > **DRAFT v0.3, 2026-10-05.** Companion to the post *Informed diffusion: making home builders
 > publish fast*. Field level on the wire; byte-exact layouts follow in a second phase. Written from
