@@ -34,7 +34,7 @@ the options, the network model and what the toy adds to the document.
   (2026): the design space and the commitment;
 - [EIP-8411: what segmented payload diffusion is made of](https://ethresear.ch/t/eip-8411-what-segmented-payload-diffusion-is-made-of/26025)
   (2026): tiers 1 to 3;
-- *EIP-8411 tier 4: informed diffusion at a 50 Mbps floor* (forthcoming): tier 4 and its
+- *Informed diffusion: making home builders publish fast* (forthcoming): tier 4 and its
   measurements;
 - [Segmented payload diffusion, card by card](https://notes.ethereum.org/@cskiraly/segmented-stack-cards)
   (2026): each mechanism in prose, what it costs and when it matters;

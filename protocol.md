@@ -29,8 +29,8 @@ Related documents, with the short names used below:
   (*Segment, code, push-pull*, 2026): the design space, the commitment and the relay rules;
 - [EIP-8411: what segmented payload diffusion is made of](https://ethresear.ch/t/eip-8411-what-segmented-payload-diffusion-is-made-of/26025)
   (*What segmented payload diffusion is made of*, 2026): tiers 1 to 3, cards 0 to 6;
-- *EIP-8411 tier 4: informed diffusion at a 50 Mbps floor* (*Informed diffusion*, forthcoming):
-  tier 4 and its measurements;
+- *Informed diffusion: making home builders publish fast* (*Informed diffusion*, forthcoming):
+  tier 4 and the design as a whole;
 - [Segmented payload diffusion, card by card](https://notes.ethereum.org/@cskiraly/segmented-stack-cards)
   (2026): each card in prose, with what it costs and when it matters;
 - [Who decides that a payload is revealed?](https://notes.ethereum.org/@cskiraly/eip-8411-envelope-signature)
