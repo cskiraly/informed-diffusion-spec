@@ -94,6 +94,7 @@ What the toy adds to the document, and nothing else:
 - **Not modelled:** QUIC's congestion control and CoDel's drops, so a fast sender is never slowed
   by a slow receiver's link; processing time (the harness runs on a virtual clock, where processing
   is free too).
+- **The transport's buffer:** unbounded unless `--send-buffer` bounds it (below).
 
 ## Side by side with the harness
 
@@ -128,8 +129,16 @@ harness's seen cache counts it, not one held only since the decode.
 - **Repair.** A decoded node pushes the frames it rebuilt (§4.6, `push_rebuilt`), and so does the
   toy by default. The toy's repair costs more extra bytes than the harness's, on a clean network
   too, and why is not known yet: its repair bytes are not the protocol's.
+- **The transport.** By default a write completes at once, as if a connection's transport took any
+  amount ahead of the link. A writer woken first can then hand its whole queue over while window
+  slots remain, and the entries behind it go straight after: at publish the source's mesh peers get
+  their few pushes and every announcement at once, and ask the source for most frames. The
+  harness's stream writes block, so its writers interleave and its queues hold their backlog, where
+  cancel acts. `--send-buffer 1`, one entry at a time per connection, matches the harness on the
+  source's asks, answers and cancels and on the relays' cancels (n = 100); use it to set the two side
+  by side.
 - **The graph.** The latencies are the harness's for the same seed; the connection graph and the
-  mesh are not.
+  mesh are the toy's own, unless `--topology` loads the harness's.
 
 ## What running it found in the document
 
