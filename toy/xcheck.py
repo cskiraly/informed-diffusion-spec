@@ -20,7 +20,10 @@ The invariants, each a count that must be zero:
 - window: nodes whose slots in flight exceeded W;
 - overlap: asks for a frame sent while an earlier ask for it was open (inside IWANT_WINDOW, the
   frame not yet held);
-- late: frames sent to a peer whose HAVE for them the sender already held;
+- late: frames sent to a mesh peer whose HAVE (in an IDONTWANT, the only carrier that feeds
+  peer_has, §4.4) for them had reached the sender earlier in the message, whether or not the sender
+  still holds it: the harness's ledger reads it the same way. late_live, a diagnostic, counts those
+  whose HAVE the sender still held, which cancel (card 8) should have dropped;
 - fault: frames sent by silent relays, answers sent by withholders.
 """
 import gzip
@@ -119,6 +122,7 @@ class Recorder:
         self.pushes = defaultdict(Counter)      # node id -> (group, index) -> eager pushes
         self.asked = defaultdict(dict)          # node id -> (group, index) -> time of the last ask
         self.peak = Counter()                   # node id -> most slots in flight
+        self.have_ever = {}                     # (node, peer, group) -> every HAVE bit the peer sent it
 
     # -- hooks
 
@@ -132,7 +136,7 @@ class Recorder:
             return spec_transmit(node, p, e)
 
         def _deliver(src, dst, e, data, ctrl):  # the name the digest records stays the same
-            rec.received(dst, e)
+            rec.received(src, dst, e)
             return spec_deliver(src, dst, e, data, ctrl)
         sim.transmit, sim._deliver = transmit, _deliver
         for nd in sim.nodes.values():
@@ -171,10 +175,12 @@ class Recorder:
             else:
                 c["push"] += 1
                 self.pushes[nid][(f.group, f.index)] += 1
-            ph = ns["peer_has"].get(p)
-            he = ph.get(f.group) if ph is not None else None
-            if he is not None and he.has(f.index):
+            if p in ns["mesh"] and (self.have_ever.get((nid, p, f.group), 0) >> f.index) & 1:
                 c["inv_late"] += 1
+                ph = ns["peer_has"].get(p)
+                he = ph.get(f.group) if ph is not None else None
+                if he is not None and he.has(f.index):
+                    c["late_live"] += 1
             if nid in self.faulty and (self.silent or e.solicited):
                 c["inv_fault"] += 1
         if e.control is None:
@@ -201,7 +207,14 @@ class Recorder:
                         c["inv_overlap"] += 1
                     self.asked[nid][key] = now
 
-    def received(self, dst, e):
+    def received(self, src, dst, e):
+        if e.control is not None:
+            for m in e.control.items:
+                if m.kind == "idontwant":
+                    for x in m.ids:
+                        if isinstance(x, Wm.HaveBitmap):
+                            k = (dst, src, x.group)
+                            self.have_ever[k] = self.have_ever.get(k, 0) | x.bits.v
         f = e.frame
         if f is None:
             return
@@ -254,6 +267,7 @@ class Recorder:
         f += ["|", f"inv_budget={budget_nodes}", f"inv_budget_frames={over}", f"inv_window={win_nodes}",
               f"inv_overlap={tot['inv_overlap']}", f"inv_late={tot['inv_late']}", f"inv_fault={tot['inv_fault']}",
               "|", f"push_max={push_max}", f"peak={peak}", f"w={w_hi}", "late_same=0",
+              f"late_live={tot['late_live']}",
               f"ask_window_ms={round(self.window * 1000)}"]
         return " ".join(f)
 

@@ -111,7 +111,9 @@ invariants the document's rules imply, each a count that must be zero:
 - `budget`: a relay that pushed one frame more often than its push degree;
 - `window`: a node with more slots in flight than `W`;
 - `overlap`: an ask for a frame while an earlier ask for it is open (inside `IWANT_WINDOW`, not yet held);
-- `late`: a frame sent to a peer whose HAVE for it the sender already held;
+- `late`: a frame sent to a mesh peer whose HAVE for it (in an IDONTWANT, the only carrier that feeds
+  `peer_has`) had reached the sender earlier in the message, held or since expired, as the harness's
+  ledger reads it; `late_live` counts those the sender still held, which cancel should have dropped;
 - `fault`: a frame from a silent relay, or an answer from a withholder.
 
 The recorder reads node state without creating entries and schedules nothing, so a run's events
