@@ -89,7 +89,7 @@ def main(argv):
                          "announce (the decoding note's variants); none: it rebuilds nothing (the harness's tier-4 cells)")
     ap.add_argument("--rb-jitter-ms", type=float, default=0.0, help="ms: a random extra wait, up to this, before the decode hands its frames over")
     ap.add_argument("--rb-max", type=int, default=0, help="push: at most this many frames per peer (0: its whole shortfall)")
-    ap.add_argument("--fault", default="", help="wh<pct> withholders or sil<pct> silent relays, as the harness picks them")
+    ap.add_argument("--fault", default="", help="wh<pct> withholders or sil<pct> silent nodes, as the harness picks them")
     ap.add_argument("--loss-data", type=int, default=0, help="percent of frames every node drops at admission")
     ap.add_argument("--up", type=float, default=0, help="Mbps: every home node's uplink (downlink twice it)")
     ap.add_argument("--down", type=float, default=0, help="Mbps: every home node's downlink")

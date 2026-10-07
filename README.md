@@ -40,7 +40,7 @@ the options, the network model and what the toy adds to the document.
   (2026): each mechanism in prose, what it costs and when it matters;
 - [Who decides that a payload is revealed?](https://notes.ethereum.org/@cskiraly/eip-8411-envelope-signature)
   (2026): how the envelope's signature travels;
-- *What a relay checks, and when it decodes* (forthcoming): the validation levels, the decode claim
+- *What a forwarding node checks, and when it decodes* (forthcoming): the validation levels, the decode claim
   and repair.
 
 ## License

@@ -71,7 +71,7 @@ What the toy adds to the document, and nothing else:
 - **Variants and stresses the document does not specify:** rebuilt frames held or announced
   instead of pushed, or none rebuilt at all (`--rebuilt`), a cap on the frames pushed per peer
   (`--rb-max`) and a random wait before the push (`--rb-jitter-ms`); the harness's withholders and
-  silent relays (`--fault`; a silent relay pushes nothing it rebuilt, as in the harness), frames
+  silent nodes (`--fault`; a silent node pushes nothing it rebuilt, as in the harness), frames
   lost at admission (`--loss-data`) and thin links (`--up`, `--down`).
 
 ## The network

@@ -32,7 +32,7 @@ Related documents, with the short names used below:
   (2026): each card in prose, with what it costs and when it matters;
 - [Who decides that a payload is revealed?](https://notes.ethereum.org/@cskiraly/eip-8411-envelope-signature)
   (2026): how the envelope's signature travels.
-- *What a relay checks, and when it decodes* (2026, forthcoming): the validation levels, when the
+- *What a forwarding node checks, and when it decodes* (2026, forthcoming): the validation levels, when the
   decode claim goes out, and what a node does with the frames it rebuilds.
 
 **Card tags.** A comment such as `# [c8]` marks the line or block that implements card 8. Tags say
@@ -229,7 +229,7 @@ the full message id.
 
 ## 3. Validation: three levels, and what each gates [c1, c6, c10]
 
-A relay cannot validate a payload before it forwards pieces of it; that is where the speed comes
+A node cannot validate a payload before it forwards pieces of it; that is where the speed comes
 from. Validation therefore comes in three levels, and only the first fits a frame.
 
 **Level 1, per frame: authenticity.** The frame is the committed piece at its index:
@@ -285,8 +285,8 @@ that reaches the same-slot attestation quorum is queued for withdrawal whether o
 ever arrives: if it is not settled earlier, at the end of the epoch after the bid's. A builder that
 commits to an invalid payload therefore pays for the slot and gets nothing for it. One case moves
 the cost: a proposer that signs a second block for the slot is slashed, and the slashing clears
-that slot's pending payment. Relays could not have known, so a payload that fails level 2 or 3
-never counts against them.
+that slot's pending payment. The nodes that forwarded it could not have known, so a payload that fails level 2
+or 3 never counts against them.
 
 **Relay gating.** These rules are from *Segment, code, push-pull* (2026). None of them ran in the
 measured cells (section 9).
@@ -499,8 +499,8 @@ def drop_group(g):                                    # level 2 or level 3 faile
   succeeds and the claim is true; if they do not, any K of them rebuild a codeword that differs
   somewhere, so every node's check fails, and the claim was about a group every node drops. What
   waits for level 2 is everything that hands out rebuilt data: delivery, and the rebuilt frames,
-  which the node pushes, and `resolve` finds, only once they are stored. *What a relay checks, and
-  when it decodes* (2026) maps the alternatives.
+  which the node pushes, and `resolve` finds, only once they are stored. *What a forwarding node checks,
+  and when it decodes* (2026) maps the alternatives.
 - **Relaying continues** while a node decodes: the frames it received were authentic whatever
   levels 2 and 3 find, so it forwards later arrivals as before (§4.2).
 - **The decode claim makes the node a holder.** Its peers stop pushing to it and count it as a
@@ -530,13 +530,13 @@ def drop_group(g):                                    # level 2 or level 3 faile
   the network. Repair puts the other K back as soon as the first nodes decode, so that a node still
   short can again complete on any K of the N. That brings the spread most of the way back to that
   of a full release, also against withholders that refuse to repair, whether or not they announce
-  frames they do not hold, and about half of the way against silent relays. An announcement would
+  frames they do not hold, and about half of the way against silent nodes. An announcement would
   add an ask and an answer, three link delays instead of one, so it helps mainly where other asks
   fail. It can also be baited: an announcement is a promise nobody can check before asking, and a
   withholder or a liar draws asks it never answers until the park stops them (§6.1). Where every
-  frame is released and the relays are honest, a rebuilt frame is one more copy of a plentiful one,
-  and repair has little to do; on thin links it changed nothing measurable. *What a relay checks,
-  and when it decodes* (2026) gives the measurements.
+  frame is released and the other nodes are honest, a rebuilt frame is one more copy of a plentiful one,
+  and repair has little to do; on thin links it changed nothing measurable. *What a forwarding node
+  checks, and when it decodes* (2026) gives the measurements.
 - **Level 3 runs on the reassembled payload**, with the envelope's separately sent signature, and
   gates only what consensus consumes. If it fails, the application calls `drop_group`.
 - **The claim reaches mesh peers only.** A peer outside the mesh that is still pushing (the striping
@@ -585,7 +585,7 @@ def candidates_for_source(f):
 - **Batch publishing** [c2] fixes only the order in which frames enter each peer's queue. What
   leaves first on each link is decided when the queue sends (§7).
 - **Striped publishing** [c13]: a source whose configured uplink is at least `STRIPE_UPLINK`
-  stripes; a slower one pushes to its mesh, as relays do. Striping pays only when the source can
+  stripes; a slower one pushes to its mesh, as the other nodes do. Striping pays only when the source can
   send faster than its mesh peers can pass the frames on, and the source knows neither their uplinks
   nor how much of its own it can count on, so the threshold sits where the gain is measured. The
   candidates are then every connected peer on the topic. With the fewest-first order of §5.3, and
@@ -595,7 +595,7 @@ def candidates_for_source(f):
   announcement from this step, though heartbeat gossip may announce to them later (§6.4).
 - The source pushes each frame to R = 2 peers. It never uses the fast-class degree of card 17.
 
-### 5.2 A relay forwards [c3, c4, c11, c17]
+### 5.2 A node forwards [c3, c4, c11, c17]
 
 ```python
 def forward(f, from_peer):
@@ -1025,7 +1025,7 @@ does not specify, and what that means for the numbers:
   check in a few milliseconds. No frame was rebuilt, so the measured runs did not repair (§4.6): a
   decoded node pushed, served and announced only frames it had received. Repair was measured in
   separate runs, on top of tier 4, with each node handed the frames its decode would rebuild 5 ms
-  after its K-th frame (*What a relay checks, and when it decodes*, 2026). On the post's clean
+  after its K-th frame (*What a forwarding node checks, and when it decodes*, 2026). On the post's clean
   networks it should have little to act on, since every frame is released and a rebuilt frame is
   one more copy of a plentiful one; on thin links with every frame released it changed nothing
   measurable.
@@ -1053,14 +1053,14 @@ does not specify, and what that means for the numbers:
   each mesh peer, all before the data. This document sends one. The final bitmap carries the same
   holdings; dropping the others reduces control traffic, and may change queue scheduling, since
   urgent messages go first. That timing effect was not isolated.
-- *The sender counts as a holder* in a relay's budget (§5.2), so R = 2 means one further push per
+- *The sender counts as a holder* in a forwarding node's budget (§5.2), so R = 2 means one further push per
   received frame. This is what was measured. The sender is also excluded from the candidates here;
   in the code it could take a budget slot and then be skipped, which is rare.
 - *Control waits behind the window.* While frames are queued to a peer, that peer's IHAVE, IWANT,
   GRAFT and PRUNE on the normal lane wait for a slot, though they do not keep it. A writer waiting
   for a slot also lost its place in line whenever an urgent message arrived for it; this document
   keeps its place (§7.1). Whether control should bypass the window is open. At home only the
-  source's window filled in the measured cells, so relays were not affected.
+  source's window filled in the measured cells, so the other nodes were not affected.
 - *A slot frees when the peer holds the frame from anyone,* not when our copy arrives. A decode
   claim frees all of that peer's slots at once.
 - *Holder counts for rarest-first* only ever increased: a departed peer's claims were dropped, but
