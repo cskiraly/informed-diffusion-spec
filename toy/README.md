@@ -15,7 +15,7 @@ network is simpler (below), and its numbers are not to be quoted in place of the
 ## Running it
 
 ```
-python3 run.py --net home --seed 7                 # tier 4 on the 50 Mbps floor, 500 nodes, 6 payloads
+python3 run.py --net home --seed 7                 # tier 4 in the all-home network, 500 nodes, 6 payloads
 python3 run.py --net dcb20 --seed 7 --without 17   # the datacenter mix, without card 17
 python3 run.py --net home --stripe on              # every source stripes, as the harness's tier-4 cells did
 python3 run.py --net home --rebuilt none           # nothing rebuilt, as in the harness's tier-4 cells
