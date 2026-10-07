@@ -17,6 +17,7 @@ import sys
 import time
 
 import scenario
+import xcheck
 from sim import Sim
 
 CFG = {
@@ -45,12 +46,20 @@ def run(cfg, out=sys.stdout):
     t0 = time.time()
     sim = Sim(cfg)
     print(f"latency model geo: {latency_summary(sim.lat, cfg['nodes'])}", file=out)
+    rec = None
+    if cfg.get("xcheck"):
+        rec = sim.recorder = xcheck.Recorder(sim)
+        for i, toy, harness in rec.degree_mismatches(cfg.get("xc_degree")):
+            print(f"xcheck: node {i} pushes at {toy} here, {harness} in the harness", file=out)
     rows, snaps = [], []
     for m in range(1, cfg["msgs"] + 1):
         at = cfg["first"] + (m - 1) * cfg["gap"]
         sim.run(at)
         snaps.append({i: (nd.rx_data, nd.rx_ctrl) for i, nd in sim.nodes.items()})
         sim.publish(m)
+        if rec is not None:             # read at the horizon; run() in two steps processes the same events
+            sim.run(at + rec.horizon)
+            rec.take(m)
     sim.run(cfg["first"] + cfg["msgs"] * cfg["gap"])
     snaps.append({i: (nd.rx_data, nd.rx_ctrl) for i, nd in sim.nodes.items()})
     W, n = cfg["COMPRESSED"], cfg["nodes"]
@@ -62,6 +71,8 @@ def run(cfg, out=sys.stdout):
         print(f"msg {r['msg']}: p50 {r['p50']*1000:.0f}ms p99 {r['p99']*1000:.0f}ms "
               f"max {r['max']*1000:.0f}ms missing {r['missing']}  "
               f"copies {r['copies']:.2f} (data {data:.2f}, control {ctrl:.3f})", file=out)
+        for line in (rec.lines.get(r["msg"], []) if rec is not None else []):
+            print(f"  {line}", file=out)
     warm = rows[1:] or rows
     summary = {k: st.median(r[k] for r in warm) for k in ("p50", "p99", "copies", "data", "ctrl")}
     print(f"warm median: p50 {summary['p50']*1000:.0f}ms p99 {summary['p99']*1000:.0f}ms "
@@ -93,6 +104,10 @@ def main(argv):
     ap.add_argument("--loss-data", type=int, default=0, help="percent of frames every node drops at admission")
     ap.add_argument("--up", type=float, default=0, help="Mbps: every home node's uplink (downlink twice it)")
     ap.add_argument("--down", type=float, default=0, help="Mbps: every home node's downlink")
+    ap.add_argument("--topology", default="", help="the harness's SEGMENT_XC_DUMP file: run on its graph, latencies, "
+                    "link classes, meshes, publishers and faulty set (--net, --nodes, --fault are then ignored)")
+    ap.add_argument("--xcheck", action="store_true", help="print the harness's xcheck line per message "
+                    "(per-rule counts and invariants at publish + 3 s); on with --topology")
     ap.add_argument("--latency-only", action="store_true")
     ap.add_argument("--digest", action="store_true", help="also print a hash of every event the run processed (check.py)")
     a = ap.parse_args(argv)
@@ -109,13 +124,27 @@ def main(argv):
     cfg.update(rebuilt=a.rebuilt, rb_jitter=a.rb_jitter_ms / 1000, rb_max=a.rb_max, fault=a.fault, loss_data=a.loss_data)
     cfg["latency"] = scenario.geo_latency(a.seed)
     cfg["topology"] = scenario.topology
+    cfg["xcheck"] = a.xcheck or bool(a.topology)
+    notes = []
+    if a.topology:
+        topo = xcheck.load(a.topology)
+        if topo["net"]["seed"] != a.seed:
+            print(f"note: --seed {a.seed} replaced by the dump's seed {topo['net']['seed']}")
+            cfg["seed"] = topo["net"]["seed"]
+            cfg["latency"] = scenario.geo_latency(cfg["seed"])
+        notes = xcheck.apply(cfg, topo, cfg["latency"])
+        if len(topo["meshes"]) < a.msgs:
+            cfg["msgs"] = len(topo["meshes"])
     if a.latency_only:
         print(latency_summary(cfg["latency"](a.nodes, None), a.nodes))
         return
-    print(f"toy: net={a.net} seed={a.seed} n={a.nodes} msgs={a.msgs} without={a.without or '-'} stripe={a.stripe} uplink={a.uplink} rebuilt={a.rebuilt}"
+    print(f"toy: net={a.net if not a.topology else 'dump'} seed={cfg['seed']} n={cfg['nodes']} msgs={cfg['msgs']} without={a.without or '-'} stripe={a.stripe} uplink={a.uplink} rebuilt={a.rebuilt}"
           f"{' jitter=%gms' % a.rb_jitter_ms if a.rb_jitter_ms else ''}{' rbmax=%d' % a.rb_max if a.rb_max else ''}"
           f"{' fault=' + a.fault if a.fault else ''}"
-          f"{' loss=%d%%' % a.loss_data if a.loss_data else ''}{' up=%g' % a.up if a.up else ''}{' down=%g' % a.down if a.down else ''}")
+          f"{' loss=%d%%' % a.loss_data if a.loss_data else ''}{' up=%g' % a.up if a.up else ''}{' down=%g' % a.down if a.down else ''}"
+          f"{' topology=' + a.topology if a.topology else ''}")
+    for note in notes:
+        print(f"note: {note}")
     run(cfg)
 
 

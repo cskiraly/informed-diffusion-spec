@@ -66,8 +66,9 @@ class Sim:
         self.q, self.seq = [], 0
         self.blocks = {}
         self.canonical = {}                    # group -> {index: frame}, the source's frames
-        self.groups = []                       # (group, publish time) in order
+        self.groups = []                       # (group, publish time, publisher) in order
         self.events = 0
+        self.recorder = None                   # xcheck.Recorder, when run.py installs one
         self.digest = hashlib.sha256() if cfg.get("digest") else None
         self._ids = {}
         self._build()
@@ -241,14 +242,21 @@ class Sim:
     # ---- the source and its payloads
 
     def publish(self, m):
-        src = self.nodes[1]
+        pub = self.cfg.get("publishers", {}).get(m, 1)     # node 1 unless the harness's dump names one
+        meshes = self.cfg.get("meshes", {}).get(m)
+        if meshes is not None:                             # the harness's meshes at this publish
+            for i, nd in self.nodes.items():
+                nd.ns["mesh"] = set(meshes[i - 1])
+        if self.recorder is not None:
+            self.recorder.publish(m, pub)
+        src = self.nodes[pub]
         ns = src.ns
         body = Wm.Blob(self.cfg["payload"], ("payload", m))
         d, shards = ns["build_group"](body)
         g = ns["group_id"](d)
         root = hashlib.sha256(b"block" + m.to_bytes(4, "little")).digest()
         self.blocks[root] = Block(m, root, g)
-        self.groups.append((g, self.now))
+        self.groups.append((g, self.now, pub))
         ns["publish"](self.blocks[root], d, shards)
         self.canonical[g] = dict(ns["frames"][g])
 
@@ -265,9 +273,9 @@ class Sim:
     def results(self):
         c, out = self.cfg, []
         W = c["COMPRESSED"]
-        for k, (g, t0) in enumerate(self.groups):
+        for k, (g, t0, pub) in enumerate(self.groups):
             K = len(self.canonical[g]) // 2
-            ts = sorted(nd.completed.get(g, math.inf) - t0 for i, nd in self.nodes.items() if i != 1)
+            ts = sorted(nd.completed.get(g, math.inf) - t0 for i, nd in self.nodes.items() if i != pub)
             out.append({"msg": k + 1, "p50": pct(ts, 50), "p99": pct(ts, 99),
                         "max": ts[-1], "missing": sum(1 for t in ts if t == math.inf)})
         return out
