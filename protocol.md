@@ -582,7 +582,7 @@ def publish(block, d, shards):
             if copy < len(targets):
                 p = targets[copy]
                 if p not in led:            # [P4] a peer's first frame from us follows our HAVE naming
-                    led.add(p)              #   it, as a relay's HAVE precedes its pushes
+                    led.add(p)              #   it, as a forwarding node's HAVE precedes its pushes
                     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=origin[g] | bitmap({f.index}))), urgent=True)
                 enqueue(p, f, urgent=False)
     for i in range(N(d)):
@@ -590,7 +590,7 @@ def publish(block, d, shards):
 
 def origin_sent(f):                         # [P4] a frame of a group we publish leaves for the first
     if origin[f.group].has(f.index): return     # time (§7.2): it joins our HAVE, which goes to the
-    origin[f.group].set(f.index)                # mesh as a relay's does when a frame arrives (§4.2)
+    origin[f.group].set(f.index)                # mesh as a forwarding node's does when a frame arrives (§4.2)
     for q in mesh: send_have(q, f.group)
 
 def candidates_for_source(f):
@@ -613,12 +613,12 @@ def candidates_for_source(f):
 - **The source's HAVE is paced** [P4], for the source's privacy. A HAVE that names every frame
   before any frame has left can come only from the source, so it tells each mesh peer who published
   the payload. The source's HAVE therefore names only frames it has sent: a frame joins it when the
-  source's writer first sends it, and the HAVE then goes to the mesh, as a relay's does when a frame
+  source's writer first sends it, and the HAVE then goes to the mesh, as a forwarding node's does when a frame
   arrives. A peer the source pushes to gets a HAVE naming its first frame just ahead of it, as a
-  relay's HAVE precedes its pushes. The HAVE still keeps relays from pushing the source's frames
+  forwarding node's HAVE precedes its pushes. The HAVE still keeps the other nodes from pushing the source's frames
   back to it, a frame at a time. HAVEs to the mesh that would leave together may be merged into one,
   as the research implementation merges those of the frames sent between two of its router's turns. This removes the one certain sign of the source; others remain (its
-  HAVE grows faster than any relay's, it announces every frame at publish, it is everyone's first
+  HAVE grows faster than any other node's, it announces every frame at publish, it is everyone's first
   sender), and are the subject of separate work on the source's privacy, where P4 is this measure's
   name. The research implementation has it as an option, measured at no cost in delivery.
 
