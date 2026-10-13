@@ -23,7 +23,7 @@ GOLDEN = HERE / "golden.txt"
 BASE = ["--nodes", "60", "--degree", "30", "--msgs", "3", "--seed", "7"]
 CELLS = {                               # name -> run.py's arguments on top of BASE
     "push": [],
-    "hold": ["--rebuilt", "hold"],      # the same events as none: nobody asks for a held frame (§4.6)
+    "hold": ["--rebuilt", "hold"],      # the same events as none: nobody asks for a held chunk (§4.6)
     "announce": ["--rebuilt", "announce"],
     "none": ["--rebuilt", "none"],
     "withholders": ["--fault", "wh30"],

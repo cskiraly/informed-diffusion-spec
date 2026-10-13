@@ -1,7 +1,7 @@
 """Runtime stand-ins for the pseudocode's wire types (§1, §2) and the queue entry (§7).
 
 The toy does not move real bytes. A payload is a Blob that knows its length and where it came
-from; frames, bitmaps and asks are small objects; and every message is charged the bytes its wire
+from; chunks, bitmaps and asks are small objects; and every message is charged the bytes its wire
 form would take (wire_bytes), which is what the byte counts of a run add up.
 """
 import hashlib
@@ -48,7 +48,7 @@ def uint32_le(i):
 
 
 def content_id(f):
-    """The 20-byte Altair id over the topic and the decompressed frame: here, over its identity."""
+    """The 20-byte Altair id over the topic and the decompressed chunk: here, over its identity."""
     return sha256(b"content" + f.group + uint32_le(f.index) + repr(f.data.tag).encode())[:20]
 
 
@@ -185,25 +185,25 @@ def PRUNE(prunes):
 
 
 class Entry:
-    """A queue entry: at most one frame, plus control (§7.2)."""
-    __slots__ = ("frame", "control", "solicited")
+    """A queue entry: at most one chunk, plus control (§7.2)."""
+    __slots__ = ("chunk", "control", "solicited")
 
-    def __init__(self, frame=None, control=None, solicited=False):
-        self.frame, self.control, self.solicited = frame, control, solicited
+    def __init__(self, chunk=None, control=None, solicited=False):
+        self.chunk, self.control, self.solicited = chunk, control, solicited
 
     def iwants(self):
         return [m for m in self.control.items if m.kind == "iwant"] if self.control else []
 
     def is_empty(self):
-        return self.frame is None and (self.control is None or self.control.empty())
+        return self.chunk is None and (self.control is None or self.control.empty())
 
 
 class RPC:
-    """What a receiver's on_rpc sees: the entry's frame and its control, grouped by kind (§4.1)."""
-    __slots__ = ("frames", "ihave", "iwant", "idontwant", "prune")
+    """What a receiver's on_rpc sees: the entry's chunk and its control, grouped by kind (§4.1)."""
+    __slots__ = ("chunks", "ihave", "iwant", "idontwant", "prune")
 
     def __init__(self, entry):
-        self.frames = [entry.frame] if entry.frame is not None else []
+        self.chunks = [entry.chunk] if entry.chunk is not None else []
         ih, iw, idw, pr = [], [], [], []
         if entry.control:
             for m in entry.control.items:
@@ -218,8 +218,8 @@ RPC_OVERHEAD = 6          # stream length prefix and the RPC's own tags
 FIELD = 3                 # tag and length of one repeated field
 
 
-def frame_wire(f):
-    """Frame SSZ (§2) inside a gossipsub Message: data dominates."""
+def chunk_wire(f):
+    """Chunk SSZ (§2) inside a gossipsub Message: data dominates."""
     ssz = 8 + 32 + 32 + DESCRIPTOR_BYTES + 4 + 4 + 32 * len(f.proof) + 4 + len(f.data)
     return ssz + FIELD + TOPIC_BYTES + FIELD
 
@@ -237,6 +237,6 @@ def control_wire(c):
 
 def entry_wire(e):
     """(data bytes, control bytes) of one RPC."""
-    data = frame_wire(e.frame) if e.frame is not None else 0
+    data = chunk_wire(e.chunk) if e.chunk is not None else 0
     ctrl = (control_wire(e.control) if e.control else 0) + RPC_OVERHEAD
     return data, ctrl

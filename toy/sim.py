@@ -3,7 +3,7 @@
 Network model (deliberately simple; README.md says what it leaves out):
 - each node has an uplink and a downlink rate; each ordered pair a fixed one-way latency;
 - a node's writer hands entries to its connection's transport at once, as a QUIC stream accepts
-  writes; the window (card 14) is what holds frames back, as in the pseudocode;
+  writes; the window (card 14) is what holds chunks back, as in the pseudocode;
 - the uplink shares itself equally among the connections with something to send (processor
   sharing, the fluid limit of the harness's per-flow FQ-CoDel), each connection sending its entries
   in order; --uplink rr sends whole entries in turn instead;
@@ -66,7 +66,7 @@ class Sim:
         self.now = 0.0
         self.q, self.seq = [], 0
         self.blocks = {}
-        self.canonical = {}                    # group -> {index: frame}, the source's frames
+        self.canonical = {}                    # group -> {index: chunk}, the source's chunks
         self.groups = []                       # (group, publish time, publisher) in order
         self.events = 0
         self.recorder = None                   # xcheck.Recorder, when run.py installs one
@@ -269,13 +269,13 @@ class Sim:
         self.blocks[root] = Block(m, root, g)
         self.groups.append((g, self.now, pub))
         ns["publish"](self.blocks[root], d, shards)
-        self.canonical[g] = dict(ns["frames"][g])
+        self.canonical[g] = dict(ns["chunks"][g])
 
-    def rebuild(self, frames_g, d):
-        """decode_and_reencode for an honest group: the source's frames, as a real decode would give."""
+    def rebuild(self, chunks_g, d):
+        """decode_and_reencode for an honest group: the source's chunks, as a real decode would give."""
         if self.cfg.get("rebuilt") == "none":
-            return dict(frames_g)               # no frame is rebuilt, as in the harness's tier-4 cells
-        for f in frames_g.values():
+            return dict(chunks_g)               # no chunk is rebuilt, as in the harness's tier-4 cells
+        for f in chunks_g.values():
             return dict(self.canonical[f.group])
         return None
 

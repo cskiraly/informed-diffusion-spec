@@ -16,16 +16,16 @@ digest records, and it schedules nothing: a run's events and digest are the same
 without it. Per message it resets at the publish and is read at the horizon, publish + 3 s.
 
 The invariants, each a count that must be zero:
-- budget: relays that pushed one frame more often than their push degree (R_NODE);
+- budget: forwarding nodes that pushed one chunk more often than their push degree (R_NODE);
 - window: nodes whose slots in flight exceeded W;
-- overlap: an ask for a frame decided while an earlier ask for it was open (inside IWANT_WINDOW,
-  the frame not yet held), timed at may_ask, where the harness's request ledger also times asks
+- overlap: an ask for a chunk decided while an earlier ask for it was open (inside IWANT_WINDOW,
+  the chunk not yet held), timed at may_ask, where the harness's request ledger also times asks
   (when the router sends them, not when the writer writes them);
-- late: frames sent to a mesh peer whose HAVE (in an IDONTWANT, the only carrier that feeds
+- late: chunks sent to a mesh peer whose HAVE (in an IDONTWANT, the only carrier that feeds
   peer_has, §4.4) for them had reached the sender earlier in the message, whether or not the sender
   still holds it: the harness's ledger reads it the same way. late_live, a diagnostic, counts those
   whose HAVE the sender still held, which cancel (card 8) should have dropped;
-- fault: frames sent by silent relays, answers sent by withholders.
+- fault: chunks sent by silent nodes, answers sent by withholders.
 """
 import gzip
 import json
@@ -125,7 +125,7 @@ class Recorder:
         self.peak = Counter()                   # node id -> most slots in flight
         self.have_ever = {}                     # (node, peer, group) -> every HAVE bit the peer sent it
         self.times = {"ihave": [], "push": [], "answer": []}   # the source's sends, s after publish
-        self.asks_sent = Counter()              # (node, group, index) -> asks it has written for the frame
+        self.asks_sent = Counter()              # (node, group, index) -> asks it has written for the chunk
         self.ask_first = self.ask_retry = 0     # asks written to the source: their asker's first, or later
 
     # -- hooks
@@ -166,7 +166,7 @@ class Recorder:
             return ok
 
         def filter_entry(p, entry):
-            f = entry.frame
+            f = entry.chunk
             if f is not None and ns["CANCEL"]:
                 ph = ns["peer_has"].get(p)
                 he = ph.get(f.group) if ph is not None else None
@@ -188,7 +188,7 @@ class Recorder:
 
     def sent(self, node, p, e):
         c, nid, ns = self.c[node.id], node.id, node.ns
-        f = e.frame
+        f = e.chunk
         if nid == self.pub:
             t = self.sim.now - self.t0
             if f is not None:
@@ -244,12 +244,12 @@ class Recorder:
                         if isinstance(x, Wm.HaveBitmap):
                             k = (dst, src, x.group)
                             self.have_ever[k] = self.have_ever.get(k, 0) | x.bits.v
-        f = e.frame
+        f = e.chunk
         if f is None:
             return
         c = self.c[dst]
         c["rx"] += 1
-        # A duplicate is a frame the node had received before, or the publisher's own, as the
+        # A duplicate is a chunk the node had received before, or the publisher's own, as the
         # harness's seen cache counts it; not one it holds only since its decode (mine, card 10).
         got = self.sim.nodes[dst].ns["received"].get(f.group)
         if (got is not None and got.has(f.index)) or dst == self.pub:
@@ -293,7 +293,7 @@ class Recorder:
                 if self.peak[i] > w:
                     win_nodes += 1
         f = [f"{k}={tot[k]}" for k in KEYS]
-        f += ["|", f"inv_budget={budget_nodes}", f"inv_budget_frames={over}", f"inv_window={win_nodes}",
+        f += ["|", f"inv_budget={budget_nodes}", f"inv_budget_chunks={over}", f"inv_window={win_nodes}",
               f"inv_overlap={tot['inv_overlap']}", f"inv_late={tot['inv_late']}", f"inv_fault={tot['inv_fault']}",
               "|", f"push_max={push_max}", f"peak={peak}", f"w={w_hi}", "late_same=0",
               f"late_live={tot['late_live']}",

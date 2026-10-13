@@ -20,7 +20,7 @@ def _v(x):
 
 
 class Bits:
-    """A set of frame indices backed by an int; bit i is index i."""
+    """A set of chunk indices backed by an int; bit i is index i."""
     __slots__ = ("v",)
 
     def __init__(self, v=0):
@@ -126,7 +126,7 @@ class HaveEntry(_Lazy):
 
 
 class PushEntry(Bits):
-    """pushed[p][g]: the frames we chose to push p, when the first went, and its expiry (§5.2)."""
+    """pushed[p][g]: the chunks we chose to push p, when the first went, and its expiry (§5.2)."""
     __slots__ = ("first_push", "ttl", "_home", "_key")
 
     def __init__(self, home=None, key=None):
