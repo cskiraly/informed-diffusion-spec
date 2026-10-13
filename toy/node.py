@@ -40,9 +40,9 @@ class PeerQueue:
     def __init__(self):
         self.urgent, self.normal = [], []
 
-    def has_frames(self):
+    def has_chunks(self):
         for e in self.normal:
-            if e.frame is not None:
+            if e.chunk is not None:
                 return True
         return False
 
@@ -91,8 +91,8 @@ class Node:
         self.rx_data = self.rx_ctrl = 0
         self.tx_data = self.tx_ctrl = 0
         self.penalties = 0
-        self.dropped = 0                # frames lost at admission (loss_data)
-        self.completed = {}             # group -> time of the K-th distinct frame
+        self.dropped = 0                # chunks lost at admission (loss_data)
+        self.completed = {}             # group -> time of the K-th distinct chunk
         self.delivered = {}             # group -> time of delivery (after the check)
         ns = self._namespace()
         exec(SPEC, ns)
@@ -128,15 +128,15 @@ class Node:
             "IWANT_WINDOW": c["IWANT_WINDOW"], "RETRY_SLACK": c["RETRY_SLACK"],
             "PROMISE": c["PROMISE"], "PARK_TTL": c["PARK_TTL"],
             "GUARD_GRACE": c["GUARD_GRACE"], "FAN_IN": c["FAN_IN"],
-            "RTT_REF": c["RTT_REF"], "TARGET": c["TARGET"], "FRAME_BYTES": c["FRAME_BYTES"],
+            "RTT_REF": c["RTT_REF"], "TARGET": c["TARGET"], "CHUNK_BYTES": c["CHUNK_BYTES"],
             "WINDOW_TIMEOUT": c["WINDOW_TIMEOUT"], "HEARTBEAT": c["HEARTBEAT"],
             "D_LAZY": c["D_LAZY"], "GOSSIP_FACTOR": c["GOSSIP_FACTOR"],
             "GOSSIP_RETRANSMISSION": c["GOSSIP_RETRANSMISSION"],
             "HAVE_TTL": c["HAVE_TTL"], "PUSH_TTL": c["PUSH_TTL"],
             "CANCEL": c["card8"], "RAREST": c["card9"], "PROJECT": c["card12"], "PACED": c["card15"],
-            "DESCRIPTOR_IN_FRAME": True,
+            "DESCRIPTOR_IN_CHUNK": True,
             # state (§8.1); missing entries read as empty
-            "desc": {}, "state": DefaultMap(None), "frames": AutoMap(dict), "known_id": AutoMap(dict),
+            "desc": {}, "state": DefaultMap(None), "chunks": AutoMap(dict), "known_id": AutoMap(dict),
             "received": AutoMap(Bits), "mine": AutoMap(Bits), "stop_pull": DefaultMap(False),
             "peer_has": AutoMap(lambda: LazyMap(HaveEntry)),
             "pushed": AutoMap(lambda: LazyMap(PushEntry)),
@@ -151,18 +151,18 @@ class Node:
         self._seen = set()
         self._by_index = {}             # (group, index) -> set of ask keys, for closing promises
 
-        # ---- frames and groups (§8.1)
+        # ---- chunks and groups (§8.1)
         def open_group(g, f):
             ns["desc"][g] = f.descriptor
             ns["state"][g] = COLLECTING
 
         def store(g, i, f):
-            ns["frames"][g][i] = f
+            ns["chunks"][g][i] = f
             ns["known_id"][g][i] = ns["message_id"](f)
 
         def accepted(mid):
             g, i = parse_id(mid)
-            fr = ns["frames"].get(g)
+            fr = ns["chunks"].get(g)
             return fr is not None and i in fr and ns["state"][g] != INVALID
 
         def expired(g):
@@ -186,16 +186,16 @@ class Node:
             gi = group_index(a)
             if gi is None or ns["state"][gi.group] == INVALID:
                 return None
-            if gi.index not in ns["frames"][gi.group]:
+            if gi.index not in ns["chunks"][gi.group]:
                 return None
             return ns["known_id"][gi.group][gi.index]
 
-        def frame_of(mid):
+        def chunk_of(mid):
             g, i = parse_id(mid)
-            return ns["frames"][g][i]
+            return ns["chunks"][g][i]
 
-        def decode_and_reencode(frames_g, d):
-            return node.sim.rebuild(frames_g, d)
+        def decode_and_reencode(chunks_g, d):
+            return node.sim.rebuild(chunks_g, d)
 
         def payload_of(rebuilt):
             return None
@@ -219,7 +219,7 @@ class Node:
 
         def discard_queued(g):
             for q in ns["queue"].values():
-                q.normal = [e for e in q.normal if not (e.frame is not None and e.frame.group == g)]
+                q.normal = [e for e in q.normal if not (e.chunk is not None and e.chunk.group == g)]
 
         def discard_paced(g):
             pass
@@ -257,7 +257,7 @@ class Node:
 
         def enqueue(p, x, urgent=False):
             e = x if isinstance(x, Wm.Entry) else (
-                Wm.Entry(control=x) if isinstance(x, Wm.Control) else Wm.Entry(frame=x))
+                Wm.Entry(control=x) if isinstance(x, Wm.Control) else Wm.Entry(chunk=x))
             if e.is_empty():
                 return                  # an empty response or bitmap is not sent (§2, §5.2)
             q = ns["queue"][p]
@@ -317,7 +317,7 @@ class Node:
             return [b"\0" * 32] * max(1, width.bit_length() - 1)
 
         def verify_merkle_proof(root, data, index, count, proof):
-            return True                 # honest frames only; level 1 is the cost of a hash, not modelled
+            return True                 # honest chunks only; level 1 is the cost of a hash, not modelled
 
         rng = random.Random((c["seed"] << 20) ^ self.id)       # each node's own draws, seeded
 
@@ -349,7 +349,7 @@ class Node:
             ns["W"] = math.inf
         spec_message_id = ns["message_id"]
 
-        def message_id(f):              # computed once per frame object
+        def message_id(f):              # computed once per chunk object
             m = getattr(f, "mid", None)
             if m is None:
                 m = f.mid = spec_message_id(f)
@@ -357,7 +357,7 @@ class Node:
         ns["message_id"] = message_id
         spec_claim_group, node, c = ns["claim_group"], self, self.cfg
 
-        def claim_group(g):             # the measurement point: completion at the K-th frame
+        def claim_group(g):             # the measurement point: completion at the K-th chunk
             node.completed[g] = node.sim.now
             spec_claim_group(g)
         ns["claim_group"] = claim_group
@@ -381,8 +381,8 @@ class Node:
         if c.get("loss_data"):
             pct, spec_enqueue, node = c["loss_data"], ns["enqueue"], self
 
-            def enqueue(p, x, urgent=False):           # every node drops pct % of frames at admission
-                f = x.frame if isinstance(x, Wm.Entry) else (x if not isinstance(x, Wm.Control) else None)
+            def enqueue(p, x, urgent=False):           # every node drops pct % of chunks at admission
+                f = x.chunk if isinstance(x, Wm.Entry) else (x if not isinstance(x, Wm.Control) else None)
                 if f is not None:
                     h = Wm.sha256(b"loss" + node.id.to_bytes(4, "little") + p.to_bytes(4, "little") + ns["message_id"](f))
                     if int.from_bytes(h[:8], "little") % 100 < pct:
@@ -394,9 +394,9 @@ class Node:
             ns["enqueue"] = enqueue
 
     def _rebuilt(self, ns):
-        """What a decoded node does with the frames it rebuilt. The document pushes them (§4.6,
-        push_rebuilt); the variants replace that: none (no frame is rebuilt, as in the harness's
-        tier-4 cells; sim.rebuild), hold, announce, and push capped at rb_max frames per peer."""
+        """What a decoded node does with the chunks it rebuilt. The document pushes them (§4.6,
+        push_rebuilt); the variants replace that: none (no chunk is rebuilt, as in the harness's
+        tier-4 cells; sim.rebuild), hold, announce, and push capped at rb_max chunks per peer."""
         c, mode = self.cfg, self.cfg["rebuilt"]
         if c.get("rb_jitter"):
             def start(fn, g):                          # the hand-over waits up to rb_jitter more
@@ -405,9 +405,9 @@ class Node:
         if mode in ("none", "hold"):
             ns["push_rebuilt"] = lambda g, new: None   # kept and servable, but nobody asks for them
         elif mode == "announce":
-            def push_rebuilt(g, new):                  # offered as received frames are (§5.2, §6.4)
+            def push_rebuilt(g, new):                  # offered as received chunks are (§5.2, §6.4)
                 for i in new:
-                    ns["gossip_history"].put(ns["frames"][g][i])
+                    ns["gossip_history"].put(ns["chunks"][g][i])
                 for q in ns["shuffled"](ns["mesh"]):
                     ns["announce"](q, g, set(new))
             ns["push_rebuilt"] = push_rebuilt
@@ -421,7 +421,7 @@ class Node:
                         continue
                     pool = ns["shuffled"]([i for i in new if not known.has(i)])
                     for i in pool[:min(short, c["rb_max"])]:
-                        ns["enqueue"](q, ns["frames"][g][i], urgent=False)
+                        ns["enqueue"](q, ns["chunks"][g][i], urgent=False)
                         ns["note_push"](q, g, i)
             ns["push_rebuilt"] = push_rebuilt
 

@@ -26,8 +26,8 @@ python3 check.py                                   # the document still runs as 
 Networks (`scenario.py`): `home` (every node 50/100 Mbps), `dc20` (20 % of nodes at 1 Gbps,
 home builder), `dcb20` (the same and a 1 Gbps builder), `bld` (the 1 Gbps builder alone). A cell,
 one run of one configuration, prints what the harness prints for each payload: the receivers' p50
-and p99 completion time (the K-th distinct frame, from the publish instant, nearest rank) and the
-bytes each node received, in copies of the compressed payload, frames and control apart. Payloads
+and p99 completion time (the K-th distinct chunk, from the publish instant, nearest rank) and the
+bytes each node received, in copies of the compressed payload, chunks and control apart. Payloads
 2 to 6 are the warm ones.
 
 A 500-node cell takes about five minutes on one core and about 250 MB.
@@ -42,7 +42,7 @@ any moment, changes the digest, even when the printed numbers stay the same.
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then
 records the new digests, to be committed with the edit. The cells `hold` and `none` have the same
-digest: a frame that is held and never announced is never asked for (§4.6).
+digest: a chunk that is held and never announced is never asked for (§4.6).
 
 ## How it maps onto the document
 
@@ -62,16 +62,16 @@ What the toy adds to the document, and nothing else:
   their writer (`wake`), the stock heartbeat duties (the message cache's windows, TTLs counted in
   heartbeats), and §8.1's helpers.
 - **A measurement hook:** `claim_group` is wrapped to record when each node reaches K.
-- **Stand-ins:** frames carry no bytes, only their length and identity; the Merkle proof always
-  checks (only honest nodes run here); a decode returns the source's frames and takes 5 ms
+- **Stand-ins:** chunks carry no bytes, only their length and identity; the Merkle proof always
+  checks (only honest nodes run here); a decode returns the source's chunks and takes 5 ms
   (`--check-ms`; the document leaves a decode's duration to the implementation). `HaveBitmap` and
   `WantIndex` are replaced by classes that know their wire size and compare asks by value.
 - **Card switches:** `--without N` turns card N off where the document reads a switch (`CANCEL`,
   `RAREST`, `PROJECT`, `PACED`), a constant (`R`, `STRIPE_UPLINK`, `R_NODE`) or the window (`W`).
-- **Variants and stresses the document does not specify:** rebuilt frames held or announced
-  instead of pushed, or none rebuilt at all (`--rebuilt`), a cap on the frames pushed per peer
+- **Variants and stresses the document does not specify:** rebuilt chunks held or announced
+  instead of pushed, or none rebuilt at all (`--rebuilt`), a cap on the chunks pushed per peer
   (`--rb-max`) and a random wait before the push (`--rb-jitter-ms`); the harness's withholders and
-  silent nodes (`--fault`; a silent node pushes nothing it rebuilt, as in the harness), frames
+  silent nodes (`--fault`; a silent node pushes nothing it rebuilt, as in the harness), chunks
   lost at admission (`--loss-data`) and thin links (`--up`, `--down`).
 
 ## The network
@@ -85,7 +85,7 @@ What the toy adds to the document, and nothing else:
   between 6 and 12 by grafting and pruning, around D = 8.
 - **Links:** each node has an uplink and a downlink. A writer hands its entries to the
   connection's transport at once, as a QUIC stream accepts writes; the window (card 14) is what
-  holds frames back, as in the document. The uplink is shared equally by the connections with
+  holds chunks back, as in the document. The uplink is shared equally by the connections with
   something to send (processor sharing), the fluid limit of the harness's FQ-CoDel, which serves
   per-peer flows a packet at a time; `--uplink rr` sends whole entries in turn instead. The
   downlink is a FIFO over the entries that reach it.
@@ -97,7 +97,7 @@ What the toy adds to the document, and nothing else:
 
 - **Bytes.** Without congestion control, a sender is never held back by a slow receiver, so the
   toy's byte counts run above the harness's.
-- **Repair.** A decoded node pushes the frames it rebuilt (§4.6, `push_rebuilt`), and so does the
+- **Repair.** A decoded node pushes the chunks it rebuilt (§4.6, `push_rebuilt`), and so does the
   toy by default. The toy's repair costs more extra bytes than the harness's, on a clean network
   too, and why is not known yet: its repair bytes are not the protocol's.
 - **The graph.** The latencies are the harness's for the same seed; the connection graph and the

@@ -5,16 +5,16 @@ Informed diffusion, a design of segmented payload diffusion studied for
 Python-like pseudocode in the style of the consensus specs, with a toy simulator that runs it.
 
 - [`protocol.md`](protocol.md): what a node does, one event at a time. The builder cuts the
-  payload into frames that its bid commits to (from tier 3 it compresses the payload first and adds
-  parity frames), and the frames spread by push and pull, which tier 4 guides with HAVE bitmaps. The
+  payload into chunks that its bid commits to (from tier 3 it compresses the payload first and adds
+  parity chunks), and the chunks spread by push and pull, which tier 4 guides with HAVE bitmaps. The
   document covers every tier; the wire is specified to the field, and byte-exact layouts follow
   later.
 - [`toy/`](toy/): runs every `python` block of `protocol.md`, once per node, on a simulated
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.
 
-**Status:** draft v0.3, 2026-10-05. Since v0.2, a node that has decoded a group pushes the frames
-it rebuilt to the mesh peers that still lack enough frames to decode (§4.6), instead of holding
+**Status:** draft v0.3, 2026-10-05. Since v0.2, a node that has decoded a group pushes the chunks
+it rebuilt to the mesh peers that still lack enough chunks to decode (§4.6), instead of holding
 them.
 
 ## Running it

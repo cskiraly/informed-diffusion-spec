@@ -7,9 +7,9 @@
 
 A cell publishes `msgs` payloads 12 s apart on one standing network, as the harness's MSGS=6
 cells do; message 1 is cold, messages 2.. are warm. For each message it prints the receivers'
-p50 and p99 completion time (the K-th distinct frame, from the publish instant, nearest rank) and
+p50 and p99 completion time (the K-th distinct chunk, from the publish instant, nearest rank) and
 what each node received, in copies of the compressed payload (746262 bytes at 1 MiB): data (the
-frames' bytes) and control, as the harness's rx/node and ctrl rx/node.
+chunks' bytes) and control, as the harness's rx/node and ctrl rx/node.
 """
 import argparse
 import statistics as st
@@ -23,7 +23,7 @@ CFG = {
     # §8.3, and the harness's operating point
     "R": 2, "R_FAST": 6, "FAST_UPLINK": 500e6, "STRIPE_UPLINK": 1e9,
     "IWANT_WINDOW": 0.200, "RETRY_SLACK": 0.005, "PROMISE": 0.400, "PARK_TTL": 30.0, "GUARD_GRACE": 0.200, "FAN_IN": 2,
-    "RTT_REF": 0.112, "TARGET": 0.020, "FRAME_BYTES": 12000, "WINDOW_TIMEOUT": 0.500,
+    "RTT_REF": 0.112, "TARGET": 0.020, "CHUNK_BYTES": 12000, "WINDOW_TIMEOUT": 0.500,
     "HEARTBEAT": 0.700, "D_LAZY": 6, "GOSSIP_FACTOR": 0.25, "GOSSIP_RETRANSMISSION": 3,
     "HAVE_TTL": 3, "PUSH_TTL": 6, "window_scale": 1.0,
     "D": 8, "degree": 70, "nodes": 500, "payload": 1 << 20, "COMPRESSION": (1 << 20) / 746262,
@@ -85,12 +85,12 @@ def main(argv):
     ap.add_argument("--uplink", default="ps", choices=("ps", "rr"),
                     help="ps: processor sharing over busy connections (FQ-CoDel's fluid limit); rr: whole entries in turn")
     ap.add_argument("--rebuilt", default="push", choices=("push", "hold", "announce", "none"),
-                    help="what a decoded node does with the frames it rebuilt: push (the document, §4.6), hold or "
+                    help="what a decoded node does with the chunks it rebuilt: push (the document, §4.6), hold or "
                          "announce (the decoding note's variants); none: it rebuilds nothing (the harness's tier-4 cells)")
-    ap.add_argument("--rb-jitter-ms", type=float, default=0.0, help="ms: a random extra wait, up to this, before the decode hands its frames over")
-    ap.add_argument("--rb-max", type=int, default=0, help="push: at most this many frames per peer (0: its whole shortfall)")
+    ap.add_argument("--rb-jitter-ms", type=float, default=0.0, help="ms: a random extra wait, up to this, before the decode hands its chunks over")
+    ap.add_argument("--rb-max", type=int, default=0, help="push: at most this many chunks per peer (0: its whole shortfall)")
     ap.add_argument("--fault", default="", help="wh<pct> withholders or sil<pct> silent nodes, as the harness picks them")
-    ap.add_argument("--loss-data", type=int, default=0, help="percent of frames every node drops at admission")
+    ap.add_argument("--loss-data", type=int, default=0, help="percent of chunks every node drops at admission")
     ap.add_argument("--up", type=float, default=0, help="Mbps: every home node's uplink (downlink twice it)")
     ap.add_argument("--down", type=float, default=0, help="Mbps: every home node's downlink")
     ap.add_argument("--latency-only", action="store_true")
