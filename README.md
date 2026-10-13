@@ -1,6 +1,6 @@
 # informed-diffusion-spec
 
-Informed diffusion, a design of segmented payload diffusion studied for
+Informed Diffusion, a design of segmented payload diffusion studied for
 [EIP-8411](https://eips.ethereum.org/EIPS/eip-8411) (Fast Execution Payload Broadcast), written as
 Python-like pseudocode in the style of the consensus specs, with a toy simulator that runs it.
 
@@ -34,7 +34,7 @@ the options, the network model and what the toy adds to the document.
   (2026): the design space and the commitment;
 - [EIP-8411: what segmented payload diffusion is made of](https://ethresear.ch/t/eip-8411-what-segmented-payload-diffusion-is-made-of/26025)
   (2026): tiers 1 to 3;
-- *Informed diffusion: making home builders publish fast* (forthcoming): tier 4 and its
+- *Informed Diffusion: making home builders publish fast* (forthcoming): tier 4 and its
   measurements;
 - [Segmented payload diffusion, card by card](https://notes.ethereum.org/@cskiraly/segmented-stack-cards)
   (2026): each mechanism in prose, what it costs and when it matters;

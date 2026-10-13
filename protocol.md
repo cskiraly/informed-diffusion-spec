@@ -1,6 +1,6 @@
-# Informed diffusion: the protocol in pseudocode
+# Informed Diffusion: the protocol in pseudocode
 
-> **DRAFT v0.3, 2026-10-05.** Companion to the post *Informed diffusion: making home builders
+> **DRAFT v0.3, 2026-10-05.** Companion to the post *Informed Diffusion: making home builders
 > publish fast*. Field level on the wire; byte-exact layouts follow in a second phase. Written from
 > the research implementation (Prysm and a go-libp2p-pubsub fork) and revised after a review
 > against it; section 9 lists where the measured runs differ from what is written here.
@@ -26,7 +26,7 @@ Related documents, with the short names used below:
   (*Segment, code, push-pull*, 2026): the design space, the commitment and the forwarding rules;
 - [EIP-8411: what segmented payload diffusion is made of](https://ethresear.ch/t/eip-8411-what-segmented-payload-diffusion-is-made-of/26025)
   (*What segmented payload diffusion is made of*, 2026): tiers 1 to 3, cards 0 to 6;
-- *Informed diffusion: making home builders publish fast* (*Informed diffusion*, forthcoming):
+- *Informed Diffusion: making home builders publish fast* (*Informed Diffusion*, forthcoming):
   tier 4 and the design as a whole;
 - [Segmented payload diffusion, card by card](https://notes.ethereum.org/@cskiraly/segmented-stack-cards)
   (2026): each card in prose, with what it costs and when it matters;
