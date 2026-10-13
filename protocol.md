@@ -1,7 +1,7 @@
 # Informed Diffusion: the protocol in pseudocode
 
-> **DRAFT v0.4, 2026-10-13.** Companion to the post *Informed Diffusion: making home builders
-> publish fast*. Field level on the wire; byte-exact layouts follow in a second phase. Written from
+> **DRAFT v0.4, 2026-10-13.** Companion to the post [*Informed Diffusion: making home builders
+> publish fast*](https://ethresear.ch/t/informed-diffusion-making-home-builders-publish-fast/26151). Field level on the wire; byte-exact layouts follow in a second phase. Written from
 > the research implementation (Prysm and a go-libp2p-pubsub fork) and revised after a review
 > against it; section 9 lists where the measured runs differ from what is written here.
 
@@ -29,13 +29,13 @@ Related documents, with the short names used below:
   (*Segment, code, push-pull*, 2026): the design space, the commitment and the forwarding rules;
 - [EIP-8411: what segmented payload diffusion is made of](https://ethresear.ch/t/eip-8411-what-segmented-payload-diffusion-is-made-of/26025)
   (*What segmented payload diffusion is made of*, 2026): tiers 1 to 3, cards 0 to 6;
-- *Informed Diffusion: making home builders publish fast* (*Informed Diffusion*, forthcoming):
+- [*Informed Diffusion: making home builders publish fast*](https://ethresear.ch/t/informed-diffusion-making-home-builders-publish-fast/26151) (*Informed Diffusion*, 2026):
   tier 4 and the design as a whole;
 - [Segmented payload diffusion, card by card](https://notes.ethereum.org/@cskiraly/segmented-stack-cards)
   (2026): each card in prose, with what it costs and when it matters;
 - [Who decides that a payload is revealed?](https://notes.ethereum.org/@cskiraly/eip-8411-envelope-signature)
   (2026): how the envelope's signature travels.
-- *What a forwarding node checks, and when it decodes* (2026, forthcoming): the validation levels, when the
+- [*What a forwarding node checks, and when it decodes*](https://notes.ethereum.org/@cskiraly/informed-diffusion-decoding) (2026): the validation levels, when the
   decode claim goes out, and what a node does with the chunks it rebuilds.
 
 **Card tags.** A comment such as `# [c8]` marks the line or block that implements card 8. Tags say

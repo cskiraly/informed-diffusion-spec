@@ -37,13 +37,13 @@ the options, the network model and what the toy adds to the document.
   (2026): the design space and the commitment;
 - [EIP-8411: what segmented payload diffusion is made of](https://ethresear.ch/t/eip-8411-what-segmented-payload-diffusion-is-made-of/26025)
   (2026): tiers 1 to 3;
-- *Informed Diffusion: making home builders publish fast* (forthcoming): tier 4 and its
+- [*Informed Diffusion: making home builders publish fast*](https://ethresear.ch/t/informed-diffusion-making-home-builders-publish-fast/26151) (2026): tier 4 and its
   measurements;
 - [Segmented payload diffusion, card by card](https://notes.ethereum.org/@cskiraly/segmented-stack-cards)
   (2026): each mechanism in prose, what it costs and when it matters;
 - [Who decides that a payload is revealed?](https://notes.ethereum.org/@cskiraly/eip-8411-envelope-signature)
   (2026): how the envelope's signature travels;
-- *What a forwarding node checks, and when it decodes* (forthcoming): the validation levels, the decode claim
+- [*What a forwarding node checks, and when it decodes*](https://notes.ethereum.org/@cskiraly/informed-diffusion-decoding) (2026): the validation levels, the decode claim
   and repair.
 
 ## License
