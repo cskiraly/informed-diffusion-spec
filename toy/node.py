@@ -88,6 +88,7 @@ class Node:
         self.sim, self.id, self.cls, self.cfg = sim, nid, cls, cfg
         self.peers = []                 # connected peers on the topic
         self.writer_kicked = set()      # peers whose writer has a run queued
+        self.writer_blocked = set()     # peers whose writer waits for the transport (--send-buffer)
         self.rx_data = self.rx_ctrl = 0
         self.tx_data = self.tx_ctrl = 0
         self.penalties = 0
@@ -138,6 +139,7 @@ class Node:
             # state (§8.1); missing entries read as empty
             "desc": {}, "state": DefaultMap(None), "chunks": AutoMap(dict), "known_id": AutoMap(dict),
             "received": AutoMap(Bits), "mine": AutoMap(Bits), "stop_pull": DefaultMap(False),
+            "origin": {},
             "peer_has": AutoMap(lambda: LazyMap(HaveEntry)),
             "pushed": AutoMap(lambda: LazyMap(PushEntry)),
             "holders": AutoMap(lambda: AutoMap(set)), "sent_to": AutoMap(lambda: AutoMap(Bits)),
@@ -435,7 +437,11 @@ class Node:
     def _write(self, p):
         self.writer_kicked.discard(p)
         nts = self.ns["next_to_send"]
+        buf, ln = self.sim.send_buffer, self.sim.links[self.id]
         while True:
+            if buf is not None and ln.backlog.get(p, 0) >= buf:
+                self.writer_blocked.add(p)      # the transport takes no more for now: the write
+                return                          #   has not completed (§7.2), the link wakes us
             e = nts(p)
             if e is None or e is WAIT:          # nothing to send, or in line for a slot (§7.2)
                 return

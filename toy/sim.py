@@ -45,7 +45,7 @@ class Link:
     per-peer flows, one packet at a time). V is the virtual clock of that sharing, in bits sent per
     busy connection; an entry finishes when V reaches its virtual finish F. The round-robin model
     sends whole entries in turn instead (--uplink rr)."""
-    __slots__ = ("up", "down", "conns", "rr", "busy", "down_busy", "active", "heap", "V", "vt", "version")
+    __slots__ = ("up", "down", "conns", "rr", "busy", "down_busy", "active", "heap", "V", "vt", "version", "backlog")
 
     def __init__(self, up, down):
         self.up, self.down = up, down          # bits per second
@@ -56,6 +56,7 @@ class Link:
         self.active = {}                       # sharing: peer -> (entry, data, ctrl, F) in service
         self.heap = []                         # sharing: (F, seq, peer) of the entries in service
         self.V, self.vt, self.version = 0.0, 0.0, 0
+        self.backlog = {}                      # peer -> bytes handed to the link and not yet sent
 
 
 class Sim:
@@ -66,8 +67,14 @@ class Sim:
         self.q, self.seq = [], 0
         self.blocks = {}
         self.canonical = {}                    # group -> {index: chunk}, the source's chunks
-        self.groups = []                       # (group, publish time) in order
+        self.groups = []                       # (group, publish time, publisher) in order
         self.events = 0
+        self.recorder = None                   # xcheck.Recorder, when run.py installs one
+        # --send-buffer: the bytes a connection's transport accepts ahead of the link; a writer waits
+        # while its backlog is at it, as a stream write blocks. None: writes complete at once.
+        self.send_buffer = cfg.get("send_buffer")
+        if self.send_buffer is not None and cfg.get("uplink", "ps") != "ps":
+            raise ValueError("--send-buffer needs the processor-sharing uplink")
         self.digest = hashlib.sha256() if cfg.get("digest") else None
         self._ids = {}
         self._build()
@@ -130,6 +137,7 @@ class Sim:
         node.tx_data += data
         node.tx_ctrl += ctrl
         ln = self.links[node.id]
+        ln.backlog[p] = ln.backlog.get(p, 0) + data + ctrl
         dq = ln.conns.get(p)
         if dq is None:
             dq = ln.conns[p] = deque()
@@ -178,9 +186,13 @@ class Sim:
         while ln.heap and ln.heap[0][0] <= ln.V + tol:
             _, _, p = heapq.heappop(ln.heap)
             e, data, ctrl, _ = ln.active.pop(p)
+            ln.backlog[p] -= data + ctrl
             self.after(None, self.lat(node.id, p), self._arrive, node.id, p, e, data, ctrl)
             if ln.conns[p]:
                 self._ps_start(ln, p)
+            if self.send_buffer is not None and p in node.writer_blocked and ln.backlog[p] < self.send_buffer:
+                node.writer_blocked.discard(p)  # the transport has room again: the write completed
+                node.kick(p)
         self._ps_reschedule(node, ln)
 
     # -- round robin, one whole entry at a time
@@ -241,14 +253,21 @@ class Sim:
     # ---- the source and its payloads
 
     def publish(self, m):
-        src = self.nodes[1]
+        pub = self.cfg.get("publishers", {}).get(m, 1)     # node 1 unless the harness's dump names one
+        meshes = self.cfg.get("meshes", {}).get(m)
+        if meshes is not None:                             # the harness's meshes at this publish
+            for i, nd in self.nodes.items():
+                nd.ns["mesh"] = set(meshes[i - 1])
+        if self.recorder is not None:
+            self.recorder.publish(m, pub)
+        src = self.nodes[pub]
         ns = src.ns
         body = Wm.Blob(self.cfg["payload"], ("payload", m))
         d, shards = ns["build_group"](body)
         g = ns["group_id"](d)
         root = hashlib.sha256(b"block" + m.to_bytes(4, "little")).digest()
         self.blocks[root] = Block(m, root, g)
-        self.groups.append((g, self.now))
+        self.groups.append((g, self.now, pub))
         ns["publish"](self.blocks[root], d, shards)
         self.canonical[g] = dict(ns["chunks"][g])
 
@@ -265,9 +284,9 @@ class Sim:
     def results(self):
         c, out = self.cfg, []
         W = c["COMPRESSED"]
-        for k, (g, t0) in enumerate(self.groups):
+        for k, (g, t0, pub) in enumerate(self.groups):
             K = len(self.canonical[g]) // 2
-            ts = sorted(nd.completed.get(g, math.inf) - t0 for i, nd in self.nodes.items() if i != 1)
+            ts = sorted(nd.completed.get(g, math.inf) - t0 for i, nd in self.nodes.items() if i != pub)
             out.append({"msg": k + 1, "p50": pct(ts, 50), "p99": pct(ts, 99),
                         "max": ts[-1], "missing": sum(1 for t in ts if t == math.inf)})
         return out

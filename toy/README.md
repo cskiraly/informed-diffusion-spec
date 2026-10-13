@@ -16,11 +16,12 @@ network is simpler (below), and its numbers are not to be quoted in place of the
 
 ```
 python3 run.py --net home --seed 7                 # tier 4 in the all-home network, 500 nodes, 6 payloads
-python3 run.py --net dcb20 --seed 7 --without 17   # the datacenter mix, without card 17
+python3 run.py --net dcb20 --seed 7 --without 17   # with a datacenter builder, without card 17
 python3 run.py --net home --stripe on              # every source stripes, as the harness's tier-4 cells did
 python3 run.py --net home --rebuilt none           # nothing rebuilt, as in the harness's tier-4 cells
 python3 run.py --latency-only --seed 7             # the latency summary line only
 python3 check.py                                   # the document still runs as recorded (below)
+python3 run.py --topology cell.jsonl.gz --rebuilt none --stripe on   # a harness cell's own network (below)
 ```
 
 Networks (`scenario.py`): `home` (every node 50/100 Mbps), `dc20` (20 % of nodes at 1 Gbps,
@@ -56,6 +57,7 @@ digest: a chunk that is held and never announced is never asked for (§4.6).
 | `scenario.py` | latency, connections, the mesh and the bandwidth classes |
 | `run.py` | the command line |
 | `check.py`, `golden.txt` | the check above, and its recorded digests |
+| `xcheck.py` | the harness's network loaded from its dump, and the counters and invariants it prints, counted here the same way (below) |
 
 What the toy adds to the document, and nothing else:
 - **The environment the document assumes:** the clock (`now`, `after`), the per-peer queues and
@@ -92,6 +94,33 @@ What the toy adds to the document, and nothing else:
 - **Not modelled:** QUIC's congestion control and CoDel's drops, so a fast sender is never slowed
   by a slow receiver's link; processing time (the harness runs on a virtual clock, where processing
   is free too).
+- **The transport's buffer:** unbounded unless `--send-buffer` bounds it (below).
+
+## Side by side with the harness
+
+The harness can write the network a cell ran on (`SEGMENT_XC_DUMP=<path>`): each node's uplink and
+downlink, its connections with the latency model's one-way delays, each node's push degree, the
+faulty set, and at every publish the publisher and every node's mesh. `--topology <path>` runs
+the toy on exactly that network, so what still differs is the link model and the rules. Node ids
+are the harness's indices plus one.
+
+With `--topology` (or `--xcheck` alone) the toy prints, after each message, the harness's own
+`xcheck` line per population: what the nodes sent, counted at the sender's transmit after the
+writer's filter (where the harness counts at the stream write), what they received, and the
+invariants the document's rules imply, each a count that must be zero:
+
+- `budget`: a forwarding node that pushed one chunk more often than its push degree;
+- `window`: a node with more slots in flight than `W`;
+- `overlap`: an ask for a chunk decided while an earlier ask for it is open (inside `IWANT_WINDOW`, not
+  yet held), timed at `may_ask`, where the harness's request ledger times its asks too;
+- `late`: a chunk sent to a mesh peer whose HAVE for it (in an IDONTWANT, the only carrier that feeds
+  `peer_has`) had reached the sender earlier in the message, held or since expired, as the harness's
+  ledger reads it; `late_live` counts those the sender still held, which cancel should have dropped;
+- `fault`: a chunk from a silent node, or an answer from a withholder.
+
+The recorder reads node state without creating entries and schedules nothing, so a run's events
+and digest are the same with it or without it. A duplicate is a chunk received before, as the
+harness's seen cache counts it, not one held only since the decode.
 
 ## Known differences from the harness
 
@@ -100,8 +129,16 @@ What the toy adds to the document, and nothing else:
 - **Repair.** A decoded node pushes the chunks it rebuilt (§4.6, `push_rebuilt`), and so does the
   toy by default. The toy's repair costs more extra bytes than the harness's, on a clean network
   too, and why is not known yet: its repair bytes are not the protocol's.
+- **The transport.** By default a write completes at once, as if a connection's transport took any
+  amount ahead of the link. A writer woken first can then hand its whole queue over while window
+  slots remain, and the entries behind it go straight after: at publish the source's mesh peers get
+  their few pushes and every announcement at once, and ask the source for most chunks. The
+  harness's stream writes block, so its writers interleave and its queues hold their backlog, where
+  cancel acts. `--send-buffer 1`, one entry at a time per connection, matches the harness on the
+  source's asks, answers and cancels and on the forwarding nodes' cancels (n = 100); use it to set the two side
+  by side.
 - **The graph.** The latencies are the harness's for the same seed; the connection graph and the
-  mesh are not.
+  mesh are the toy's own, unless `--topology` loads the harness's.
 
 ## What running it found in the document
 
