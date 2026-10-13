@@ -13,9 +13,12 @@ Python-like pseudocode in the style of the consensus specs, with a toy simulator
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.
 
-**Status:** draft v0.3, 2026-10-05. Since v0.2, a node that has decoded a group pushes the chunks
-it rebuilt to the mesh peers that still lack enough chunks to decode (§4.6), instead of holding
-them.
+**Status:** draft v0.4, 2026-10-13. Since v0.3: the source's HAVE names only the chunks it has sent
+(§5.1, [P4]), which removes the one certain sign of the source; a writer that takes a window slot
+wakes the next one while slots remain (§7.1); the toy runs on a harness cell's network
+(`toy/xcheck.py`, `--send-buffer`) to set the two side by side; and the terms follow the posts:
+*chunk* for the unit on the wire, *node* and *forward* where the text said relay, and *Informed
+Diffusion* for the protocol.
 
 ## Running it
 
