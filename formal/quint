@@ -1,0 +1,6 @@
+#!/bin/sh
+# Local Quint: the pinned npm package in node_modules, and what it downloads (Apalache, which
+# also runs TLC, and the Rust evaluator) in .quint instead of ~/.quint.
+here=$(cd "$(dirname "$0")" && pwd)
+export QUINT_HOME="${QUINT_HOME:-$here/.quint}"
+exec "$here/node_modules/.bin/quint" "$@"

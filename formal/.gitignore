@@ -1,0 +1,6 @@
+# the toolchain (npm ci; Quint downloads Apalache and its evaluator into .quint) and outputs
+node_modules
+.quint
+_apalache-out
+tlc/out
+out

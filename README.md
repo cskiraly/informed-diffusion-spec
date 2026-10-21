@@ -12,6 +12,7 @@ Python-like pseudocode in the style of the consensus specs, with a toy simulator
 - [`toy/`](toy/): runs every `python` block of `protocol.md`, once per node, on a simulated
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.
+- [`formal/`](formal/): a model of §4–§7, checked on small instances: what holds, what v0.5 fixed.
 
 **Status:** draft v0.5, 2026-10-21. Since v0.4, fixes from a model check of v0.4: a push to a
 mesh peer that does not happen is offered to it instead, and an offer or answer a full queue
