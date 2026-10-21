@@ -1,4 +1,4 @@
-# SEACAST, version 2: the protocol on its own notions
+# SEACAST's next version (draft): the protocol on its own notions
 
 > **DRAFT.** Open decisions in §8; checked in the toy only; no client or full simulation runs
 > it; not model-checked.

@@ -192,32 +192,32 @@ fixed in `protocol.md` since the window is v0.3's:
     way, copies rose by 0.03 to 0.12 (`cap-wait` 1.64 → 1.66, `dcb20` 3.20 → 3.32, `push` 2.35 →
     2.41), since chunks that had waited in the line, and were pulled meanwhile, now go out.
 
-## Version 2 (`--doc v2`)
+## The next version (`--doc v2`)
 
-*Version 2 is a draft, checked in this toy only (its banner). Figures below from fewer than ten
+*The next version is a draft, checked in this toy only (its banner). Figures below from fewer than ten
 seeds, a single seed unless stated, are toy checks of a mechanism, not measurements.*
 
 [`protocol-v2.md`](../protocol-v2.md) is run on top of `protocol.md`: `extract.py` pulls both
-documents' blocks, v0.3's are executed first and version 2's after them in the same namespace, so
-version 2 redefines what it changes (`on_rpc`, `on_chunk`, `forward`, `announce`, the holding and
+documents' blocks, v0.3's are executed first and the next version's after them in the same namespace, so
+the next version redefines what it changes (`on_rpc`, `on_chunk`, `forward`, `announce`, the holding and
 offer handlers, `on_want`, completion and repair, `publish`, the heartbeat) and keeps what it says
 carries over (the ask discipline, `choose_push`; the window and the writer as its §4.11 and §4.12 adapt them). `node.py` supplies what
-version 2 leaves to the environment under its tier 4 setting (its §6.1): the payload object type
+the next version leaves to the environment under its tier 4 setting (its §6.1): the payload object type
 with its parameters, the join tables, the push relation behind the mesh, and the binding of its
 messages onto v0.3's wire (its §7, last column): a holding is an IDONTWANT bitmap, an offer an
 IHAVE bitmap, an ask a `WantIndex`. Relations are static, as the mesh is for v0.3.
 
-`check.py --doc v2` runs the twelve cells against version 2's own recording, `golden-v2.txt`
-(`--update` records it, as for v0.3). `check.py --doc v2 --golden golden.txt` compares version 2
+`check.py --doc v2` runs the twelve cells against the next version's own recording, `golden-v2.txt`
+(`--update` records it, as for v0.3). `check.py --doc v2 --golden golden.txt` compares the next version
 against `protocol.md`'s cells instead (v0.3's until 2026-10-13, v0.4's until 2026-10-21, v0.5's since); there a cell whose digest moved but whose numbers did not is
-reported as such and does not count, since version 2 iterates the relation in peer order where
+reported as such and does not count, since the next version iterates the relation in peer order where
 v0.3 iterates the mesh set, which reorders same-instant sends. On 2026-10-07, with v0.3's slot
 window, eleven cells reproduced v0.3's numbers exactly and `rr-stripe` differed by 3 ms at the
 median; with the window in bytes (`protocol-v2.md` §4.11) the cells differ from v0.3's by at most
 7 ms at the median, 15 ms at the tail and 0.04 copies either way, which is the writer choosing the
 entry before taking room and control taking none, not the unit.
 
-**v0.4's P4 in version 2** (2026-10-21, `protocol-v2.md` §4.7): the source's holding names only the
+**v0.4's P4 in the next version** (2026-10-21, `protocol-v2.md` §4.7): the source's holding names only the
 chunks it has sent. Against v0.4's recording the twelve cells now sit within 3 ms at the median,
 16 ms at the tail and 0.03 copies, `loss-thin` aside (§4.13's ask window, at 20 Mbps); without P4
 the medians had been up to 102 ms behind. On the settings it costs a slow proposer of columns
@@ -272,9 +272,9 @@ against 80, more on seven seeds, as many on two, fewer on one (not traced). Its 
 as before, on every seed but 13, where two custodians stay short either way. Tables further down
 that predate 2026-10-21 were recorded without P4.
 
-**v0.5 in version 2** (2026-10-21, `protocol-v2.md` §5 and the functions it names in its header):
+**v0.5 in the next version** (2026-10-21, `protocol-v2.md` §5 and the functions it names in its header):
 a refused push or offer is offered with the next write, parked announcers are asked once more, the
-gate per object type, the promise from the write (a WANT starts none). Against version 2 just
+gate per object type, the promise from the write (a WANT starts none). Against the next version just
 before the merge, with P4 (60 nodes, warm medians; over several seeds the median and the range):
 
 | cell | seeds | p50 | p99 | copies | (node, group) pairs short |

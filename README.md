@@ -12,7 +12,7 @@ keeps its title.
   parity chunks), and the chunks spread by push and pull, which tier 4 guides with HAVE bitmaps. The
   document covers every tier; the wire is specified to the field, and byte-exact layouts follow
   later.
-- [`protocol-v2.md`](protocol-v2.md): **a draft** of version 2 (open decisions in its §8; checked
+- [`protocol-v2.md`](protocol-v2.md): **a draft** of SEACAST's next version (open decisions in its §8; checked
   in the toy only; no client or full simulation runs it; not model-checked), the protocol on its
   own notions: object types, interest and duty, push and announce relations per family and colour,
   one HAVE and one WANT per link and group, claims, repair as one rule with parameters. It contains `protocol.md` as one
@@ -37,7 +37,7 @@ keeps its title.
 - [`formal/`](formal/): a model of §4–§7, checked on small instances: what holds, what v0.5 fixed.
 
 **Status:** draft v0.6, 2026-10-21. Since v0.5: the name SEACAST; the formal model (`formal/`),
-which checks v0.5's rules; and a draft of version 2 (`protocol-v2.md`), which adds availability
+which checks v0.5's rules; and a draft of SEACAST's next version (`protocol-v2.md`), which adds availability
 sampling and other object types, with the toy's support for it. `protocol.md` and the toy's
 recorded cells are unchanged since v0.5.
 
