@@ -13,12 +13,17 @@ Python-like pseudocode in the style of the consensus specs, with a toy simulator
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.
 
-**Status:** draft v0.4, 2026-10-13. Since v0.3: the source's HAVE names only the chunks it has sent
-(§5.1, [P4]), which removes the one certain sign of the source; a writer that takes a window slot
-wakes the next one while slots remain (§7.1); the toy runs on a harness cell's network
-(`toy/xcheck.py`, `--send-buffer`) to set the two side by side; and the terms follow the posts:
-*chunk* for the unit on the wire, *node* and *forward* where the text said relay, and *Informed
-Diffusion* for the protocol.
+**Status:** draft v0.5, 2026-10-21. Since v0.4, fixes from a model check of v0.4: a push to a
+mesh peer that does not happen is offered to it instead, and an offer or answer a full queue
+refuses is owed (§5.2, §7.2, §4.1); every offer is kept, per connection and group, and when every
+announcer of a chunk is parked, each is asked once more, at a wait that doubles (§6.1, §8.2); no
+ask before the block is installed, and what was offered meanwhile is asked for then (§3, §4.4,
+§4.2); expiry is checked by the retry, the writer's ask filter and a decode that returns, and a
+group's pull state goes at its expiry (§6.1, §7.2, §4.6, §8.1); a promise starts when the ask is
+written and closes with its connection (§7.2, §6.1); and a copy the deferred store refuses counts
+as its sender's offer (§4.2). §8's state, limits and constants follow, and §9 lists these rules
+among those the measured implementation predates. The toy runs the text as written, so its
+recorded results moved.
 
 ## Running it
 
