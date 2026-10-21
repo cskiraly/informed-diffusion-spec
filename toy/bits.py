@@ -111,14 +111,17 @@ class _Lazy:
 
 
 class HaveEntry(_Lazy):
-    """peer_has[p][g]: the union of p's HAVE bitmaps for g, and its expiry (§4.3)."""
-    __slots__ = ("bits", "ttl")
+    """peer_has[p][g]: the union of p's HAVE bitmaps for g, and its expiry (§4.3); v2 adds the two
+    claims a holding carries (protocol-v2.md §1.5)."""
+    __slots__ = ("bits", "ttl", "claim_all", "complete")
 
     def __init__(self, home=None, key=None):
         object.__setattr__(self, "_home", home)
         object.__setattr__(self, "_key", key)
         object.__setattr__(self, "bits", Bits())
         object.__setattr__(self, "ttl", 0)
+        object.__setattr__(self, "claim_all", False)
+        object.__setattr__(self, "complete", False)
 
     def __setattr__(self, k, v):
         object.__setattr__(self, k, v)

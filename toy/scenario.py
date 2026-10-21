@@ -8,6 +8,7 @@
 - bandwidth classes: home 50/100 Mbps, datacenter 1 Gbps symmetric, by index after the
   source, as SEGMENT_DATACENTER_PCT and SEGMENT_BUILDER_UP_MBPS place them.
 """
+import hashlib
 import random
 
 M64 = (1 << 64) - 1
@@ -113,6 +114,102 @@ def topology(n, d, D, rng):
     return conns, gossip_mesh(conns, D, 6, 12, rng)
 
 
+# ---- the custody setting (protocol-v2.md §6.2): columns, custodians, a mesh per column
+
+NUMBER_OF_COLUMNS = 128
+
+
+def custody_columns(node_id, count):
+    """das-core's get_custody_groups over a node id (bytes), with one column per custody group."""
+    if count >= NUMBER_OF_COLUMNS:
+        return set(range(NUMBER_OF_COLUMNS))
+    cur, out = int.from_bytes(node_id, "big"), []
+    while len(out) < count:
+        c = int.from_bytes(hashlib.sha256(cur.to_bytes(32, "little")).digest()[:8], "little") % NUMBER_OF_COLUMNS
+        if c not in out:
+            out.append(c)
+        cur = (cur + 1) % (1 << 256)
+    return set(out)
+
+
+def row_subnet(node_id, count):
+    """EIP-8371's get_row_subnet: bytes [8:16] of the node id's hash, so that it is decorrelated from custody."""
+    return int.from_bytes(hashlib.sha256(node_id).digest()[8:16], "little") % count
+
+
+def family_topology(conns, members, rng, D, floor, exclude=()):
+    """Top up the connection graph so that every member of a family has `floor` fellow members as
+    peers (or all there are), as peer search for subnet coverage does, and build a gossipsub mesh
+    per family on the members' subgraph. members: {family: [nodes]}; nodes in `exclude` (the
+    source) get no top-ups here and sit in no mesh."""
+    fams_of = {}
+    for fam, ms in members.items():
+        for v in ms:
+            fams_of.setdefault(v, []).append(fam)
+    order = [v for v in conns if v not in exclude and v in fams_of]
+    rng.shuffle(order)
+    for v in order:
+        for fam in sorted(fams_of[v]):
+            ms = [u for u in members[fam] if u not in exclude]
+            pool = [u for u in ms if u != v and u not in conns[v]]
+            have = sum(1 for u in conns[v] if u not in exclude and u in set(members[fam]))
+            need = min(floor, len(ms) - 1) - have
+            for u in rng.sample(pool, max(0, min(need, len(pool)))):
+                conns[v].add(u)
+                conns[u].add(v)
+    meshes = {}
+    for fam, ms in members.items():
+        ms = [u for u in ms if u not in exclude]
+        mset = set(ms)
+        sub = {v: {u for u in conns[v] if u in mset} for v in ms}
+        meshes[fam] = gossip_mesh(sub, D, 6, 12, rng) if ms else {}
+    return meshes
+
+
+def custody_topology(n, d, D, rng, custody, floor=6, source_floor=2, row_subnets=None, repair_floor=0, repair_rng=None):
+    """Connections and a mesh per column (and per row subnet) for the custody and row settings. The
+    base is the random d-regular graph; then each node adds custodian peers until it has `floor` of
+    them for every column it custodies (or all there are), the source, node 1, until it has
+    `source_floor` for every column (its fanout), and, with row_subnets = {node: subnet}, each
+    member adds fellow members until it has `floor`. The mesh of a column or a row subnet is
+    gossipsub's, built on the subgraph of its members, without the source. Last, with
+    `repair_floor`, each row member adds custodian peers until it has that many for every column
+    it does not custody (the rebuilders' fanout, protocol-v2.md §4.6), drawn from `repair_rng` after
+    the meshes, so that the graph and the meshes are the same with and without it and these links
+    are in no mesh. Returns the connections, the meshes and the number of links the floor added."""
+    conns = random_regular(n, d, rng)
+    custodians = {c: [v for v in conns if v != 1 and c in custody[v]] for c in range(NUMBER_OF_COLUMNS)}
+    meshes = family_topology(conns, custodians, rng, D, floor, exclude={1})
+    for c in range(NUMBER_OF_COLUMNS):                  # the source's fanout
+        pool = [u for u in custodians[c] if u not in conns[1]]
+        have = sum(1 for u in conns[1] if c in custody[u])
+        need = min(source_floor, len(custodians[c])) - have
+        for u in rng.sample(pool, max(0, min(need, len(pool)))):
+            conns[1].add(u)
+            conns[u].add(1)
+    row_meshes = None
+    if row_subnets:
+        members = {}
+        for v, s in row_subnets.items():
+            if s is not None:
+                members.setdefault(s, []).append(v)
+        row_meshes = family_topology(conns, members, rng, D, floor, exclude={1})
+    added = 0
+    if row_subnets and repair_floor:                   # the rebuilders' fanout: a row member may rebuild any row
+        for v in sorted(v for v, s in row_subnets.items() if s is not None):   # of its subnet (phase 3)
+            for c in range(NUMBER_OF_COLUMNS):
+                if c in custody[v]:
+                    continue
+                have = sum(1 for u in conns[v] if u != 1 and c in custody[u])
+                pool = [u for u in custodians[c] if u not in conns[v]]
+                need = min(repair_floor, len(custodians[c])) - have
+                for u in repair_rng.sample(pool, max(0, min(need, len(pool)))):
+                    conns[v].add(u)
+                    conns[u].add(v)
+                    added += 1
+    return conns, meshes, row_meshes, added
+
+
 def fail_select(seed, n, pct, domain=0xF1F1F1F1F1F1F1F1):
     """The harness's faulty nodes (failSelect, topology_test.go): pct % of the non-publishers,
     ranked by a seeded hash; toy ids are the harness's indices plus one."""
@@ -126,7 +223,7 @@ HOME = {"up": 50e6, "down": 100e6}
 DC = {"up": 1e9, "down": 1e9}
 
 
-def classes(dc_pct=0, builder_up=None, home=HOME):
+def classes(dc_pct=0, builder_up=None, home=HOME, dc_link=DC):
     """classes(n, rng) -> {id: link}: node 1 is the source; the datacenter block follows it."""
     def build(n, _rng):
         out = {}
@@ -134,7 +231,7 @@ def classes(dc_pct=0, builder_up=None, home=HOME):
         for i in range(1, n + 1):
             out[i] = dict(home)
         for i in range(2, 2 + dc):
-            out[i] = dict(DC)
+            out[i] = dict(dc_link)
         if builder_up:
             out[1] = {"up": builder_up, "down": builder_up}
         return out
@@ -149,11 +246,16 @@ NETS = {
 }
 
 
-def net(name, up=None, down=None):
-    """A network by name; up/down (bits per second) replace the home link, as the harness's UP and DOWN do."""
+def net(name, up=None, down=None, dc=None, builder=None):
+    """A network by name; up/down (bits per second) replace the home link, as the harness's UP and DOWN do;
+    dc the datacenter link and builder a datacenter builder's, both ways, as SEGMENT_DATACENTER_MBPS and
+    SEGMENT_BUILDER_UP_MBPS do."""
     home = dict(HOME)
     if up:
         home = {"up": up, "down": down or 2 * up}
     elif down:
         home["down"] = down
-    return classes(home=home, **NETS[name])
+    kw = dict(NETS[name])
+    if builder and kw.get("builder_up"):
+        kw["builder_up"] = builder
+    return classes(home=home, dc_link={"up": dc, "down": dc} if dc else DC, **kw)

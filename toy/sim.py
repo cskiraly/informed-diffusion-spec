@@ -19,9 +19,15 @@ from collections import deque
 
 import re
 
+import scenario
 import wire as Wm
+from bits import Bits, popcount
+from invariants import Checker
 from node import Node, parse_id
 from scenario import fail_select as scenario_fail_select
+
+CELL_BYTES = 2048 + 48                     # a cell and its KZG proof (das-core); the column setting's chunk
+COLUMNS = 128                              # NUMBER_OF_COLUMNS
 
 
 class Block:
@@ -67,7 +73,16 @@ class Sim:
         self.q, self.seq = [], 0
         self.blocks = {}
         self.canonical = {}                    # group -> {index: chunk}, the source's chunks
-        self.groups = []                       # (group, publish time, publisher) in order
+        self.msgs = []                         # (publish time, [groups]) per message: one group for a
+                                               #   payload, COLUMNS groups for a block of columns
+        self.pubs = []                         # the publisher per message: node 1 unless the harness's dump names one
+        self.gtype = {}                        # group -> object type id, for groups whose id names one ("column", "row")
+        self.gcol = {}                         # column group -> column index
+        self.ghdr = {}                         # column or row group -> its header
+        self.gsub = {}                         # row group -> its row subnet
+        self.grow = {}                         # (block root, blob row) -> row group
+        self.gcolgroup = {}                    # (block root, column) -> column group
+        self.custody = {}                      # node -> set of columns (the custody setting)
         self.events = 0
         self.recorder = None                   # xcheck.Recorder, when run.py installs one
         # --send-buffer: the bytes a connection's transport accepts ahead of the link; a writer waits
@@ -76,7 +91,9 @@ class Sim:
         if self.send_buffer is not None and cfg.get("uplink", "ps") != "ps":
             raise ValueError("--send-buffer needs the processor-sharing uplink")
         self.digest = hashlib.sha256() if cfg.get("digest") else None
+        self.inv = Checker(self) if cfg.get("invariants") else None
         self._ids = {}
+        self._custody_cache = {}
         self._build()
 
     # ---- the clock
@@ -111,22 +128,98 @@ class Sim:
         h = hashlib.sha256(mid + self.peer_id(p)).digest()
         return int.from_bytes(h[:8], "little")
 
+    def custody_of_id(self, node_id, count):
+        """The custody setting's derived interest: a node id's columns (scenario.custody_columns)."""
+        key = (node_id, count)
+        s = self._custody_cache.get(key)
+        if s is None:
+            s = self._custody_cache[key] = (set(range(COLUMNS)) if count >= COLUMNS
+                                            else scenario.custody_columns(node_id, count))
+        return s
+
+    def row_subnet_of_id(self, node_id):
+        """The row setting's derived interest: a node id's designated row subnet (EIP-8371)."""
+        s = self._custody_cache.get(("row", node_id))
+        if s is None:
+            s = self._custody_cache[("row", node_id)] = scenario.row_subnet(node_id, self.cfg["ROW_SUBNETS"])
+        return s
+
+    def rebuild_row(self, chunks_g, h):
+        """recover_cells_and_kzg_proofs for an honest row: every cell of blob row h.row, as the source built them."""
+        return {col: self.canonical[self.gcolgroup[(h.block, col)]][h.row] for col in range(COLUMNS)}
+
     # ---- the network
 
     def _build(self):
         c, n = self.cfg, self.cfg["nodes"]
         classes = c["classes"](n, self.rng)                    # node id -> {"up", "down"}
-        if c.get("fault"):                                     # wh<pct> or sil<pct>, the harness's set
-            kind, pct = re.fullmatch(r"(wh|sil)(\d+)", c["fault"]).groups()
+        if c.get("fault"):                                     # wh<pct>, sil<pct> (the harness's set), claim<pct>, hoard<pct>
+            kind, pct = re.fullmatch(r"(wh|sil|claim|hoardm|hoard)(\d+)", c["fault"]).groups()   # or hoardm<pct> (v2)
             c["faulty"] = scenario_fail_select(c["seed"], n, int(pct))
             c["silent"] = kind == "sil"
+            c["claim"] = kind == "claim"
+            c["hoard"] = kind in ("hoard", "hoardm")
+            c["hoard_members"] = kind == "hoardm"              # repairs only the row's members' custody cells
+        das = c.get("doc") == "v2" and c.get("setting") in ("custody", "rows")
+        if das and c.get("samplers"):
+            k = max(1, (c["samplers"] * (n - 1) + 50) // 100)         # samplers: interest without duty (§4.10)
+            c["sampler_ids"] = set(self.rng.sample(range(2, n + 1), k))
+        self.custody_count = {}
+        if das and c.get("setting") == "rows" and c.get("reconstructors"):
+            pool = [i for i in range(2, n + 1) if i not in c.get("sampler_ids", ())]
+            k = max(1, (c["reconstructors"] * (n - 1) + 50) // 100)   # row reconstructors: 64 columns (EIP-8371)
+            c["reconstructor_ids"] = set(self.rng.sample(pool, k))
+            for i in c["reconstructor_ids"]:
+                self.custody_count[i] = 64
+        if das and c.get("supernodes"):                        # supernodes: every column (PeerDAS), drawn apart so that
+            pool = [i for i in range(2, n + 1)                 #   the other draws are those of a run without them
+                    if i not in c.get("sampler_ids", ()) and i not in c.get("reconstructor_ids", ())]
+            k = max(1, (c["supernodes"] * (n - 1) + 50) // 100)
+            c["supernode_ids"] = set(random.Random(c["seed"] * 7919 + 1201).sample(pool, k))
+            for i in c["supernode_ids"]:
+                self.custody_count[i] = COLUMNS
+                if c.get("supernode_link", "dc") == "dc":      # a node that takes every column runs on a datacenter link
+                    classes[i] = dict(scenario.DC)
+        if das:
+            self.custody_count[1] = COLUMNS
         self.nodes = {i: Node(self, i, classes[i], c) for i in range(1, n + 1)}
         self.links = {i: Link(classes[i]["up"], classes[i]["down"]) for i in self.nodes}
         self.lat = c["latency"](n, self.rng)                   # (i, j) -> one-way seconds
-        conns, mesh = c["topology"](n, c["degree"], c["D"], self.rng)
-        for i, nd in self.nodes.items():
-            nd.peers = sorted(conns[i])
-            nd.ns["mesh"] = set(mesh[i])
+        setting = c.get("setting") if c.get("doc") == "v2" else None
+        if setting in ("custody", "rows"):                     # PeerDAS custody: columns as the object type; rows on top
+            for i, nd in self.nodes.items():                   # node 1, the proposer, holds every column
+                self.custody[i] = (set() if nd.sampler else set(range(COLUMNS)) if i == 1
+                                   else scenario.custody_columns(self.peer_id(i), self.custody_count.get(i, c["cgc"])))
+            row_subnets = None
+            if setting == "rows":                              # EIP-8371: one designated row subnet per node
+                row_subnets = {i: (None if i == 1 or nd.sampler else scenario.row_subnet(self.peer_id(i), c["ROW_SUBNETS"]))
+                               for i, nd in self.nodes.items()}
+            conns, meshes, row_meshes, self.repair_links = scenario.custody_topology(
+                n, c["degree"], c["D"], self.rng, self.custody, floor=c["F_LO"], source_floor=c["SOURCE_FLOOR"],
+                row_subnets=row_subnets, repair_floor=c.get("REPAIR_FLOOR", 0),
+                repair_rng=random.Random(c["seed"] * 7919 + 4243))      # its own draws: the graph stays the same
+            for i, nd in self.nodes.items():
+                nd.peers = sorted(conns[i])
+                nd.custody = self.custody[i]
+                if row_subnets:
+                    nd.row_subnet = row_subnets[i]
+                if i == 1:                                     # the proposer's fanout: its custodian links, per column
+                    rel = {col: {q for q in nd.peers if col in self.custody[q]} for col in range(COLUMNS)}
+                else:
+                    rel = {col: meshes[col][i] for col in nd.custody}
+                row_rel = None
+                if row_subnets and nd.row_subnet is not None:
+                    row_rel = {nd.row_subnet: row_meshes[nd.row_subnet][i]}
+                nd.set_column_relations(rel, row_rel)
+        else:
+            conns, mesh = c["topology"](n, c["degree"], c["D"], self.rng)
+            colour_meshes = None
+            if setting == "c":                                 # variant C: a mesh per index on the same connections
+                n_colours = 2 * math.ceil(c["payload"] / (16 * 1024))      # N at this payload (protocol.md §1)
+                colour_meshes = [scenario.gossip_mesh(conns, c["D"], 6, 12, self.rng) for _ in range(n_colours)]
+            for i, nd in self.nodes.items():
+                nd.peers = sorted(conns[i])
+                nd.set_mesh(mesh[i], None if colour_meshes is None else {k: m[i] for k, m in enumerate(colour_meshes)})
         phase = c.get("heartbeat_phase", 0.0)
         for nd in self.nodes.values():
             off = self.rng.uniform(0, c["HEARTBEAT"]) if c.get("random_phase") else phase
@@ -136,6 +229,8 @@ class Sim:
         data, ctrl = Wm.entry_wire(e)
         node.tx_data += data
         node.tx_ctrl += ctrl
+        if self.inv is not None:
+            self.inv.transmit(node, p, e)
         ln = self.links[node.id]
         ln.backlog[p] = ln.backlog.get(p, 0) + data + ctrl
         dq = ln.conns.get(p)
@@ -223,6 +318,8 @@ class Sim:
         nd = self.nodes[dst]
         nd.rx_data += data
         nd.rx_ctrl += ctrl
+        if self.inv is not None:
+            self.inv.deliver(src, dst, e)
         nd.ns["on_rpc"](src, Wm.RPC(e))
 
     # ---- the heartbeat (stock duties the pseudocode assumes, then §6.4)
@@ -255,6 +352,8 @@ class Sim:
     # ---- the source and its payloads
 
     def publish(self, m):
+        if self.custody:
+            return self.publish_block(m)
         pub = self.cfg.get("publishers", {}).get(m, 1)     # node 1 unless the harness's dump names one
         meshes = self.cfg.get("meshes", {}).get(m)
         if meshes is not None:                             # the harness's meshes at this publish
@@ -269,9 +368,113 @@ class Sim:
         g = ns["group_id"](d)
         root = hashlib.sha256(b"block" + m.to_bytes(4, "little")).digest()
         self.blocks[root] = Block(m, root, g)
-        self.groups.append((g, self.now, pub))
+        self.msgs.append((self.now, [g]))
+        self.pubs.append(pub)
         ns["publish"](self.blocks[root], d, shards)
         self.canonical[g] = dict(ns["chunks"][g])
+
+    def publish_block(self, m):
+        """A block of `blobs` blobs as COLUMNS column groups (protocol-v2.md §1.1's table): each
+        group's header is a descriptor-shaped object whose count is the blob count, so that v0.3's
+        N and K read it (K = N: no code within a column), its root names the block and the column,
+        and its id is group_id(header), computable by everyone from the block root."""
+        src = self.nodes[1]
+        ns = src.ns
+        B, c = self.cfg["blobs"], self.cfg
+        root = hashlib.sha256(b"block" + m.to_bytes(4, "little")).digest()
+        self.blocks[root] = Block(m, root, None)
+        groups = []
+        for col in range(COLUMNS):
+            hdr = Wm.Container(version=3, hash_id=0, encoding=0, count=B, segment_size=CELL_BYTES,
+                               total_length=B * CELL_BYTES, column=col, block=root,
+                               root=hashlib.sha256(b"column" + root + col.to_bytes(2, "little")).digest())
+            g = ns["group_id"](hdr)
+            self.gtype[g], self.gcol[g], self.ghdr[g] = "column", col, hdr
+            self.gcolgroup[(root, col)] = g
+            groups.append(g)
+        subnets = c.get("setting") == "rows"
+        if subnets or c.get("supernodes"):                     # the row groups: N = 128 cells, K = 64 (EIP-8371); under
+            if subnets:                                        #   custody alone the rows a supernode rebuilds, without subnets
+                perm = self.rng.sample(range(c["ROW_SUBNETS"]), B) if B <= c["ROW_SUBNETS"] else [b % c["ROW_SUBNETS"] for b in range(B)]
+            else:
+                perm = [None] * B
+            for b in range(B):
+                hdr = Wm.Container(version=4, hash_id=0, encoding=0, count=COLUMNS, segment_size=CELL_BYTES,
+                                   total_length=(COLUMNS // 2) * CELL_BYTES, row=b, subnet=perm[b], block=root,
+                                   root=hashlib.sha256(b"row" + root + b.to_bytes(2, "little")).digest())
+                g = ns["group_id"](hdr)
+                self.gtype[g], self.ghdr[g] = "row", hdr
+                if subnets:
+                    self.gsub[g] = perm[b]
+                self.grow[(root, b)] = g
+                groups.append(g)
+        self.msgs.append((self.now, groups))
+        self.pubs.append(1)
+        for nd in self.nodes.values():                         # the block root is known everywhere now (the toy's gate)
+            for g in groups:
+                nd.ns["known_at"][g] = self.now
+        withheld = set(range(COLUMNS - c.get("withhold", 0), COLUMNS))
+        for g in groups:                                       # one publish per column, as sidecars go
+            if self.gtype[g] != "column":
+                continue
+            hdr = self.ghdr[g]
+            shards = [Wm.Shard(index=b, proof=[], data=Wm.Blob(CELL_BYTES, ("cell", m, hdr.column, b)))
+                      for b in range(B)]
+            if hdr.column in withheld:                         # the proposer keeps these: only reconstruction can supply them
+                self.canonical[g] = {s.index: ns["Chunk"](slot=m, beacon_block_root=root, group=g, descriptor=hdr,
+                                                          index=s.index, proof=s.proof, data=s.data) for s in shards}
+                continue
+            ns["publish"](self.blocks[root], hdr, shards)
+            self.canonical[g] = dict(ns["chunks"][g])
+        for i, nd in self.nodes.items():                       # the samplers declare at block arrival (§4.10)
+            if not nd.sampler:
+                continue
+            cells = self.rng.sample([(col, b) for col in range(COLUMNS) for b in range(B)], self.cfg["samples"])
+            per_group = {}
+            for col, b in cells:
+                per_group.setdefault(groups[col], Bits()).set(b)
+            for g, bits in per_group.items():
+                nd.samples[g] = bits
+                self.after(nd, 0.0, nd.ns["sample"], g, bits.copy())
+
+    def unit(self, i):
+        """The bytes node i must receive for its interest in one message: the compressed payload,
+        or the chunks of its custody columns."""
+        if not self.custody:
+            return self.cfg["COMPRESSED"]
+        if not self.msgs:
+            return len(self.custody[i]) * self.cfg["blobs"] * CELL_BYTES
+        _, groups = self.msgs[0]
+        nd, total = self.nodes[i], 0
+        for g in groups:
+            if not nd.interested(g):
+                continue
+            if self.gtype.get(g) == "row":                     # a row member needs K = 64 of the row's 128 cells
+                hdr = self.ghdr[g]
+                total += (COLUMNS // 2) * Wm.chunk_wire(self.canonical[self.gcolgroup[(hdr.block, 0)]][hdr.row])
+                continue
+            total += sum(Wm.chunk_wire(f) for k, f in self.canonical[g].items() if nd.wants(g, k))
+        return total
+
+    def completion(self, i, groups):
+        """When node i completed its interest in a message: the latest of its groups, inf if any is missing;
+        None if it has no interest in the message."""
+        nd, t = self.nodes[i], None
+        for g in groups:
+            if not nd.interested(g):
+                continue
+            t = max(t or 0.0, nd.completed.get(g, math.inf))
+        return t
+
+    def incomplete(self):
+        """(node, group) pairs whose interest never completed."""
+        out = []
+        for (_, groups), pub in zip(self.msgs, self.pubs):
+            for i, nd in self.nodes.items():
+                if i == pub:
+                    continue
+                out += [(i, g) for g in groups if nd.interested(g) and g not in nd.completed]
+        return out
 
     def rebuild(self, chunks_g, d):
         """decode_and_reencode for an honest group: the source's chunks, as a real decode would give."""
@@ -284,13 +487,38 @@ class Sim:
     # ---- the measurements
 
     def results(self):
-        c, out = self.cfg, []
-        W = c["COMPRESSED"]
-        for k, (g, t0, pub) in enumerate(self.groups):
-            K = len(self.canonical[g]) // 2
-            ts = sorted(nd.completed.get(g, math.inf) - t0 for i, nd in self.nodes.items() if i != pub)
-            out.append({"msg": k + 1, "p50": pct(ts, 50), "p99": pct(ts, 99),
-                        "max": ts[-1], "missing": sum(1 for t in ts if t == math.inf)})
+        """Per message: the receivers' completion (custodians, or every node on a payload), and the
+        samplers' apart, since a sample is a different interest."""
+        out = []
+        for k, ((t0, groups), pub) in enumerate(zip(self.msgs, self.pubs)):
+            cols = [g for g in groups if self.gtype.get(g) != "row"]
+            rws = [g for g in groups if self.gtype.get(g) == "row"]
+            ts, ss, rs = [], [], []
+            for i, nd in self.nodes.items():
+                if i == pub:
+                    continue
+                t = self.completion(i, cols)                   # the payload, or the node's custody columns
+                if t is not None:
+                    (ss if nd.sampler else ts).append(t - t0)
+                if rws:
+                    t = self.completion(i, rws)                # a row member's row, at K
+                    if t is not None:
+                        rs.append(t - t0)
+            ts.sort()
+            ss.sort()
+            rs.sort()
+            r = {"msg": k + 1, "p50": pct(ts, 50), "p99": pct(ts, 99),
+                 "max": ts[-1] if ts else math.nan, "missing": sum(1 for t in ts if t == math.inf),
+                 "nodes": len(ts)}
+            if rs:
+                r["rows"] = {"p50": pct(rs, 50), "p99": pct(rs, 99), "max": rs[-1],
+                             "missing": sum(1 for t in rs if t == math.inf), "nodes": len(rs)}
+            if ss:
+                r["samplers"] = {"p50": pct(ss, 50), "p99": pct(ss, 99), "max": ss[-1],
+                                 "missing": sum(1 for t in ss if t == math.inf), "nodes": len(ss),
+                                 "unreachable": sum(popcount(nd.unreachable.get(g, Bits())) for nd in self.nodes.values()
+                                                    if nd.sampler for g in groups)}
+            out.append(r)
         return out
 
 

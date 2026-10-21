@@ -85,11 +85,13 @@ class Shard:
 
 
 class HaveBitmap:
-    """One group's bitmap, as a message-id string (§2)."""
-    __slots__ = ("group", "bits")
+    """One group's bitmap, as a message-id string (§2). Under protocol-v2.md the two claims of a
+    holding ride in the version byte (its §7, last column); v0.3 reads them from a full bitmap."""
+    __slots__ = ("group", "bits", "claim_all", "complete")
 
     def __init__(self, group, bits):
         self.group, self.bits = group, Bits(bits.v)       # a snapshot: the node's own map keeps growing
+        self.claim_all = self.complete = False
 
     def wire_len(self):
         v = self.bits.v
@@ -186,10 +188,11 @@ def PRUNE(prunes):
 
 class Entry:
     """A queue entry: at most one chunk, plus control (§7.2)."""
-    __slots__ = ("chunk", "control", "solicited")
+    __slots__ = ("chunk", "control", "solicited", "at", "urgent")
 
     def __init__(self, chunk=None, control=None, solicited=False):
         self.chunk, self.control, self.solicited = chunk, control, solicited
+        self.at = self.urgent = None    # the toy's: when and on which lane it was queued (invariants.py)
 
     def iwants(self):
         return [m for m in self.control.items if m.kind == "iwant"] if self.control else []

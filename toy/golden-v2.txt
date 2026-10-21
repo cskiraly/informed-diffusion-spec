@@ -1,0 +1,13 @@
+# cell, digest, warm medians: check.py's cells (run.py --nodes 60 --degree 30 --msgs 3 --seed 7 ... --digest)
+push 7ff339ff503e7619 p50 472ms p99 562ms copies 2.48
+hold c3265f3cbfcafcff p50 477ms p99 582ms copies 1.92
+announce 79cfa39c4973b98d p50 470ms p99 584ms copies 2.09
+none c3265f3cbfcafcff p50 477ms p99 582ms copies 1.92
+withholders 1092b41ab788cbb7 p50 545ms p99 636ms copies 2.31
+silent ad354323f8df2441 p50 575ms p99 728ms copies 1.92
+cap-wait b8a3b4d10ce1bb83 p50 577ms p99 754ms copies 1.70
+dcb20 55da28ec8bc670ad p50 246ms p99 343ms copies 3.35
+rr-stripe 0310b5d0a28f2210 p50 410ms p99 504ms copies 2.45
+without-a 8fb5559568b81a66 p50 472ms p99 560ms copies 3.99
+without-b bde63aa658413d52 p50 445ms p99 501ms copies 3.00
+loss-thin 0bdca3c30e381ead p50 835ms p99 969ms copies 1.81
