@@ -194,6 +194,10 @@ class Entry:
     def iwants(self):
         return [m for m in self.control.items if m.kind == "iwant"] if self.control else []
 
+    def add_ihave(self, h):
+        c = IHAVE(h)
+        self.control = c if self.control is None else self.control + c
+
     def is_empty(self):
         return self.chunk is None and (self.control is None or self.control.empty())
 

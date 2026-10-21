@@ -238,6 +238,8 @@ class Sim:
         for p, groups in ns["pushed"].items():
             for g in [g for g, e in groups.items() if _tick(e)]:
                 del groups[g]
+        nd.expire_offers(self.now)                         # §8.1's 30 s, checked at each heartbeat: an
+                                                           #   offer can outlive it by up to one
         had_pace = bool(ns["pace_queue"])
         ns["on_heartbeat"]()
         if ns["PACED"] and ns["pace_queue"] and not had_pace:

@@ -74,7 +74,14 @@ What the toy adds to the document, and nothing else:
   instead of pushed, or none rebuilt at all (`--rebuilt`), a cap on the chunks pushed per peer
   (`--rb-max`) and a random wait before the push (`--rb-jitter-ms`); the harness's withholders and
   silent nodes (`--fault`; a silent node pushes nothing it rebuilt, as in the harness), chunks
-  lost at admission (`--loss-data`) and thin links (`--up`, `--down`).
+  lost at admission (`--loss-data`) and thin links (`--up`, `--down`). The loss is a refusal at
+  admission (`enqueue` returns false), so a lost push is offered instead (§5.2); it hashes the
+  node, the peer and the chunk, so a chunk lost once to a peer is lost every time, and an answer
+  owed for it (§4.1) is dropped when the writer queues it again.
+- **What the runs leave out:** every block installs at its publish, at every node, so nothing is
+  deferred or asked for at installation; groups do not expire; connections do not close; the
+  queues have no limit but the loss above. The document's rules for those cases are not exercised
+  here.
 
 ## The network
 

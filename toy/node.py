@@ -13,13 +13,14 @@ from collections import deque
 
 import bits as B
 import wire as Wm
-from bits import AutoMap, Bits, DefaultMap, HaveEntry, LazyMap, PushEntry, all_bits, bitmap, popcount
+from bits import AutoMap, Bits, DefaultMap, HaveEntry, LazyMap, OfferList, PushEntry, all_bits, bitmap, popcount
 from extract import generate
 
 SPEC_SRC = generate()
 SPEC = compile(SPEC_SRC, "protocol.md (extracted)", "exec")
 
 COLLECTING, DECODING, COMPLETE, INVALID = "COLLECTING", "DECODING", "COMPLETE", "INVALID"
+OFFER_TTL = 30.0                        # §8.1: offers live 30 s
 ACCEPT, REJECT, DEFER = "ACCEPT", "REJECT", "DEFER"
 
 
@@ -145,13 +146,18 @@ class Node:
             "holders": AutoMap(lambda: AutoMap(set)), "sent_to": AutoMap(lambda: AutoMap(Bits)),
             "queue": AutoMap(PeerQueue), "slot_held": DefaultMap(False),
             "unwanted": AutoMap(set), "serve_count": AutoMap(lambda: AutoMap(int)),
-            "asked_at": {}, "tried": AutoMap(dict), "offers": AutoMap(list), "promises": {},
+            "asked_at": {}, "tried": AutoMap(dict), "offers": LazyMap(OfferList), "promises": {},
+            "offered": AutoMap(lambda: AutoMap(Bits)), "asked_parked": AutoMap(set),
+            "last_resort_armed": set(),
+            "owed": AutoMap(lambda: AutoMap(Bits)), "owed_answers": AutoMap(lambda: AutoMap(Bits)),
             "park": AutoMap(dict), "gossip_history": GossipHistory(), "pace_queue": [],
             "pending": AutoMap(list), "pending_ids": set(),
             "mesh": set(), "now": 0.0,
         }
         self._seen = set()
         self._by_index = {}             # (group, index) -> set of ask keys, for closing promises
+        self._listed = {}               # announcer -> how many ordered offer lists it is in (§8.2)
+        self._offer_at = {}             # (announcer, group) -> its last offer, for the 30 s of §8.1
 
         # ---- chunks and groups (§8.1)
         def open_group(g, f):
@@ -180,6 +186,16 @@ class Node:
         def group(a):
             return a.group if isinstance(a, Wm.WantIndex) else a[:32]
 
+        def index(a):
+            return group_index(a).index
+
+        def authenticable(g):           # every block installs at its publish, at every node
+            return any(b.body.signed_execution_payload_bid.message.execution_payload_segment_group_id == g
+                       for b in node.sim.blocks.values())
+
+        def bid_group(root):
+            return node.sim.blocks[root].body.signed_execution_payload_bid.message.execution_payload_segment_group_id
+
         def held(a):
             gi = group_index(a)
             return gi is not None and ns["mine"][gi.group].has(gi.index)
@@ -205,13 +221,18 @@ class Node:
         def deliver(g, payload):
             node.delivered[g] = node.sim.now
 
-        def close_promises(g, i):
+        def close_promises(g, i):       # the chunk arrived: its promises, offers and tries go (§8.1)
             for a in self._by_index.pop((g, i), ()):
                 for p in list(ns["tried"].get(a, {})):
                     ns["promises"].pop((a, p), None)
-                ns["offers"].pop(a, None)
+                for p in ns["offers"].pop(a, ()):
+                    self._listed[p] -= 1
                 ns["asked_at"].pop(a, None)
                 ns["tried"].pop(a, None)
+            ns["asked_parked"].pop((g, i), None)         # B′'s count is per chunk (§6.1)
+            for q, groups in ns["offered"].items():
+                if g in groups:
+                    groups[g].clear(i)
 
         def close_promises_of_group(g):
             for (gg, i) in [k for k in self._by_index if k[0] == g]:
@@ -222,6 +243,9 @@ class Node:
         def discard_queued(g):
             for q in ns["queue"].values():
                 q.normal = [e for e in q.normal if not (e.chunk is not None and e.chunk.group == g)]
+            for owed in (ns["owed"], ns["owed_answers"]):
+                for groups in owed.values():
+                    groups.pop(g, None)
 
         def discard_paced(g):
             pass
@@ -237,13 +261,11 @@ class Node:
             d = ns["desc"].get(h.group)
             return d is None or h.bits.v >> d.count == 0
 
-        def add_offer(a, p):
-            lst = ns["offers"][a]
-            if p not in lst and len(lst) < 16:
-                lst.append(p)
-                gi = group_index(a)
-                if gi is not None:
-                    self._by_index.setdefault((gi.group, gi.index), set()).add(a)
+        def admitted(p, f):
+            return True                 # no group limits here (MAX_PENDING_GROUPS)
+
+        def listed(p):
+            return self._listed.get(p, 0)
 
         def reserve(p, f):
             return False
@@ -257,14 +279,27 @@ class Node:
         def handle_graft_prune(p, rpc):
             return []
 
-        def enqueue(p, x, urgent=False):
+        def enqueue(p, x, urgent=False):    # the queues here have no limit: every entry is admitted
             e = x if isinstance(x, Wm.Entry) else (
                 Wm.Entry(control=x) if isinstance(x, Wm.Control) else Wm.Entry(chunk=x))
             if e.is_empty():
-                return                  # an empty response or bitmap is not sent (§2, §5.2)
+                return True             # an empty response or bitmap is not sent (§2, §5.2)
             q = ns["queue"][p]
             (q.urgent if urgent else q.normal).append(e)
             node.kick(p)
+            return True
+
+        def has_room(p):
+            return True
+
+        def pop_owed_answer(p):
+            groups = ns["owed_answers"][p]
+            g = min(groups)
+            i = min(groups[g])
+            groups[g].clear(i)
+            if not groups[g]:
+                del groups[g]
+            return ns["chunks"][g][i]
 
         def topic_peers():
             return node.peers
@@ -357,6 +392,28 @@ class Node:
                 m = f.mid = spec_message_id(f)
             return m
         ns["message_id"] = message_id
+        spec_add_offer, spec_may_ask, group_index = ns["add_offer"], ns["may_ask"], ns["group_index"]
+        offers, listed = ns["offers"], self._listed
+
+        def index_ask(a):               # the ask keys of an index, in either form, for close_promises
+            gi = group_index(a)
+            if gi is not None:
+                self._by_index.setdefault((gi.group, gi.index), set()).add(a)
+
+        def add_offer(a, p):            # and the lists each announcer is in, for `listed`
+            was = a in offers and p in offers[a]
+            spec_add_offer(a, p)
+            if not was and a in offers and p in offers[a]:
+                listed[p] = listed.get(p, 0) + 1
+                index_ask(a)            # a listed key; one only in `offered` has nothing to close
+            self._offer_at[(p, ns["group"](a))] = ns["now"]
+
+        def may_ask(a, p):              # an ask under a key no offer used (the ledger's) closes too
+            ok = spec_may_ask(a, p)
+            if ok:
+                index_ask(a)
+            return ok
+        ns["add_offer"], ns["may_ask"] = add_offer, may_ask
         spec_claim_group, node, c = ns["claim_group"], self, self.cfg
 
         def claim_group(g):             # the measurement point: completion at the K-th chunk
@@ -383,15 +440,19 @@ class Node:
         if c.get("loss_data"):
             pct, spec_enqueue, node = c["loss_data"], ns["enqueue"], self
 
-            def enqueue(p, x, urgent=False):           # every node drops pct % of chunks at admission
+            # every node drops pct % of chunks at admission, by a hash of the node, the peer and the
+            # chunk: a chunk refused once to a peer is refused every time, so an answer owed for
+            # it (§4.1) is refused again when the writer queues it, and dropped (has_room cannot
+            # foresee a loss; at a real full queue it does guarantee the admission)
+            def enqueue(p, x, urgent=False):
                 f = x.chunk if isinstance(x, Wm.Entry) else (x if not isinstance(x, Wm.Control) else None)
                 if f is not None:
                     h = Wm.sha256(b"loss" + node.id.to_bytes(4, "little") + p.to_bytes(4, "little") + ns["message_id"](f))
                     if int.from_bytes(h[:8], "little") % 100 < pct:
                         node.dropped += 1
                         if isinstance(x, Wm.Entry) and x.control is not None:
-                            return spec_enqueue(p, Wm.Entry(control=x.control), urgent)
-                        return
+                            spec_enqueue(p, Wm.Entry(control=x.control), urgent)
+                        return False    # the chunk was refused at admission
                 return spec_enqueue(p, x, urgent)
             ns["enqueue"] = enqueue
 
@@ -426,6 +487,26 @@ class Node:
                         ns["enqueue"](q, ns["chunks"][g][i], urgent=False)
                         ns["note_push"](q, g, i)
             ns["push_rebuilt"] = push_rebuilt
+
+    def expire_offers(self, now):
+        """§8.1: an announcer's offers of a group go 30 s after its last one (the ordered lists and
+        `offered`), checked at each heartbeat, so an offer can outlive its 30 s by up to one. A
+        group's diffusion takes well under that, so what goes here is what a group that completed
+        by decoding left behind; it matters for `listed` alone."""
+        ns, old = self.ns, now - OFFER_TTL
+        gone = [k for k, t in self._offer_at.items() if t < old]
+        for p, g in gone:
+            del self._offer_at[(p, g)]
+            ns["offered"][p].pop(g, None)
+            empty = []
+            for a, lst in ns["offers"].items():
+                if p in lst and ns["group"](a) == g:
+                    lst.remove(p)
+                    self._listed[p] -= 1
+                    if not lst:
+                        empty.append(a)
+            for a in empty:
+                del ns["offers"][a]
 
     # ---- the writer: one per peer (§7.2)
 

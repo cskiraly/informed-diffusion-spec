@@ -32,6 +32,9 @@ class Bits:
     def set(self, i):
         self.v |= 1 << i
 
+    def clear(self, i):
+        self.v &= ~(1 << i)
+
     def empty(self):
         return self.v == 0
 
@@ -148,6 +151,22 @@ class PushEntry(Bits):
         object.__setattr__(self, k, v)
         if k in ("first_push", "ttl") and getattr(self, "_home", None) is not None:
             self._attach()
+
+
+class OfferList(list):
+    """offers[a]: an ask's announcers, in announcement order (§6.1). A missing one reads as an empty,
+    detached list, which joins its map at its first append."""
+    __slots__ = ("_home", "_key")
+
+    def __init__(self, home=None, key=None):
+        super().__init__()
+        self._home, self._key = home, key
+
+    def append(self, x):
+        super().append(x)
+        if self._home is not None:
+            self._home._d[self._key] = self
+            self._home = None
 
 
 class LazyMap:
