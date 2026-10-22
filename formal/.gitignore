@@ -4,3 +4,5 @@ node_modules
 _apalache-out
 tlc/out
 out
+# the Veil model's packages and build outputs (lake)
+veil/.lake

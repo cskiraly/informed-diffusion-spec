@@ -233,3 +233,4 @@ python3 -I formal/wire/check_wire.py
 - `tlc/mkcheck.sh`, `tlc/configs/`: TLC.
 - `toy/monitor.py`: the runtime monitors on the toy; `wire/check_wire.py`: §1–§2's arithmetic.
 - `package.json`, `package-lock.json`, `quint`: the pinned toolchain.
+- `veil/`: one rule at any size: "the claim wins" (A1), proved in Veil (Lean 4) for any number of nodes, groups and chunks, under one stated assumption (its README).

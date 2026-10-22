@@ -35,6 +35,7 @@ keeps its title.
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.
 - [`formal/`](formal/): a model of §4–§7, checked on small instances: what holds, what v0.5 fixed.
+- [`formal/veil/`](formal/veil/): one rule at any size: "the claim wins" (A1), proved in Veil for any number of nodes, groups and chunks, under one stated assumption.
 
 **Status:** draft v0.6, 2026-10-21. Since v0.5: the name SEACAST; the formal model (`formal/`),
 which checks v0.5's rules; and a draft of SEACAST's next version (`protocol-v2.md`), which adds availability
