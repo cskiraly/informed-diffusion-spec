@@ -1186,7 +1186,11 @@ than on the uncompressed size, and is not yet fixed.
 ## 9. As measured: where the research implementation differs
 
 The measurements in the post come from a research harness. Where it does something this document
-does not specify, and what that means for the numbers:
+does not specify, and what that means for the numbers, follows. Figures 4 and 5 of
+[*SEACAST: fast, lean broadcast for Ethereum, with an executable spec and a formal model*](https://ethresear.ch/t/seacast-fast-lean-broadcast-for-ethereum-with-an-executable-spec-and-a-formal-model/26167)
+(2026) were rerun on an implementation with this version's rules and the source's paced HAVE; that
+post's other figures, and the earlier posts', come from the implementation before them. Where the
+rerun does as this document does, the entry says so.
 
 **Harness shortcuts, not part of the protocol.**
 - *No validation.* Chunks were accepted, claimed and forwarded on arrival, with no proof check and no
@@ -1233,10 +1237,18 @@ does not specify, and what that means for the numbers:
 **Behaviours that shaped the numbers, as measured, and where this document departs.**
 - *Announcing on arrival.* With no validation, a node claimed a chunk as it arrived. This document
   claims it after level 1 (§4.2).
+- *Announcing after the decode claim.* A measured node announced every new chunk to its mesh, as
+  stock IDONTWANT does for every new message, also after its decode claim had named every chunk of
+  the group. This document acknowledges such a chunk to its sender only (§4.2): the mesh learns
+  nothing from the HAVE. The extra HAVEs are about a fifth of the honest nodes' HAVEs at about 70
+  connections, and more with a datacenter builder, whose fast nodes deliver more chunks after the
+  decode. With the measured rule, the toy sends as many HAVEs as the implementation, and its tail
+  does not change. The rerun of Figures 4 and 5 still announces these chunks.
 - *The source's HAVE* went out once per chunk as each was added to the batch: N cumulative HAVEs to
   each mesh peer, all before the data, which names the source to its mesh. This document paces it
   instead (§5.1, [P4]). A change of 2026-10-07 makes the implementation send one HAVE before the
-  data by default, and pace it as an option (`SEGMENT_SRC_HAVE=paced`).
+  data by default, and pace it as an option (`SEGMENT_SRC_HAVE=paced`). The rerun of Figures 4 and 5
+  paces it, as this document does.
 - *The sender counts as a holder* in a forwarding node's budget (§5.2), so R = 2 means one further push per
   received chunk. This is what was measured. The sender is also excluded from the candidates here;
   in the code it could take a budget slot and then be skipped, which is rare.
@@ -1255,25 +1267,33 @@ does not specify, and what that means for the numbers:
   document drops such an ask (§4.5), and the asker drops queued asks for chunks it holds (§7.2). The
   asker's queue kept such asks, and its HAVE, on the urgent lane, overtook them: the answers arrived
   as duplicates, 0.1 % of them at home and 2 to 3 % with a datacenter builder. A change of 2026-10-07
-  makes the implementation do as this document does.
+  makes the implementation do as this document does; the rerun of Figures 4 and 5 has it.
 - *Promises were not closed on decode* for the park. Asks still open when a node decoded broke at
   400 ms and parked the asked peers for the completed group only, which changed no later decision.
   This document closes them.
 - *The offer-table retry* picked untried announcers in peer-id order; this document takes the
   earliest to have announced. A retry that found every announcer parked stopped, and the chunk
   waited for a fresh announcement; this document asks each parked announcer once more, later, and
-  keeps every offer (§6.1).
+  keeps every offer (§6.1). The rerun of Figures 4 and 5 does as this document does.
 - *An ask dropped at a full queue* was lost, and its promise still fell due. This document starts
-  the promise when the ask is written (§7.2).
+  the promise when the ask is written (§7.2), as the rerun of Figures 4 and 5 does.
 - *A push that did not happen.* A push that projection skipped was not announced in its place: the
   implementation's comment has the peer pull the chunk from others that announced it, and where
   none did, the peer stayed short. This document offers it (§5.2). A push, offer or answer that a
-  full queue refused was dropped, as an ask was; this document owes it (§7.2).
-- *Rules added after v0.4,* from a model of this document's rules, which the measured
-  implementation predates: the three above; no ask before the block (§3, §4.4) and a refused
-  deferred copy counted as its sender's offer (§4.2), which need blocks, and the measured runs had
-  none; promises that close with their connection (§6.1); and expiry checked by the retry, the
-  writer's ask filter and a returning decode (§6.1, §7.2, §4.6).
+  full queue refused was dropped, as an ask was; this document owes it (§7.2). The rerun of
+  Figures 4 and 5 does both.
+- *Rules added after v0.4,* from a model of this document's rules: the three above; no ask before
+  the block (§3, §4.4) and a refused deferred copy counted as its sender's offer (§4.2), which need
+  blocks, and the measured runs had none; promises that close with their connection (§6.1); and
+  expiry checked by the retry, the writer's ask filter and a returning decode (§6.1, §7.2, §4.6).
+  The implementation behind the earlier figures predates them. The rerun of Figures 4 and 5 has
+  each of them that has a counterpart in the implementation. Two have none: the implementation keeps
+  no deferred copies, and it does not decode, so the expiry check of a returning decode falls to its
+  rebuild step, which the measured runs do not reach. Of the rest, three act in those runs: the
+  promise from the write, the offer of a skipped push, and the second ask of parked announcers. The
+  runs have no blocks, no expiry within a payload's lifetime and no disconnects, so the others do
+  nothing there. Against the same runs without these rules, the times and bytes stayed within the
+  spread between runs, and honest nodes parked honest peers less often.
 - *The IHAVE limit.* The measured handler allowed 4096 control-bearing RPCs per peer per heartbeat,
   a counter that also counts RPCs carrying other control. §8.3 makes a raised limit part of the
   protocol and counts only IHAVE-bearing RPCs.
@@ -1288,4 +1308,5 @@ does not specify, and what that means for the numbers:
   ids; only a job emptied while its ids became bitmaps consumed the tick. This document consumes
   the tick in both cases.
 - *Per-peer tables:* offers, retries and answer counts were keyed by peer id and survived a
-  reconnection. §8.1 resets them with the connection.
+  reconnection. §8.1 resets them with the connection. In the rerun of Figures 4 and 5 a closed
+  connection's promises, offers and tried asks go with it; its answer counts still survive.

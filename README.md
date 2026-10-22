@@ -51,8 +51,9 @@ ask before the block is installed, and what was offered meanwhile is asked for t
 group's pull state goes at its expiry (§6.1, §7.2, §4.6, §8.1); a promise starts when the ask is
 written and closes with its connection (§7.2, §6.1); and a copy the deferred store refuses counts
 as its sender's offer (§4.2). §8's state, limits and constants follow, and §9 lists these rules
-among those the measured implementation predates. The toy runs the text as written, so its
-recorded results moved.
+among those the implementation behind the earlier figures predates; the SEACAST post's Figures 4
+and 5 were rerun on an implementation with them. The toy runs the text as written, so its recorded
+results moved.
 
 ## Running it
 
