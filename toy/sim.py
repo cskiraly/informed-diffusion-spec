@@ -365,9 +365,10 @@ class Sim:
         ns = src.ns
         body = Wm.Blob(self.cfg["payload"], ("payload", m))
         d, shards = ns["build_group"](body)
-        g = ns["group_id"](d)
+        gid = ns["group_id"](d)
         root = hashlib.sha256(b"block" + m.to_bytes(4, "little")).digest()
-        self.blocks[root] = Block(m, root, g)
+        self.blocks[root] = Block(m, root, gid)                # the bid commits the group id; a block's slot is m
+        g = ns["group_key"](gid, m)                            # the group's name in diffusion (protocol.md §1)
         self.msgs.append((self.now, [g]))
         self.pubs.append(pub)
         ns["publish"](self.blocks[root], d, shards)

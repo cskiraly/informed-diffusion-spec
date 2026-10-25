@@ -158,8 +158,8 @@ class TypeParams:                                    # per object type; values i
 
 | | payload (v0.3) | column (PeerDAS) | row (RowDAS) |
 |---|---|---|---|
-| a group | one descriptor's chunks | one column of one block | one row of one block |
-| group id | `group_id(descriptor)` | `(block_root, column)` | `(block_root, row)` |
+| a group | one descriptor's chunks, at one slot | one column of one block | one row of one block |
+| group id | `group_key(group_id(descriptor), slot)`, the key of v0.3 §1 | `(block_root, column)` | `(block_root, row)` |
 | N | `descriptor.count` | the blob count | `NUMBER_OF_COLUMNS` = 128 |
 | K | `ceil(total_length / segment_size)` | N: no code across blobs | 64 |
 | `verify` | v0.3's `validate_chunk`: the Merkle path to the committed root; DEFER before the block | `verify_cell_kzg_proof_batch`, one cell index, many commitments; DEFER before the header | the same, one commitment, many cell indices |
@@ -384,11 +384,17 @@ rsample_asked: Dict[GroupId, Dict[int, Set[PeerId]]]  # new: the custodians each
 rsample_final: Dict[GroupId, bool]                    # new: the last step's re-asks were waited for
 ```
 
-Lifetimes are v0.3 §8.1's: per-group state lives `GROUP_TTL` past the last chunk or the completion
-and leaves a tombstone; per-peer entries live `HAVE_TTL` and `PUSH_TTL` heartbeats or until the
-connection closes; relations live until PRUNE or disconnection. Reading a missing entry allocates
-nothing; the admission checks of v0.3 §8.2 and the limits of §6.3 come first. A node may hold state
-for a group it has no interest in, when it holds chunks of it or a peer's interest names it (a
+Lifetimes are v0.3 §8.1's: per-group state lives `GROUP_TTL` past the last chunk or the completion,
+or until its slot leaves the node's live window if that comes first, and leaves a tombstone until
+the window has passed the slot; per-peer entries live `HAVE_TTL` and `PUSH_TTL` heartbeats or until
+the connection closes; relations live until PRUNE or disconnection. An expired group is not taken
+up again: the receive and publish paths check it as v0.3's do, `fill` on every axis a chunk
+projects onto, and the paths that act on a projected group (`forward`, `push_rebuilt`, the repair
+sample's `ask_custodian`) skip an expired axis; `check_completion` finds no state to act on.
+**Open** (2026-10-23): the sampler's `sample` and `resample` do not check it yet, so a retry after
+the expiry recreates the park, the interest and a WANT. Reading a missing entry allocates nothing;
+the admission checks of v0.3 §8.2 and the limits of §6.3 come first. A node may hold state for a
+group it has no interest in, when it holds chunks of it or a peer's interest names it (a
 reconstructor's non-custodied columns, R4); the number of such groups per slot is bounded (§6.3).
 
 **Helpers not written out**, beyond v0.3 §8.1's: `type_of_group(g)` (the object type a group id
@@ -400,7 +406,8 @@ fam)`, `families_with_duty(T)`, `wants_family(T, fam)`, `duty_for(g)`, `uplink_c
 true if the queue admitted it, as v0.5's `enqueue`),
 `Ask(g, i)` (an ask's key, v0.3's `WantIndex`), `chunk_id(f)` (v0.3's `message_id`),
 `open_group(g, f)` (as v0.3's, and records `T_of`, `interest`, `known_at`), `open_group_source(g,
-h)`, `interest_satisfied(g)` (§1.5), `deferred_offers(p, h)` (§4.3),
+h)`, `group_of(block, h)` (the group a source publishes, by §1.1's table: for the payload the key of
+v0.3 §1, for a column or a row its id), `interest_satisfied(g)` (§1.5), `deferred_offers(p, h)` (§4.3),
 `publish_evidence(g, body)`, `unreachable(g, bits)` (§4.10: no link can serve a sample; the
 application decides), `wire_size(f)` (§4.11: the chunk's bytes on the wire, the binding's),
 `cell_groups(root)` (the column and row groups of a block, from their ids alone).
@@ -496,11 +503,12 @@ def on_chunk(p, f):
     if seen(mid) or mid in pending_ids:                # a duplicate, a chunk rejected before, or one waiting
         if accepted(mid): send_have(p, f.group)        # [c14] duplicates are acknowledged too
         return
-    if expired(f.group): return
+    if expired(f.group) or not live(f.slot): return    # past its lifetime or live window (v0.3 §8.1)
     T = type_of_group(f.group)
     on_validated(p, f, T.verify(f, T.header_of(f)))   # level 1; DEFER while the gate is closed
 
 def on_validated(p, f, result):
+    if expired(f.group) or not live(f.slot): return    # expired or out of the window meanwhile (v0.3 §8.1)
     if result == DEFER: return defer(p, f)             # v0.3 §4.2: the bounded per-peer store
     mark_seen(chunk_id(f))                             # accepted or rejected: never validated again
     if result == REJECT: return penalise(p)            # level 1 failures are the sender's
@@ -510,6 +518,7 @@ def on_validated(p, f, result):
     for (g, i) in T.project(f): check_completion(g)    # §4.6
 
 def fill(g, i, f, p):
+    if expired(g): return                              # an expired group is not taken up again (v0.3 §8.1)
     if g not in T_of: open_group(g, f)                 # hdr[g], T_of[g], interest[g], known_at[g]
     if state[g] == INVALID: return                     # a dropped group (§4.6)
     if received[g].has(i) or rebuilt[g].has(i):        # a copy of a chunk we hold: acknowledge it
@@ -607,6 +616,7 @@ handles at most `MAX_IHAVE_MESSAGES` offer-bearing RPCs per peer and heartbeat (
 def forward(f, from_peer):
     for (g, i) in type_of_group(f.group).project(f):                       # (R4) each axis with its own type
         T = type_of_group(g)
+        if expired(g): continue                                            # an expired axis is not acted on (v0.3 §8.1)
         if duty_for(g) != FORWARD: continue                                # no duty on this axis: we only serve asks
         fam, c = T.family(g), colour_of(g, i)
         pushers = [q for q in links(T) if c in push_out[q][T][fam]]        # the relation for this colour
@@ -750,7 +760,8 @@ def repair_verdict(g):                                 # (R5, option) Incrementa
 
 def ask_custodian(g, i) -> bool:                       # (R5, option) cell i of g, of a custodian of its column not
     T = type_of_group(g); (g2, i2) = T.cross(g, i)[0]  #   yet asked for it and not a claimant (REPAIR_FLOOR keeps
-    qs = [q for q in links(type_of_group(g2))          #   the node a link to one per column)
+    if expired(g2): return False                       #   the node a link to one per column); an expired column
+    qs = [q for q in links(type_of_group(g2))          #   is not asked for (v0.3 §8.1)
           if interest_of_peer(q, g2).has(i2) and q not in claims[g] and q not in rsample_asked[g][i]]
     if not qs: return False
     q = choice(qs); rsample_asked[g][i].add(q)
@@ -828,6 +839,7 @@ def push_rebuilt(g, new):                              # [c10] v0.3 §4.6 over e
     for i in new:
         for (g2, i2) in T.project(chunks[g][i]): by_group.setdefault(g2, []).append((i2, chunks[g][i]))
     for g2, items in by_group.items():
+        if expired(g2): continue                       # an expired axis is not acted on (v0.3 §8.1)
         T2 = type_of_group(g2); k = T2.threshold(hdr[g2])
         if T2.params.REPAIR_BUDGET and T2.params.EAGER:
             push_rebuilt_as_source(g2, items); continue
@@ -1112,7 +1124,8 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
 
 ```python
 def publish(block, d, shards):                         # the payload's builder; v0.3 §5.1 over the relation
-    g = group_id(d)
+    g = group_of(block, d)                             # §1.1's table: the payload's key, a column's id
+    if expired(g) or not live(block.slot): return      # too late: past its live window (v0.3 §8.1)
     open_group_source(g, d)                            # hdr[g] = d; T_of, interest, known_at
     T = type_of_group(g)
     for s in shards:                                   # the source holds every chunk from the start
@@ -1552,6 +1565,10 @@ applies; without P4 the medians had been up to 102 ms behind v0.4's (`silent` 67
 with v0.5's: eleven cells within 7 ms at the median, 15 ms at the tail and 0.03 copies
 (`rr-stripe` p50 417 → 410 ms, `dcb20` p99 358 → 343 ms, `cap-wait` 740 → 754 ms), and
 `loss-thin` 1 ms later at the median and 0.12 copies lighter, as before the merge (1.81 copies).
+With the group's key (2026-10-23, v0.3 §1; both recordings move again, as under any renaming:
+`toy/README.md`) eleven cells are within 6 ms at the median, 35 ms at the tail and 0.03 copies
+(`without-a` p99 613 → 578 ms, `cap-wait` 815 → 797 ms), and `loss-thin` is 10 ms later at the
+median and 0.11 copies lighter (1.81 copies).
 Draft 0 did not reproduce the cells at all: it filtered a forwarding node's push candidates by
 what it had already pushed, which v0.3 does not, and it shuffled the
 relation peers for repair in a different order than v0.3's mesh set, so its random draws diverged;

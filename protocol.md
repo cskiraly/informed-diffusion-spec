@@ -104,6 +104,9 @@ class SegmentDescriptor(Container):     # committed in the bid                  
 def group_id(d: SegmentDescriptor) -> Bytes32:
     return sha256(b"\x02" + serialize(d))
 
+def group_key(gid: Bytes32, slot: Slot) -> Bytes32:     # the group's name in diffusion: a group id
+    return sha256(b"\x03" + gid + uint64_le(slot))      #   committed at a slot (below)
+
 def K(d) -> int: return ceil(d.total_length / d.segment_size)     # data chunks
 def N(d) -> int: return d.count
 
@@ -125,12 +128,21 @@ itself, `execution_payload_segment_descriptor` (design B). Neither exists in the
 Every chunk is then authenticated through the block that carries the bid: installed block → bid →
 descriptor → Merkle proof → chunk.
 
+**The group's key.** In diffusion a group is a descriptor committed at a slot, and is named by its
+key, `group_key(group_id(d), slot)`: chunks, their ids, HAVEs and asks all carry the key (§2), and
+every node derives it from an installed block, from the group id its bid commits and the block's
+slot. A bid of a later slot that commits the same descriptor therefore names another group, and a
+group's slot is fixed by its name (§8.1). An honest builder never commits one descriptor at two
+slots, since the payload carries its slot's timestamp; the key keeps a dishonest one from making an
+expired group live again. Two blocks of one slot whose bids commit the same descriptor share the
+key, and their chunks are one group.
+
 **Getting the descriptor (open).** A receiver needs the descriptor itself to check a chunk's proof;
 the group id is only its hash. Two designs work, and the choice is not made:
 - **A, descriptor in the chunk:** every chunk carries the descriptor, and the receiver checks its
   hash against the bid's group id (the measured implementation does this).
 - **B, descriptor in the bid:** the bid carries the descriptor itself instead of its hash, and
-  chunks carry only the group id.
+  chunks carry only the key.
 
 At these chunk sizes the bytes do not decide it. Section 3 is written for either.
 
@@ -172,7 +184,7 @@ topic, and the bitmaps as message-id strings inside existing control fields.
 class Chunk(Container):                 # gossipsub Message.data, snappy-compressed SSZ   [c1]
     slot: Slot
     beacon_block_root: Root             # the block whose bid commits this group
-    group: Bytes32                      # group_id of the committed descriptor
+    group: Bytes32                      # the group's key (§1): the bid's group id, at this slot
     descriptor: SegmentDescriptor       # design A only (section 1)
     index: uint32
     proof: List[Bytes32, 14]
@@ -211,7 +223,7 @@ class WantIndex(Container):             # an ask by index, in IWANT          [c7
 ```
 
 Both are built by field name, `HaveBitmap(group=g, bits=b)`; `MAGIC` and `VERSION` are fixed by the
-type, not passed.
+type, not passed. Their `group` is the group's key, as a chunk's is (§1).
 
 | carried in | means | sent when |
 |---|---|---|
@@ -243,7 +255,7 @@ def validate_chunk(f: Chunk) -> Result:
     if block is None:
         return DEFER                    # held in a bounded store (§8.2); not claimed, not forwarded
     d = committed_descriptor(block, f)
-    if d is None or group_id(d) != f.group or not valid_descriptor(d): return REJECT
+    if d is None or group_key(group_id(d), block.slot) != f.group or not valid_descriptor(d): return REJECT
     if f.index >= d.count: return REJECT
     if len(f.data) != segment_length(d, f.index): return REJECT
     if not verify_merkle_proof(d.root, f.data, f.index, d.count, f.proof): return REJECT
@@ -295,7 +307,7 @@ or 3 never counts against them.
 first one non-relay. None of them ran in the measured cells (section 9).
 - **Do not forward a chunk whose block is not installed.** Deferred chunks wait in a bounded store
   with per-peer reservations, and are validated when the block installs, or dropped when their slot
-  leaves the live window (§4.2, §8). A copy the store refuses counts as its sender's offer of its
+  leaves the live window (§4.2, §8.1). A copy the store refuses counts as its sender's offer of its
   index (§4.2).
 - **A receiver does not ask for what it cannot yet authenticate** (§4.4). The announcements it
   receives meanwhile stay in the offer table, its ledger, and are asked for when the block installs
@@ -343,10 +355,11 @@ def on_chunk(p, f):
     if seen(mid) or mid in pending_ids:              # a duplicate, a chunk rejected before, or one waiting
         if accepted(mid): send_have(p, f.group)      # [c14] duplicates are acknowledged too
         return
-    if expired(f.group): return                      # past its active lifetime (§8.1): ignored
+    if expired(f.group) or not live(f.slot): return  # past its lifetime or live window (§8.1): ignored
     on_validated(p, f, validate_chunk(f))            # level 1 (§3)
 
 def on_validated(p, f, result):
+    if expired(f.group) or not live(f.slot): return  # expired or out of the window meanwhile (§8.1)
     if result == DEFER: return defer(p, f)           # ahead of its block: not claimed, not forwarded
     mark_seen(message_id(f))                         # accepted or rejected: never validated again
     if result == REJECT: return penalise(p)          # level 1 failures are the sender's (§3)
@@ -479,9 +492,12 @@ that passed level 1, and within a group's active lifetime (§8.1) a node's holdi
 lanes of a peer's queue feed one ordered writer, the asker drops its queued asks for chunks it holds
 just before writing them (§7.2), and RPCs are handled in stream order, with IWANT before IDONTWANT
 within one (§4.1). So on a live connection an honest ask always arrives before the claim it would
-contradict, and an ask after the claim is a protocol violation. A node does not ask again for a
-group past its active lifetime, and controls for such a group are ignored without penalty. A
-restart is not an exception: it is a new connection, with no claims.
+contradict, and an ask after the claim is a protocol violation. A group past its active lifetime
+stays expired, so a node never asks for it again: its claims of the group can outlive the expiry (a
+HAVE still queued leaves after it, and a peer keeps a claim for `HAVE_TTL`), and taking the group up
+again could contradict them. The group's tombstone keeps it out until its slot leaves the live
+window, and the window from then on (§8.1). Controls for an expired group are ignored without
+penalty. A restart is not an exception: it is a new connection, with no claims.
 
 `resolve` returns nothing for a group the node dropped (§4.6).
 
@@ -590,7 +606,8 @@ known:
 
 ```python
 def publish(block, d, shards):
-    g = group_id(d)
+    g = group_key(group_id(d), block.slot)
+    if expired(g) or not live(block.slot): return     # too late: past its live window (§8.1)
     desc[g] = d
     for s in shards:                                  # the source holds every chunk from the start
         f = Chunk(slot=block.slot, beacon_block_root=block_root(block), group=g,
@@ -1059,7 +1076,7 @@ act.
 
 | state | kept per | lives | when it goes |
 |---|---|---|---|
-| own chunks, ids, `mine`, `received`, `desc`, `state` | group | its active lifetime: `GROUP_TTL` after its last chunk arrived or it completed | at expiry, leaving a tombstone (the group id) until the seen cache forgets its chunks |
+| own chunks, ids, `mine`, `received`, `desc`, `state` | group | its active lifetime: `GROUP_TTL` after its last chunk arrived or it completed, ended sooner if its slot leaves the live window | at expiry, leaving a tombstone (the group's key and slot) until its slot leaves the live window (where groups have no slot, for `TOMBSTONE_TTL`) |
 | `origin` | group we publish | the group's active lifetime | with the group [P4] |
 | `asked_at` | ask | `IWANT_WINDOW` after the last ask | at expiry, or when the chunk arrives |
 | `peer_has` (and `holders`, `sent_to` for that peer) | connection and group | `HAVE_TTL` after the peer's last HAVE for the group | at expiry, or when the connection closes; the peer leaves `holders` |
@@ -1078,26 +1095,68 @@ act.
 - **Per-connection state** is reset when the connection closes. A restarted peer usually keeps its
   peer id, so this state must not be keyed by peer id alone.
 - **Within a group's active lifetime a node's holdings only grow:** it never drops a chunk it has
-  claimed (§4.5). Past it, the node keeps only the group's id, as a tombstone; it does not ask for the
-  group's chunks again, and ignores controls that name the group, without penalty (`expired`).
+  claimed (§4.5). Past it, the group is expired for good (`expired`): the node keeps only its key and
+  slot, as a tombstone, until the live window has passed it (below), never asks for its chunks
+  again, and ignores controls that name it, without penalty.
+- **The live window.** A slot is live at a node from its start, as the node's clock shows it with
+  consensus gossip's allowance for clock disparity (`MAXIMUM_GOSSIP_CLOCK_DISPARITY`), until it is
+  `LIVE_WINDOW` slots behind the node's current slot (`live`): a chunk of a later slot is ignored, as
+  a block from a future slot is. The window only moves forward: a node's current slot never goes
+  back, even when its clock does. A group's slot is fixed by its key (§1): it is the slot of every
+  block whose bid commits the group, which every chunk names and level 1 checks (§3). A group's
+  active lifetime ends when its slot leaves the window, if it has not ended before, and a chunk
+  whose slot has left the window is ignored before level 1 (§4.2). The tombstone is kept until the
+  group's slot leaves the window, and then goes: from then on the window keeps the group out. A
+  node that holds nothing of a group still knows the group's slot wherever it could take the group
+  up: a chunk names it, and an ask needs an installed block whose bid commits the group (§4.4).
+- **Why for good.** A node's claims of a group outlive the group's expiry: a HAVE still queued
+  leaves after it, and a peer keeps the claim for `HAVE_TTL`. A node that took the group up again
+  could ask a peer for a chunk the peer still holds as its claim, and be penalised for an honest ask
+  (§4.5). The window rules this out without a bound on queues, the transport or clocks. Nodes need
+  not agree on `LIVE_WINDOW` or on the current slot: each node's own window keeps it from taking a
+  group up again, and a group expired at one node and not at another is expiry at different times,
+  which §4.5 already allows. This needs a group's slot to be fixed, and the key fixes it (§1).
+  Named by its group id alone, a group could come back: a bid of a later slot could commit its
+  descriptor, which only a dishonest builder does, and the group would be live again until its
+  payload failed level 3.
+- **How long a window.** `LIVE_WINDOW` sets how long diffusion works on a group: past it a node
+  neither takes up, asks for nor serves the group. It must exceed what a group needs to reach every
+  honest node, counted from the start of its slot: the block's propagation, which comes first, the
+  group's diffusion, and the clock disparity between nodes. A node still short of the group by then
+  gets the payload by other means. Above that, a longer window costs only state: a node keeps the
+  groups, tombstones and deferred chunks of `LIVE_WINDOW` slots, besides what §8.2 bounds for groups
+  not yet tied to a block. The claim rule needs no value, only a window that moves forward.
+- **Without a slot.** Where groups carry no slot, which no group of this document does, there is no
+  window, and the tombstone is kept for `TOMBSTONE_TTL` after the expiry instead. It must outlast
+  the node's claims of the group: longer than a HAVE already queued can wait, plus the time an RPC
+  takes to reach the peer and be handled, plus `HAVE_TTL` and one heartbeat. This document bounds
+  neither of the first two, so a deployment that relies on this fallback states both; discarding the
+  group's queued HAVEs at its expiry removes the first. Once the tombstone has gone, the group can be
+  taken up again: a late announcement can make the node pull it a second time.
 - **At a group's expiry** its pull state goes with it: its offers, `tried`, `asked_at`,
   `asked_parked`, promises, what is owed of it, and its queued chunks, IHAVEs and IWANTs
-  (`discard_queued`, as at `drop_group`). Timers already armed then find nothing to do; the retry
-  and the writer's ask filter check expiry too (§6.1, §7.2), and a decode that returns after it is
-  dropped (§4.6). Window slots come back the usual ways.
+  (`discard_queued`, as at `drop_group`); its chunks leave the gossip history and its paced jobs go
+  (`gossip_history.remove_group`, `discard_paced`), so nothing announces it afterwards, also when
+  the window ends it sooner than `GROUP_TTL` would. Timers already armed then find nothing to do;
+  the retry and the writer's ask filter check expiry too (§6.1, §7.2), a decode that returns after
+  it is dropped (§4.6), and so is a chunk whose validation returns after it or whose block installs
+  after it (§4.2). Window slots come back the usual ways.
 - **Lifetimes counted in heartbeats** (`HAVE_TTL`, `PUSH_TTL`) are counted by the heartbeat, not
   timed exactly: an entry lives that many heartbeats after it was last refreshed.
 
 **Helpers not written out.**
 - *Chunks and groups:* `open_group` (records the group's committed descriptor in `desc` and sets
   `state` to COLLECTING), `received` (the chunks a node got from the network, as against those it
-  rebuilt), `expired` (the group is past its active lifetime: only its tombstone is left),
+  rebuilt), `expired` (the group is past its active lifetime: only its tombstone is left, or,
+  once its slot has left the live window, nothing; §8.1), `live` (the slot is in the node's live
+  window, §8.1),
   `store` (keeps a chunk in `chunks` and records its id in `known_id`),
   `accepted` (the id was stored), `held` (an ask's chunk is in `mine`), `resolve` and `chunk_of` (an
   ask's id and stored chunk, at an index the node holds, received or rebuilt; nothing for a dropped
   group), `group_index`, `group` and `index` (the group and index an ask names, a WantIndex or a
   structured id, or just one of them), `authenticable` (an installed block's bid commits the
-  group) and `bid_group` (the group the bid of the block with this root commits),
+  group: its group id at the block's slot gives the group's key) and `bid_group` (the key of the
+  group the bid of the block with this root commits),
   `decode_and_reencode` (§1's decoding: every chunk of the group by index, as the source built it,
   proof included; None if the root differs) and `payload_of` (the decompressed body),
   `close_promises` and `close_promises_of_group` (§6.1's promises for an index, in either form, or
@@ -1177,6 +1236,8 @@ the proof, so a forged variant costs one proof check and counts against its send
 | `HAVE_TTL` | 3 heartbeats after the peer's last HAVE for the group | 7 | stock IDONTWANT expiry |
 | `PUSH_TTL` | 6 heartbeats after the last push | 16 | the message cache's length |
 | `GROUP_TTL` | at least 7 heartbeats and the seen cache's lifetime, after the group's last chunk or its completion | – | a group outlives its diffusion |
+| `LIVE_WINDOW` | not fixed: more slots than a group needs to reach every honest node from the start of its slot (the block's propagation, the group's diffusion, the clock disparity), and no more than a node can keep groups, tombstones and deferred chunks for (§8.2 bounds the groups not yet tied to a block) | – | diffusion's deadline; an expired group never comes back (§8.1) |
+| `TOMBSTONE_TTL` | only where groups have no slot: more than a queued HAVE can wait, plus an RPC's time to its peer, plus `HAVE_TTL` and a heartbeat, after the expiry | – | the tombstone outlasts the node's claims (§8.1) |
 | heartbeat, mesh, cache | 700 ms, D = 8, 6 / 3 heartbeats | – | Prysm's gossipsub settings |
 
 **Open: the push degree against payload size.** The measured tier 4 runs at R = 2 at 1 MiB and was

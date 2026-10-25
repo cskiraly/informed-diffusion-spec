@@ -19,7 +19,7 @@ keeps its title.
   setting and variant C, PeerDAS custody, RowDAS rows and FullDAS sampling as others; its open
   decisions are marked `[D1]` to `[D11]`. The toy runs it on top of `protocol.md` (`toy/run.py --doc
   v2 --setting t4|c|custody|rows`, `toy/check.py --doc v2` against its own `golden-v2.txt`): under
-  its tier 4 setting it stays within 7 ms at the median and 15 ms at the tail of `protocol.md`'s
+  its tier 4 setting it stays within 10 ms at the median and 35 ms at the tail of `protocol.md`'s
   check cells (one seed each, a toy check; `check.py --doc v2 --golden golden.txt`; its §6.1 says
   what the distance is); variant C, PeerDAS custody, FullDAS sampling and RowDAS rows run as
   settings, with the invariants of every setting checked on each run (`toy/invariants.py`),
@@ -35,7 +35,7 @@ keeps its title.
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.
 - [`formal/`](formal/): a model of §4–§7, checked on small instances: what holds, what v0.5 fixed.
-- [`formal/veil/`](formal/veil/): one rule at any size: "the claim wins" (A1), proved in Veil for any number of nodes, groups and chunks, under one stated assumption.
+- [`formal/veil/`](formal/veil/): one rule at any size: "the claim wins" (A1), proved in Veil for any number of nodes, groups and chunks: with no assumption under the live window (`protocol.md` §8.1; a group's key fixes its slot, §1), and under the fallback for groups without a slot given the bound on its tombstone.
 
 **Status:** draft v0.6, 2026-10-21. Since v0.5: the name SEACAST; the formal model (`formal/`),
 which checks v0.5's rules; and a draft of SEACAST's next version (`protocol-v2.md`), which adds availability

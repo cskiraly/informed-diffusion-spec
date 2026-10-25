@@ -247,6 +247,7 @@ class Node:
             "popcount": popcount, "all_bits": all_bits, "bitmap": bitmap, "WAIT": WAIT,
             # wire
             "sha256": Wm.sha256, "serialize": Wm.serialize, "uint32_le": Wm.uint32_le,
+            "uint64_le": Wm.uint64_le,
             "content_id": Wm.content_id, "is_have_bitmap": Wm.is_have_bitmap,
             "Container": Wm.Container, "uint8": Wm.uint8, "uint32": Wm.uint32, "uint64": Wm.uint64,
             "Bytes32": Wm.Bytes32, "Root": Wm.Root, "Slot": Wm.Slot, "Result": Wm.Result,
@@ -313,6 +314,9 @@ class Node:
         def expired(g):
             return False                # groups outlive these runs (GROUP_TTL > the run)
 
+        def live(slot):
+            return True                 # a run lasts one slot, well inside the live window
+
         def group_index(a):
             if isinstance(a, Wm.WantIndex):
                 return a
@@ -326,12 +330,17 @@ class Node:
         def index(a):
             return group_index(a).index
 
-        def authenticable(g):           # every block installs at its publish, at every node
-            return any(b.body.signed_execution_payload_bid.message.execution_payload_segment_group_id == g
-                       for b in node.sim.blocks.values())
+        bid_keys = {}                   # block root -> the key of the group its bid commits (§1)
 
         def bid_group(root):
-            return node.sim.blocks[root].body.signed_execution_payload_bid.message.execution_payload_segment_group_id
+            if root not in bid_keys:
+                b = node.sim.blocks[root]
+                gid = b.body.signed_execution_payload_bid.message.execution_payload_segment_group_id
+                bid_keys[root] = None if gid is None else ns["group_key"](gid, b.slot)   # a block of columns: none
+            return bid_keys[root]
+
+        def authenticable(g):           # every block installs at its publish, at every node
+            return any(bid_group(root) == g for root in node.sim.blocks)
 
         def held(a):
             gi = group_index(a)
@@ -1035,6 +1044,10 @@ class Node:
             ns["T_of"][g] = type_of_group(g)
             ns["interest"][g] = node.own_interest_bits(g)
             ns["known_at"].setdefault(g, ns["now"])
+
+        def group_of(block, h):                         # §1.1's table: a column's or row's header id names it
+            g = ns["group_id"](h)                       #   (it holds the block's root); the payload's is the
+            return g if g in node.sim.gtype else ns["group_key"](g, block.slot)    # key of v0.3 §1
 
         def interest_satisfied(g):                      # §1.5: K distinct chunks for ALL with a code, else every wanted index
             d = ns["desc"].get(g)

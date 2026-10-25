@@ -45,6 +45,20 @@ shows which cells moved, with their warm medians before and after; `python3 chec
 records the new digests, to be committed with the edit. The cells `hold` and `none` have the same
 digest: a chunk that is held and never announced is never asked for (§4.6).
 
+A change of names moves every cell without changing a rule: a chunk's push rank (§5.3) hashes its
+id, as admission loss does, and the payloads and peer ids are the same at every seed, so a naming
+is one draw that seeds do not average out. The group's key (2026-10-23, §1) re-recorded both
+recordings this way. With the key replaced by the group id, every cell of both documents kept its
+digest; with the key, the cells moved at seed 7 by −10 to +69 ms at the median in `golden.txt`
+(`silent` 579 → 648 ms) and by −6 to +74 ms in `golden-v2.txt`. Over seeds 1 to 20 of `push`,
+`silent`, `cap-wait` and `without-a`, the mean of the 80 warm medians was 486 to 498 ms across seven
+namings: 486 ms for the descriptor's group id, the naming until then; 491 and 493 ms for the same
+construction under two other domain bytes; 498 ms for the key and 489 to 497 ms for three other
+keys. The key and another key differ by +1.1 ± 3.5 ms (mean ± standard error over the 20 seeds,
+each seed's four cells averaged). The next version's column and row groups keep their names, and
+its custody and row settings their digests at seed 7, with and without supernodes, samplers and
+withheld columns.
+
 ## How it maps onto the document
 
 | file | what it holds |
@@ -195,7 +209,10 @@ fixed in `protocol.md` since the window is v0.3's:
 ## The next version (`--doc v2`)
 
 *The next version is a draft, checked in this toy only (its banner). Figures below from fewer than ten
-seeds, a single seed unless stated, are toy checks of a mechanism, not measurements.*
+seeds, a single seed unless stated, are toy checks of a mechanism, not measurements. Those of runs
+with a payload (tier 4, variant C) were recorded before 2026-10-23, under the descriptor's group id
+as the payload's name; under the group's key their exact values move as any renaming's do
+("Checking a change"). Column and row groups are named as before.*
 
 [`protocol-v2.md`](../protocol-v2.md) is run on top of `protocol.md`: `extract.py` pulls both
 documents' blocks, v0.3's are executed first and the next version's after them in the same namespace, so

@@ -1,13 +1,13 @@
 # cell, digest, warm medians: check.py's cells (run.py --nodes 60 --degree 30 --msgs 3 --seed 7 ... --digest)
-push b453f01d41d08acd p50 475ms p99 558ms copies 2.48
-hold 15a20750c6e1d566 p50 473ms p99 569ms copies 1.93
-announce 6e36a6b7e3f9d2ba p50 476ms p99 584ms copies 2.11
-none 15a20750c6e1d566 p50 473ms p99 569ms copies 1.93
-withholders aeae3cb1da9486d1 p50 540ms p99 638ms copies 2.30
-silent 034a0fec4ceacb3e p50 579ms p99 715ms copies 1.92
-cap-wait c6e8f553707d2bc8 p50 582ms p99 740ms copies 1.70
-dcb20 4983975e7c2383ea p50 244ms p99 358ms copies 3.34
-rr-stripe 3fbd9c8bf3cb3613 p50 417ms p99 503ms copies 2.45
-without-a 925800432d6d5951 p50 471ms p99 562ms copies 3.96
-without-b 9a4e8e593ec1ef86 p50 445ms p99 501ms copies 3.00
-loss-thin 14c37e2d9abbaa77 p50 834ms p99 955ms copies 1.93
+push b5ca77ef572f0c7f p50 466ms p99 577ms copies 2.50
+hold 6bb6845d7b30af11 p50 470ms p99 571ms copies 1.95
+announce c6e5fe0d906dd5a8 p50 466ms p99 571ms copies 2.10
+none 6bb6845d7b30af11 p50 470ms p99 571ms copies 1.95
+withholders 720e3a34ebf7a822 p50 548ms p99 631ms copies 2.33
+silent 9dcfc7858507d2a6 p50 648ms p99 802ms copies 1.88
+cap-wait 28f01e84f7df512c p50 645ms p99 815ms copies 1.65
+dcb20 7e1f3bf9b1ab7122 p50 246ms p99 336ms copies 3.36
+rr-stripe 12110aa90b2c5e57 p50 415ms p99 524ms copies 2.44
+without-a a1f8b0cc6600e7c3 p50 467ms p99 613ms copies 4.18
+without-b 35ce661654d8cc01 p50 439ms p99 505ms copies 3.09
+loss-thin 6e801859a32f1f16 p50 834ms p99 962ms copies 1.92

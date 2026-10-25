@@ -47,6 +47,10 @@ def uint32_le(i):
     return int(i).to_bytes(4, "little")
 
 
+def uint64_le(i):
+    return int(i).to_bytes(8, "little")
+
+
 def content_id(f):
     """The 20-byte Altair id over the topic and the decompressed chunk: here, over its identity."""
     return sha256(b"content" + f.group + uint32_le(f.index) + repr(f.data.tag).encode())[:20]
