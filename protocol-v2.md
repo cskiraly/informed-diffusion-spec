@@ -1568,7 +1568,9 @@ with v0.5's: eleven cells within 7 ms at the median, 15 ms at the tail and 0.03 
 With the group's key (2026-10-23, v0.3 §1; both recordings move again, as under any renaming:
 `toy/README.md`) eleven cells are within 6 ms at the median, 35 ms at the tail and 0.03 copies
 (`without-a` p99 613 → 578 ms, `cap-wait` 815 → 797 ms), and `loss-thin` is 10 ms later at the
-median and 0.11 copies lighter (1.81 copies).
+median and 0.11 copies lighter (1.81 copies). Since `protocol.md` §5.1 announces only to the mesh
+peers it did not choose for a chunk (2026-10-25), its `loss-thin` runs differently with the same
+medians and copies, so these distances stand.
 Draft 0 did not reproduce the cells at all: it filtered a forwarding node's push candidates by
 what it had already pushed, which v0.3 does not, and it shuffled the
 relation peers for repair in a different order than v0.3's mesh set, so its random draws diverged;

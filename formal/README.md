@@ -26,7 +26,10 @@ finding occurs in a real network, or how fast the protocol is.
   taking the earliest queued chunk on ties.
 - **The transport** (§7): the per-peer queues and the window, its slots and wake-ups; optionally
   queues that refuse entries beyond a limit, and a transport that coalesces several writes into one
-  RPC. Every connection is a mesh link.
+  RPC. Every connection is a mesh link. The source announces as v0.5 does, to every mesh peer not
+  counted as pushed, so under A′ a push its queue refuses is both owed and announced;
+  `protocol.md` §5.1 now announces only to the mesh peers it did not choose, which leaves that
+  second offer out.
 - **The adversary**: a node that answers, forwards and acknowledges nothing, and sends up to three
   announcements or HAVEs of its choice; forged chunks, one that fails its proof and one that names
   a root that never installs; a builder whose code is inconsistent, so that level 2 fails; and

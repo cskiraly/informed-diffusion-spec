@@ -10,4 +10,4 @@ dcb20 7e1f3bf9b1ab7122 p50 246ms p99 336ms copies 3.36
 rr-stripe 12110aa90b2c5e57 p50 415ms p99 524ms copies 2.44
 without-a a1f8b0cc6600e7c3 p50 467ms p99 613ms copies 4.18
 without-b 35ce661654d8cc01 p50 439ms p99 505ms copies 3.09
-loss-thin 6e801859a32f1f16 p50 834ms p99 962ms copies 1.92
+loss-thin ccdada7290af0a67 p50 834ms p99 962ms copies 1.92

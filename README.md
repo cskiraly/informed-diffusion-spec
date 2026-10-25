@@ -40,7 +40,11 @@ keeps its title.
 **Status:** draft v0.6, 2026-10-21. Since v0.5: the name SEACAST; the formal model (`formal/`),
 which checks v0.5's rules; and a draft of SEACAST's next version (`protocol-v2.md`), which adds availability
 sampling and other object types, with the toy's support for it. `protocol.md` and the toy's
-recorded cells are unchanged since v0.5.
+recorded cells were as in v0.5. Since v0.6: §5.1's source announces a chunk only to the mesh peers
+it did not choose for a push, so a push its queue refuses is offered once, which moved one of the
+toy's recorded cells (`loss-thin`); and an IHAVE over either of gossipsub's IHAVE limits is
+recorded instead of ignored, its asks waiting for the next heartbeat's retry, with the limits'
+values the client's (§4.4, §8.2).
 
 v0.5, 2026-10-21. Since v0.4, fixes from a model check of v0.4: a push to a
 mesh peer that does not happen is offered to it instead, and an offer or answer a full queue
@@ -51,8 +55,9 @@ ask before the block is installed, and what was offered meanwhile is asked for t
 group's pull state goes at its expiry (§6.1, §7.2, §4.6, §8.1); a promise starts when the ask is
 written and closes with its connection (§7.2, §6.1); and a copy the deferred store refuses counts
 as its sender's offer (§4.2). §8's state, limits and constants follow, and §9 lists these rules
-among those the measured implementation predates. The toy runs the text as written, so its
-recorded results moved.
+among those the implementation behind the earlier figures predates; the SEACAST post's Figures 4
+and 5 were rerun on an implementation with them. The toy runs the text as written, so its recorded
+results moved.
 
 ## Running it
 

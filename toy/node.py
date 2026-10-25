@@ -271,6 +271,7 @@ class Node:
             "WINDOW_TIMEOUT": c["WINDOW_TIMEOUT"], "HEARTBEAT": c["HEARTBEAT"],
             "D_LAZY": c["D_LAZY"], "GOSSIP_FACTOR": c["GOSSIP_FACTOR"],
             "GOSSIP_RETRANSMISSION": c["GOSSIP_RETRANSMISSION"],
+            "MAX_IHAVE_MESSAGES": math.inf, "MAX_IHAVE_LENGTH": math.inf,   # the client's (§8.2): no limit here
             "HAVE_TTL": c["HAVE_TTL"], "PUSH_TTL": c["PUSH_TTL"],
             "CANCEL": c["card8"], "RAREST": c["card9"], "PROJECT": c["card12"], "PACED": c["card15"],
             "ANSWERS_FIRST": c.get("answers_first", "off") == "on",
@@ -287,6 +288,7 @@ class Node:
             "asked_at": {}, "tried": AutoMap(dict), "offers": LazyMap(OfferList), "promises": {},
             "offered": AutoMap(lambda: AutoMap(Bits)), "asked_parked": AutoMap(set),
             "last_resort_armed": set(),
+            "ihave_rpcs": DefaultMap(0), "ihave_asked": DefaultMap(0), "held_back": {},
             "owed": AutoMap(lambda: AutoMap(Bits)), "owed_answers": AutoMap(lambda: AutoMap(Bits)),
             "park": AutoMap(dict), "gossip_history": GossipHistory(), "pace_queue": [],
             "pending": AutoMap(list), "pending_ids": set(),
