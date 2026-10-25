@@ -37,14 +37,22 @@ keeps its title.
 - [`formal/`](formal/): a model of §4–§7, checked on small instances: what holds, what v0.5 fixed.
 - [`formal/veil/`](formal/veil/): properties proved in Veil for any number of nodes, groups and chunks: A1, an honest node never penalised, for an ask (with no assumption under the live window, `protocol.md` §8.1, a group's key fixing its slot, §1, and under the fallback for groups without a slot given the bound on its tombstone), for a chunk that fails level 1 or for a malformed HAVE; and no stall (Q1): no quiet state in which an honest node connected to the source is incomplete, under the assumptions its README states (among them no equivocation and no disconnects, where F6 and F9 remain open), whose proof found the IHAVE gap that v0.7 closes (§4.4).
 
-**Status:** draft v0.6, 2026-10-21. Since v0.5: the name SEACAST; the formal model (`formal/`),
-which checks v0.5's rules; and a draft of SEACAST's next version (`protocol-v2.md`), which adds availability
-sampling and other object types, with the toy's support for it. `protocol.md` and the toy's
-recorded cells were as in v0.5. Since v0.6: §5.1's source announces a chunk only to the mesh peers
-it did not choose for a push, so a push its queue refuses is offered once, which moved one of the
-toy's recorded cells (`loss-thin`); and an IHAVE over either of gossipsub's IHAVE limits is
-recorded instead of ignored, its asks waiting for the next heartbeat's retry, with the limits'
-values the client's (§4.4, §8.2).
+**Status:** draft v0.7, 2026-10-25. Since v0.6: a group whose slot has left a node's live window
+is expired for good, its tombstone kept until then, and a group without a slot keeps its tombstone
+`TOMBSTONE_TTL` (§8.1, §8.3); a group is named in diffusion by its key, the hash of its group id and
+slot, so its slot is fixed (§1); an IHAVE over either of gossipsub's IHAVE limits is recorded
+instead of ignored, its asks waiting for the next heartbeat's retry, with the limits' values the
+client's (§4.4, §6.4, §8.2); §5.1's source announces a chunk only to the mesh peers it did not
+choose for a push, so a push its queue refuses is offered once; and a rebuilt chunk names an
+installed block whose bid commits its group (§4.6). §9 says where the rerun of the SEACAST post's
+Figures 4 and 5 does as this document does (v0.6.1). `formal/veil/` proves A1 at every place a node
+penalises, and no stall (Q1), at any size; the no-stall proof found the IHAVE gap. The toy runs the
+text as written: under the group's key every recorded cell moved, as under any renaming.
+
+v0.6, 2026-10-21. Since v0.5: the name SEACAST; the formal model (`formal/`), which checks v0.5's
+rules; and a draft of SEACAST's next version (`protocol-v2.md`), which adds availability sampling
+and other object types, with the toy's support for it. `protocol.md` and the toy's recorded cells
+were as in v0.5.
 
 v0.5, 2026-10-21. Since v0.4, fixes from a model check of v0.4: a push to a
 mesh peer that does not happen is offered to it instead, and an offer or answer a full queue

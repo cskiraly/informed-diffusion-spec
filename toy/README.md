@@ -227,7 +227,7 @@ IHAVE bitmap, an ask a `WantIndex`. Relations are static, as the mesh is for v0.
 
 `check.py --doc v2` runs the twelve cells against the next version's own recording, `golden-v2.txt`
 (`--update` records it, as for v0.3). `check.py --doc v2 --golden golden.txt` compares the next version
-against `protocol.md`'s cells instead (v0.3's until 2026-10-13, v0.4's until 2026-10-21, v0.5's since); there a cell whose digest moved but whose numbers did not is
+against `protocol.md`'s cells instead (v0.3's until 2026-10-13, v0.4's until 2026-10-21, v0.5's until 2026-10-25, v0.7's since); there a cell whose digest moved but whose numbers did not is
 reported as such and does not count, since the next version iterates the relation in peer order where
 v0.3 iterates the mesh set, which reorders same-instant sends. On 2026-10-07, with v0.3's slot
 window, eleven cells reproduced v0.3's numbers exactly and `rr-stripe` differed by 3 ms at the
