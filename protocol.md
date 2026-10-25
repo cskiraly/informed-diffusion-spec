@@ -600,10 +600,17 @@ def drop_group(g):                                    # level 2 or level 3 faile
   nothing measurable; with only K chunks released it was not tried. A peer that claims less than it
   holds draws at most its claimed shortfall from each decoded neighbour, once per group; repair
   skips card 16's guard and draw.
-- **What a receiver sees.** A rebuilt chunk is the source's chunk, byte for byte: the same id and
-  the same proof. Its receiver checks it at level 1 and forwards it like any other. Nothing marks it
-  as rebuilt, and nothing needs to. Repair waits for level 2 but not for level 3: once the group
-  has passed level 2, a rebuilt chunk is an authentic leaf, as a forwarded one is.
+- **What a receiver sees.** A rebuilt chunk names an installed block whose bid commits the group,
+  such as the one a chunk it received names; where the source's chunk at that index names the same
+  root, the rebuilt one is that chunk, byte for byte: the same id and the same proof. Its receiver
+  checks it at level 1 and forwards it like any other. Nothing marks it as rebuilt, and nothing
+  needs to. Repair waits for level 2 but not for level 3: once the group has passed level 2, a
+  rebuilt chunk is an authentic leaf, as a forwarded one is. The roots can differ only when a
+  proposer signs two blocks of a slot whose bids commit the group: the group's chunks may then name
+  either root, which their ids cover, and a node cannot tell which one the source's chunk names at
+  an index it never received. A rebuilt chunk that named a block whose bid commits another group
+  would never pass level 1: a receiver without that block defers it until the block installs, then
+  rejects it.
 - **Why push, and not hold or announce.** A builder may release only the K chunks needed to
   decode. Every node then needs every one of them, the slowest to reach it included, and the other
   K exist only in the nodes that have decoded. Completion times spread out, and a builder that
@@ -1198,7 +1205,8 @@ act.
   group: its group id at the block's slot gives the group's key) and `bid_group` (the key of the
   group the bid of the block with this root commits),
   `decode_and_reencode` (§1's decoding: every chunk of the group by index, as the source built it,
-  proof included; None if the root differs) and `payload_of` (the decompressed body),
+  proof included, each naming an installed block whose bid commits the group (§4.6); None if the
+  root differs) and `payload_of` (the decompressed body),
   `close_promises` and `close_promises_of_group` (§6.1's promises for an index, in either form, or
   for the whole group), `discard_queued` (removes a group's chunks, IHAVEs and IWANTs from every
   queue, and what is owed of it, keeping HAVEs), `gossip_history.remove_group` and `discard_paced`
@@ -1290,7 +1298,7 @@ than on the uncompressed size, and is not yet fixed.
 The measurements in the post come from a research harness. Where it does something this document
 does not specify, and what that means for the numbers, follows. Figures 4 and 5 of
 [*SEACAST: fast, lean broadcast for Ethereum, with an executable spec and a formal model*](https://ethresear.ch/t/seacast-fast-lean-broadcast-for-ethereum-with-an-executable-spec-and-a-formal-model/26167)
-(2026) were rerun on an implementation with this version's rules and the source's paced HAVE; that
+(2026) were rerun on an implementation with v0.5's rules and the source's paced HAVE; that
 post's other figures, and the earlier posts', come from the implementation before them. Where the
 rerun does as this document does, the entry says so.
 
@@ -1404,6 +1412,10 @@ rerun does as this document does, the entry says so.
   heartbeat (§4.4), so the two differ only in a heartbeat in which a peer reaches a limit, or for an
   IHAVE of more than 5000 ids. The rerun's source announces a chunk only to the mesh peers it did
   not choose for a push, as §5.1 does.
+- *The live window and the group's key* (§8.1, §1) came after the implementation measured, its
+  rerun included. The measured runs have no blocks and no expiry within a payload's lifetime, so
+  neither would act there: in those runs the key only renames groups, which in the toy moves the
+  recorded cells as any renaming does (`toy/README.md`).
 - *Clearing promises on decode* in the stock gossip tracer had no effect in the measured cells,
   because the harness runs no peer scoring. In a client that scores peers it keeps honest peers from
   being penalised for asks the decode made unnecessary.

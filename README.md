@@ -35,7 +35,7 @@ keeps its title.
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.
 - [`formal/`](formal/): a model of §4–§7, checked on small instances: what holds, what v0.5 fixed.
-- [`formal/veil/`](formal/veil/): one rule at any size: "the claim wins" (A1), proved in Veil for any number of nodes, groups and chunks: with no assumption under the live window (`protocol.md` §8.1; a group's key fixes its slot, §1), and under the fallback for groups without a slot given the bound on its tombstone.
+- [`formal/veil/`](formal/veil/): properties proved in Veil for any number of nodes, groups and chunks: A1, an honest node never penalised, for an ask (with no assumption under the live window, `protocol.md` §8.1, a group's key fixing its slot, §1, and under the fallback for groups without a slot given the bound on its tombstone), for a chunk that fails level 1 or for a malformed HAVE; and no stall (Q1): no quiet state in which an honest node connected to the source is incomplete, under the assumptions its README states (among them no equivocation and no disconnects, where F6 and F9 remain open), whose proof found the IHAVE gap that v0.7 closes (§4.4).
 
 **Status:** draft v0.6, 2026-10-21. Since v0.5: the name SEACAST; the formal model (`formal/`),
 which checks v0.5's rules; and a draft of SEACAST's next version (`protocol-v2.md`), which adds availability
