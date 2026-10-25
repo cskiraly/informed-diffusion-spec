@@ -10,4 +10,4 @@ dcb20 4983975e7c2383ea p50 244ms p99 358ms copies 3.34
 rr-stripe 3fbd9c8bf3cb3613 p50 417ms p99 503ms copies 2.45
 without-a 925800432d6d5951 p50 471ms p99 562ms copies 3.96
 without-b 9a4e8e593ec1ef86 p50 445ms p99 501ms copies 3.00
-loss-thin 14c37e2d9abbaa77 p50 834ms p99 955ms copies 1.93
+loss-thin a77d1dcdb3bcf9a0 p50 825ms p99 947ms copies 1.92

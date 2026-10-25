@@ -80,7 +80,8 @@ What the toy adds to the document, and nothing else:
   owed for it (§4.1) is dropped when the writer queues it again.
 - **What the runs leave out:** every block installs at its publish, at every node, so nothing is
   deferred or asked for at installation; groups do not expire; connections do not close; the
-  queues have no limit but the loss above. The document's rules for those cases are not exercised
+  queues have no limit but the loss above, and neither IHAVE limit is set (§8.2), so nothing is
+  held back to the next heartbeat (§4.4). The document's rules for those cases are not exercised
   here.
 
 ## The network

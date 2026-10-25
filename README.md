@@ -19,7 +19,7 @@ keeps its title.
   setting and variant C, PeerDAS custody, RowDAS rows and FullDAS sampling as others; its open
   decisions are marked `[D1]` to `[D11]`. The toy runs it on top of `protocol.md` (`toy/run.py --doc
   v2 --setting t4|c|custody|rows`, `toy/check.py --doc v2` against its own `golden-v2.txt`): under
-  its tier 4 setting it stays within 7 ms at the median and 15 ms at the tail of `protocol.md`'s
+  its tier 4 setting it stays within 10 ms at the median and 22 ms at the tail of `protocol.md`'s
   check cells (one seed each, a toy check; `check.py --doc v2 --golden golden.txt`; its §6.1 says
   what the distance is); variant C, PeerDAS custody, FullDAS sampling and RowDAS rows run as
   settings, with the invariants of every setting checked on each run (`toy/invariants.py`),
@@ -40,7 +40,11 @@ keeps its title.
 **Status:** draft v0.6, 2026-10-21. Since v0.5: the name SEACAST; the formal model (`formal/`),
 which checks v0.5's rules; and a draft of SEACAST's next version (`protocol-v2.md`), which adds availability
 sampling and other object types, with the toy's support for it. `protocol.md` and the toy's
-recorded cells are unchanged since v0.5.
+recorded cells were as in v0.5. Since v0.6: §5.1's source announces a chunk only to the mesh peers
+it did not choose for a push, so a push its queue refuses is offered once, which moved one of the
+toy's recorded cells (`loss-thin`); and an IHAVE over either of gossipsub's IHAVE limits is
+recorded instead of ignored, its asks waiting for the next heartbeat's retry, with the limits'
+values the client's (§4.4, §8.2).
 
 v0.5, 2026-10-21. Since v0.4, fixes from a model check of v0.4: a push to a
 mesh peer that does not happen is offered to it instead, and an offer or answer a full queue

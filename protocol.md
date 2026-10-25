@@ -63,9 +63,10 @@ not always leave a working protocol. What a node does without a card:
 **What is assumed and not restated.** Gossipsub v1.2 as specified: the mesh and its maintenance
 (D = 8, Dlo = 6, Dhi = 12), GRAFT and PRUNE, the heartbeat (700 ms, as Prysm sets it), the message
 cache (6 heartbeats, gossip from the newest 3), IHAVE, IWANT and IDONTWANT, the seen cache, and peer
-scoring. Only what changes is written out; one stock limit changes with it, the number of IHAVE
-messages a node accepts per peer and heartbeat (§8.3). Messages are unsigned and carry no author,
-as Prysm publishes them.
+scoring. Only what changes is written out, including what a node does at gossipsub's two IHAVE
+limits: an IHAVE over either is recorded and its asks wait for the next heartbeat, whereas stock
+gossipsub ignores it (§4.4, §8.2). Messages are unsigned and carry no author, as Prysm publishes
+them.
 
 **Scope.** Every peer on the payload's topic is assumed to run this protocol. A stock peer would
 misread the bitmaps (§2), so a network in which only some nodes support segmentation needs more
@@ -434,6 +435,7 @@ act, by index, so a HAVE that arrives before its chunk's id is known still count
 
 ```python
 def on_ihave(p, ih):                                                  # returns the asks (§4.1)
+    if ih.ids: ihave_rpcs[p] += 1                                     # IHAVE-bearing RPCs (§8.2)
     candidates = []
     for entry in ih.ids:
         for a in expand(entry):                                       # [c7]
@@ -442,7 +444,16 @@ def on_ihave(p, ih):                                                  # returns 
             if gated(a) or not authenticable(group(a)): continue      # [c6] stop-pull; the block first (§3)
             if parked(p, a): last_resort(a); continue                 # [c5] park; last resort (§6.1)
             candidates.append(a)
-    return [a for a in shuffled(candidates) if may_ask(a, p)]        # §6.1
+    asks = []
+    for a in shuffled(candidates):                                    # §6.1
+        if over_ihave_limits(p): held_back[(group(a), index(a))] = a  # retried at the next heartbeat (§6.4)
+        elif may_ask(a, p):
+            asks.append(a)
+            ihave_asked[p] += 1                                       # an ask in reply to p's IHAVEs
+    return asks
+
+def over_ihave_limits(p):                                             # §8.2, per peer and heartbeat
+    return ihave_rpcs[p] > MAX_IHAVE_MESSAGES or ihave_asked[p] >= MAX_IHAVE_LENGTH
 
 def expand(entry):                                                    # [c7]
     if not is_have_bitmap(entry): return [entry]
@@ -452,8 +463,27 @@ def expand(entry):                                                    # [c7]
 
 An IHAVE bitmap tells us who can serve, not who holds. It feeds the offer table only: never
 `peer_has`, `holders`, cancel or the window. Nothing is asked for a group no installed block's bid
-commits: the offer table keeps the announcement, and the installation asks for it (§4.2). A node
-handles at most `MAX_IHAVE_MESSAGES` IHAVE-bearing RPCs per peer and heartbeat (§8.3).
+commits: the offer table keeps the announcement, and the installation asks for it (§4.2).
+
+**Gossipsub's two IHAVE limits** delay asks here and lose no offer. Beyond `MAX_IHAVE_MESSAGES`
+IHAVE-bearing RPCs from a peer within a heartbeat, or once the peer has been asked `MAX_IHAVE_LENGTH`
+ids in reply to its IHAVEs, its announcements are still recorded, and what the node would ask of it
+is held back to the next heartbeat, which runs the retry for it as for any ask, with the retry's
+checks (§6.4, §6.1). Only asks in reply to IHAVEs count against the limits: the retry, the last
+resort and the asks at installation do not. Every entry of an IHAVE is read, whereas a stock
+implementation may stop after `MAX_IHAVE_LENGTH` ids of one IHAVE. Ignoring an IHAVE, or the rest
+of one, as stock gossipsub does, could lose a node's only offer of a chunk: nothing ensures that an
+announcement is repeated, and heartbeat gossip is for peers outside the mesh. A limit therefore
+delays asks, to the next heartbeat's retry, and loses no offer; its value is the client's (§8.2).
+
+Over a limit a node may read an IHAVE's bitmaps without the loop above: their indices join
+`offered`, for a group not expired and within §8.2's limits on offers, and `held_back`, for a group
+an installed block's bid commits. The heartbeat's retry does the rest: it skips what is held,
+stopped or expired, and arms the last resort when every announcer is parked. It differs from the
+loop in timing and order: a chunk can be retried at the heartbeat where the loop would have left it
+to a retry already armed or to the last resort, which can add an ask, and the peer is missing from
+the ordered list `offers`. An IHAVE over a limit then costs what a HAVE does. The limits pace the
+asks made in reply to IHAVEs; they bound neither the work of reading IHAVEs nor the retries.
 
 ### 4.5 An IWANT arrives
 
@@ -614,8 +644,9 @@ def publish(block, d, shards):
                     led.add(p)              #   it, as a forwarding node's HAVE precedes its pushes
                     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=origin[g] | bitmap({f.index}))), urgent=True)
                 if not enqueue(p, f, urgent=False): unpush(p, g, f.index)   # refused: offered instead (§5.2)
-    for i in range(N(d)):
-        for p in mesh: announce(p, g, bitmap({i}))  # [c3] mesh peers not pushed a chunk are announced it
+    for f, targets in plan:                 # [c3] mesh peers not chosen to be pushed a chunk are
+        for p in mesh:                      #   announced it (a refused push is owed already, §5.2)
+            if p not in targets: announce(p, g, bitmap({f.index}))
 
 def origin_sent(f):                         # [P4] a chunk of a group we publish leaves for the first
     if origin[f.group].has(f.index): return     # time (§7.2): it joins our HAVE, which goes to the
@@ -636,8 +667,9 @@ def candidates_for_source(f):
   candidates are then every connected peer on the topic. With the fewest-first order of §5.3, and
   each connection starting with nothing, the chunks are dealt two at a time over all connections:
   the two copies of a chunk go to two different peers, and each connection receives about 2N/C
-  chunks. Only mesh peers that were not pushed a chunk are announced it; other connections get no
-  announcement from this step, though heartbeat gossip may announce to them later (§6.4).
+  chunks. Only mesh peers not chosen to be pushed a chunk are announced it, and one whose push the
+  queue refuses is offered it instead (§5.2), so no peer is offered a chunk twice; other connections
+  get no announcement from this step, though heartbeat gossip may announce to them later (§6.4).
 - The source pushes each chunk to R = 2 peers. It never uses the fast-class degree of card 17.
 - **The source's HAVE is paced** [P4], for the source's privacy. A HAVE that names every chunk
   before any chunk has left can come only from the source, so it tells each mesh peer who published
@@ -822,9 +854,9 @@ def ask_parked(a):
         if parked(pick, a): asked_parked[k].add(pick)     # counted once the queue has taken the ask
 ```
 
-- **Offers** are recorded from every announcement, parked or not, within the limits of §8.2, and
-  dropped when the chunk arrives, when the announcer's connection closes, or 30 s after the
-  announcer's last offer of the group. Every
+- **Offers** are recorded from every announcement, parked or not and over the IHAVE limits too
+  (§4.4), within §8.2's limits on offers, and dropped when the chunk arrives, when the announcer's
+  connection closes, or 30 s after the announcer's last offer of the group. Every
   offer is kept, as one bitmap per connection and group (`offered`); the first 16 announcers of an
   id, in announcement order (`offers`), are only the order in which they are tried, so a full list
   forgets no announcer, nor does the bound on how many lists one announcer is in (§8.2). Before the block is installed the offer table is also the ledger of what
@@ -874,6 +906,9 @@ Answers are ordinary chunks and go through §4.2.
 
 ```python
 def on_heartbeat():
+    ihave_rpcs.clear(); ihave_asked.clear()                   # §4.4's limits start again, and the
+    for a in held_back.values(): retry_offer(a)               #   retry runs for what they held back,
+    held_back.clear()                                         #   which they do not count
     ids = gossip_history.gossip_ids()                         # stock: ids of the last 3 heartbeats
     eligible = [q for q in topic_peers() if q not in mesh and gossip_eligible(q)]   # stock: scores
     n = min(len(eligible), max(D_LAZY, floor(GOSSIP_FACTOR * len(eligible))))
@@ -896,7 +931,10 @@ def send_gossip(q, ids):                                       # [c7]
 The gossip history holds the chunks the source published and the chunks a node received and
 forwarded; it does not hold the chunks a decoded node rebuilt, which are pushed instead of
 announced (§4.6). Paced gossip releases the heartbeat's announcements one peer per tick instead of
-all at once.
+all at once. Before its gossip, the heartbeat starts the IHAVE limits' counts again and runs the
+retry of §6.1 for each chunk they held back (§4.4), which the limits do not count. A full bitmap
+held back can mean a retry per chunk where one IWANT would have carried the asks; the retries to
+one peer may go in one IWANT.
 
 ## 7. Sending: the per-peer queue and the window
 
@@ -1069,6 +1107,8 @@ act.
 | `tried` | ask and announcer | 30 s | when the chunk arrives, at expiry, or when the announcer's connection closes |
 | `asked_parked` | chunk (group and index) and announcer | 30 s, as `tried` | as `tried` |
 | `last_resort_armed` | chunk | one timer, until it fires | — |
+| `ihave_rpcs`, `ihave_asked` | connection | one heartbeat | at the next heartbeat, or when the connection closes |
+| `held_back` | chunk (group and index) of an admitted group | until the next heartbeat | at that heartbeat, which runs the retry for it (the retry checks expiry, §6.1) |
 | promises | ask and peer | `PROMISE` | when a copy that passes level 1 arrives, the group completes or expires, or the peer's connection closes |
 | `owed`, `owed_answers` | connection and group | until they leave | when the peer claims the chunk, when the group is dropped or expires, or when the connection closes |
 | `park` | peer id and group | `PARK_TTL` | at expiry; kept across reconnections, as scores are |
@@ -1139,12 +1179,13 @@ A node checks a message's shape before it allocates state for it.
 | groups not yet tied to an installed block, named in a peer's HAVEs, IHAVEs or deferred chunks | `MAX_PENDING_GROUPS` per peer | the peer's further unknown groups are ignored until one resolves or expires |
 | deferred chunks | a bounded store with per-peer reservations | the peer's further deferred chunks are dropped, neither claimed nor forwarded; each counts as the peer's offer of its index (§4.2) |
 | offers | 16 announcers per id in the ordered list, an announcer in at most 256 lists; one `offered` bitmap per connection and admitted group, of at most `MAX_HAVE_BYTES` | an announcer's further ids are not listed, and its offers of them are kept in `offered` only; a peer's offers for groups beyond `MAX_PENDING_GROUPS` are ignored, as its HAVEs are |
-| IHAVE handling | `MAX_IHAVE_MESSAGES` IHAVE-bearing RPCs per peer and heartbeat, and the stock `MAX_IHAVE_LENGTH` ids | further IHAVEs are ignored for the rest of the heartbeat |
+| IHAVE handling | `MAX_IHAVE_MESSAGES` IHAVE-bearing RPCs per peer and heartbeat, and `MAX_IHAVE_LENGTH` ids asked of the peer in reply to its IHAVEs per heartbeat | the peer's further announcements are recorded, and what the node would ask of it waits for the next heartbeat (§4.4) |
 | per-peer queue | client-chosen, shared by both lanes | a new entry is dropped, urgent control included: urgency orders dispatch, not admission. A dropped HAVE costs its window slot a timeout |
 
-`MAX_PENDING_GROUPS` and the deferred store's sizes are the client's to set; what this document
-fixes is the behaviour at the limit. Every offer for an admitted group is kept (§6.1): per peer at
-most (`MAX_PENDING_GROUPS` + the live groups) × 1 KiB of `offered`, the same order as `peer_has`.
+`MAX_PENDING_GROUPS`, the deferred store's sizes and the two IHAVE limits are the client's to set;
+what this document fixes is the behaviour at the limit. Every offer for an admitted group is kept
+(§6.1): per peer at most (`MAX_PENDING_GROUPS` + the live groups) × 1 KiB of `offered`, the same
+order as `peer_has`.
 Chunks are deduplicated by id and, once accepted, by index: only one content per index can pass
 the proof, so a forged variant costs one proof check and counts against its sender.
 
@@ -1172,8 +1213,8 @@ the proof, so a forged variant costs one proof check and counts against its send
 | `CHUNK_BYTES` | ≈ 12 KB | 14 | the encoded chunk at 1 MiB |
 | `WINDOW_TIMEOUT` | 500 ms | 14 | a lost acknowledgement frees its slot |
 | pace tick | heartbeat / 16 = 43.75 ms | 15 | one announcement per tick |
-| `MAX_IHAVE_MESSAGES` | 4096 | 3, 7 | one IHAVE per chunk and peer when announcing instead of pushing; stock gossipsub's 10 would drop most of them. Batching each peer's announcements would let it stay low |
-| `MAX_IHAVE_LENGTH`, `D_LAZY`, `GOSSIP_FACTOR`, `GOSSIP_RETRANSMISSION` | 5000, 6, 0.25, 3 | – | stock gossipsub |
+| `MAX_IHAVE_MESSAGES`, `MAX_IHAVE_LENGTH` | the client's (§8.2) | 3, 7 | a limit delays asks and loses no offer (§4.4). One below what a peer sends within a heartbeat, up to an IHAVE-bearing RPC per chunk it announces and as many asks, holds some of its asks back to the next heartbeat: stock gossipsub's 10 RPCs would hold back most of a group's announcements, which come one per chunk, and its 5000 ids count every topic's asks. Batching a peer's announcements keeps the RPC count low |
+| `D_LAZY`, `GOSSIP_FACTOR`, `GOSSIP_RETRANSMISSION` | 6, 0.25, 3 | – | stock gossipsub |
 | `HAVE_TTL` | 3 heartbeats after the peer's last HAVE for the group | 7 | stock IDONTWANT expiry |
 | `PUSH_TTL` | 6 heartbeats after the last push | 16 | the message cache's length |
 | `GROUP_TTL` | at least 7 heartbeats and the seen cache's lifetime, after the group's last chunk or its completion | – | a group outlives its diffusion |
@@ -1294,9 +1335,14 @@ rerun does as this document does, the entry says so.
   runs have no blocks, no expiry within a payload's lifetime and no disconnects, so the others do
   nothing there. Against the same runs without these rules, the times and bytes stayed within the
   spread between runs, and honest nodes parked honest peers less often.
-- *The IHAVE limit.* The measured handler allowed 4096 control-bearing RPCs per peer per heartbeat,
-  a counter that also counts RPCs carrying other control. §8.3 makes a raised limit part of the
-  protocol and counts only IHAVE-bearing RPCs.
+- *The IHAVE limits.* The measured handler allowed 4096 control-bearing RPCs per peer per heartbeat,
+  a counter that also counts RPCs carrying other control, and asked a peer for at most the stock
+  5000 ids a heartbeat; as in stock gossipsub, an IHAVE that arrived over either limit was ignored,
+  and so were the ids of one IHAVE after its 5000th. This document counts only IHAVE-bearing RPCs,
+  reads every entry, and records an IHAVE over either limit and retries its asks at the next
+  heartbeat (§4.4), so the two differ only in a heartbeat in which a peer reaches a limit, or for an
+  IHAVE of more than 5000 ids. The rerun's source announces a chunk only to the mesh peers it did
+  not choose for a push, as §5.1 does.
 - *Clearing promises on decode* in the stock gossip tracer had no effect in the measured cells,
   because the harness runs no peer scoring. In a client that scores peers it keeps honest peers from
   being penalised for asks the decode made unnecessary.

@@ -1552,6 +1552,9 @@ applies; without P4 the medians had been up to 102 ms behind v0.4's (`silent` 67
 with v0.5's: eleven cells within 7 ms at the median, 15 ms at the tail and 0.03 copies
 (`rr-stripe` p50 417 → 410 ms, `dcb20` p99 358 → 343 ms, `cap-wait` 740 → 754 ms), and
 `loss-thin` 1 ms later at the median and 0.12 copies lighter, as before the merge (1.81 copies).
+Since `protocol.md` §5.1 announces only to the mesh peers it did not choose for a chunk
+(2026-10-25), its `loss-thin` is 9 ms sooner at the median, so this document's is 10 ms later at
+the median, 22 ms at the tail and 0.11 copies lighter; the other cells are as they were.
 Draft 0 did not reproduce the cells at all: it filtered a forwarding node's push candidates by
 what it had already pushed, which v0.3 does not, and it shuffled the
 relation peers for repair in a different order than v0.3's mesh set, so its random draws diverged;
