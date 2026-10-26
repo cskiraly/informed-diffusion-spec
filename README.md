@@ -37,7 +37,19 @@ keeps its title.
 - [`formal/`](formal/): a model of §4–§7, checked on small instances: what holds, what v0.5 fixed.
 - [`formal/veil/`](formal/veil/): properties proved in Veil for any number of nodes, groups and chunks: A1, an honest node never penalised, for an ask (with no assumption under the live window, `protocol.md` §8.1, a group's key fixing its slot, §1, and under the fallback for groups without a slot given the bound on its tombstone), for a chunk that fails level 1 or for a malformed HAVE; and no stall (Q1): no quiet state in which an honest node reachable from the source along mesh links is incomplete, under the assumptions its README states, with the mesh changing and connections closing (§5.4 closes F9 for them), whose proof found the IHAVE gap that v0.7 closes (§4.4); and under equivocation, with §4.2's ties and §6.1's rule against a second ask of a peer at once, which close F6, for the nodes the source reaches through nodes that installed the builder's block (`NoStallEquiv.lean`).
 
-**Status:** draft v0.7, 2026-10-25. Since v0.6: a group whose slot has left a node's live window
+**Status:** draft v0.8, 2026-10-26. Since v0.7: a peer that joins a node's mesh is announced what
+the node holds, so a peer that joins after a chunk was forwarded, or whose connection closed, is
+offered it (§5.4; F9 in `formal/`); a copy that waits for its block ties its sender to the root it
+names, and that root's installation makes the sender an offer of the index, in place of v0.5's
+offer of a refused copy (§4.2); and no peer is asked for a chunk while an earlier ask of it to that
+peer is outstanding (§6.1). The last two close F6, a stall under equivocation; and a rebuilt chunk
+names the block the chunks it was rebuilt from name (§4.6), so among honest nodes every copy names
+the builder's block, as their proof assumes. `formal/veil/` proves no stall (Q1) with the mesh changing
+and connections closing, and under equivocation for the nodes the source reaches through nodes that
+installed the builder's block. The rule against a second ask changes the toy's events in all twelve
+recorded cells and in eleven of the next version's, both recordings made again.
+
+v0.7, 2026-10-25. Since v0.6: a group whose slot has left a node's live window
 is expired for good, its tombstone kept until then, and a group without a slot keeps its tombstone
 `TOMBSTONE_TTL` (§8.1, §8.3); a group is named in diffusion by its key, the hash of its group id and
 slot, so its slot is fixed (§1); an IHAVE over either of gossipsub's IHAVE limits is recorded

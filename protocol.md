@@ -1,6 +1,6 @@
 # Informed Diffusion: the protocol in pseudocode
 
-> **DRAFT v0.7, 2026-10-25.** Companion to the post [*Informed Diffusion: making home builders
+> **DRAFT v0.8, 2026-10-26.** Companion to the post [*Informed Diffusion: making home builders
 > publish fast*](https://ethresear.ch/t/informed-diffusion-making-home-builders-publish-fast/26151). Field level on the wire; byte-exact layouts follow in a second phase. Written from
 > the research implementation (Prysm and a go-libp2p-pubsub fork) and revised after a review
 > against it; section 9 lists where the measured runs differ from what is written here.

@@ -6,7 +6,7 @@ instances, exhaustively with TLC; runtime monitors that check the same safety pr
 [toy](../toy/), which runs the document itself; and an exhaustive check of the wire's arithmetic
 (§1–§2). The model was written against draft v0.4, and the rules v0.5 added are switches in it, so
 one model checks both. Checking v0.4, and the fixes proposed for it, found ten gaps (F1 to F10,
-below): v0.5 fixes eight, and two remain open.
+below): v0.5 fixes eight, and v0.8 the other two (F6, F9), as their rows say.
 
 **Scope: small instances.** Three or four nodes, one group of K = 1 or 2 data chunks out of at most
 N = 4. TLC explores every reachable state only at K = 1; at K = 2 it covers every state within 29
