@@ -292,6 +292,7 @@ class Node:
             "owed": AutoMap(lambda: AutoMap(Bits)), "owed_answers": AutoMap(lambda: AutoMap(Bits)),
             "park": AutoMap(dict), "gossip_history": GossipHistory(), "pace_queue": [],
             "pending": AutoMap(list), "pending_ids": set(),
+            "tied": AutoMap(lambda: AutoMap(lambda: AutoMap(Bits))),     # root -> peer -> group -> indices
             "mesh": set(), "now": 0.0,
         }
         self._seen = set()

@@ -59,6 +59,14 @@ each seed's four cells averaged). The next version's column and row groups keep 
 its custody and row settings their digests at seed 7, with and without supernodes, samplers and
 withheld columns.
 
+Ties and no second ask of a peer at once (2026-10-26, §4.2, §6.1) re-recorded both recordings. No
+copy waits for its block in the toy, so nothing is tied; the rule against a second ask changes
+the events of all twelve cells of `golden.txt` and eleven of `golden-v2.txt`, at seed 7 by −7 to +3 ms at the median and −15 to +13 ms at the tail in
+`golden.txt`, and by −6 to +3 ms and −10 to +19 ms in `golden-v2.txt`. Over seeds 7 to 9 of the
+twelve cells it moved them by −8 to +6 ms at p50, −15 to +34 ms at p99 and −0.04 to +0.03 copies,
+where `--check-ms 5.01`, a change that alters no rule, moved them by −1 to +5 ms, −13 to +10 ms
+and −0.05 to +0.01. Its digests at seed 7 are those of the run that measured it.
+
 ## How it maps onto the document
 
 | file | what it holds |
@@ -228,7 +236,7 @@ IHAVE bitmap, an ask a `WantIndex`. Relations are static, as the mesh is for v0.
 
 `check.py --doc v2` runs the twelve cells against the next version's own recording, `golden-v2.txt`
 (`--update` records it, as for v0.3). `check.py --doc v2 --golden golden.txt` compares the next version
-against `protocol.md`'s cells instead (v0.3's until 2026-10-13, v0.4's until 2026-10-21, v0.5's until 2026-10-25, v0.7's since); there a cell whose digest moved but whose numbers did not is
+against `protocol.md`'s cells instead (v0.3's until 2026-10-13, v0.4's until 2026-10-21, v0.5's until 2026-10-25, v0.7's until 2026-10-26, with ties and no second ask since); there a cell whose digest moved but whose numbers did not is
 reported as such and does not count, since the next version iterates the relation in peer order where
 v0.3 iterates the mesh set, which reorders same-instant sends. On 2026-10-07, with v0.3's slot
 window, eleven cells reproduced v0.3's numbers exactly and `rr-stripe` differed by 3 ms at the

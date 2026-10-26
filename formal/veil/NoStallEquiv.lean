@@ -9,8 +9,8 @@ set_option veil.solver "grind+smt"
 
 /-! # No stall under equivocation, the asking part (F6), for any number of nodes
 
-SEACAST, `protocol.md` v0.7 (§3, §4.1, §4.2, §4.4, §4.5, §6.1, §6.4, §7.2), with the two candidate
-rules for F6 (`../README.md`, F6): **when the asking machinery has nothing left to do, a node
+SEACAST, `protocol.md` v0.7 (§3, §4.1, §4.2, §4.4, §4.5, §6.1, §6.4, §7.2), with the two rules
+for F6 that v0.8 adds (`../README.md`, F6): **when the asking machinery has nothing left to do, a node
 that has installed the builder's block holds every chunk an honest peer offered it, or has stopped
 pulling the group, also when it installed the proposer's other block first.** The chunk is any one
 chunk of the group, so the result holds for each.
@@ -24,13 +24,13 @@ builder's block later (fork choice: the switch), and only then does a copy valid
 F6: before the switch the providers' answers wait or are refused, their promises fall due and park
 them, B′'s ask once more is spent on them, and so are a provider's three answers per chunk and
 connection (`GOSSIP_RETRANSMISSION`); after the switch every announcer is parked and has been asked
-once more, or has no answer left, and the node stalls. The two candidate rules, each a switch with a
-known answer:
-- `ROOT_TIED`: a copy that waits ties its sender to the root it names, for its index; the sender's
-  promise closes, since it answered, and it is not asked for the index again until that root
-  installs. The installation releases the ties: each sender's park lifts, B′'s count for it clears,
-  and it is an offer again, asked for (§8b's `on_block_installed`).
-- `NO_REASK_OPEN`: no announcer is asked for a chunk while an earlier ask of it to that announcer is
+once more, or has no answer left, and the node stalls. The two rules, each a switch with a known
+answer:
+- `ROOT_TIED` (§4.2's ties): a copy that waits ties its sender to the root it names, for its index;
+  the sender's promise closes, since it answered, and it is not asked for the index again until that
+  root installs. The installation releases the ties: each sender's park lifts, B′'s count for it
+  clears, and it is an offer again, asked for (§4.2's `on_block_installed`).
+- `NO_REASK_OPEN` (§6.1): no announcer is asked for a chunk while an earlier ask of it to that announcer is
   outstanding, queued or promised; a retry or a last resort that finds every candidate outstanding
   waits, and the outstanding ask is pending work.
 
@@ -46,16 +46,16 @@ environment, with the other block's installation and pushes that wait for the bu
 
 Connections close at any time, as in `NoStallAsk.lean`: what is between the two nodes is lost both
 ways, their promises close, and the state kept per connection goes, the asks' numbering (with the
-provider's serve count) and the ties among it (§8e); B′'s counts with it are a switch with a known
+provider's serve count) and the ties among it (§8.1); B′'s counts with it are a switch with a known
 answer.
 
-Assumed: every honest copy names the builder's block, rebuilt ones included. v0.7's §4.6 lets a
+Assumed: every honest copy names the builder's block, rebuilt ones included. v0.7's §4.6 let a
 rebuilt chunk name either installed block whose bid commits the group, so a node that installed
-both blocks may rebuild a chunk naming the other one; at a node with only the builder's block that
-copy waits for good, and its sender, which counted it, sends nothing more for the index. A rule
-that a rebuilt chunk names the block its received chunks name, where they all name one, would
-close this (the source publishes under one block, and the rule keeps it); which block a node names
-when they name several is left open. Both are the author's to take into §4.6.
+both blocks could rebuild a chunk naming the other one; at a node with only the builder's block
+that copy waits for good, and its sender, which counted it, sends nothing more for the index.
+v0.8's §4.6 has a rebuilt chunk name the block the chunks it was rebuilt from name, where they all
+name one: the source publishes under one block, and forwarding and the rule keep it, so among
+honest nodes every copy names it. That argument is by inspection, not in this model.
 
 Not modelled here: how offers come about (the transport), lifetimes, adversaries (so every tie is
 honest: a copy naming the builder's root, whose bid commits the group), and more than two blocks
@@ -78,8 +78,8 @@ immutable individual owedAnswers : Bool    -- §4.1, §7.2: an answer a full que
 immutable individual askLedger : Bool      -- C′ (§3, §4.2): what was offered before the block is asked
 -- §4.4, §6.4 (v0.7): an ask an IHAVE limit holds back is retried at the next heartbeat
 immutable individual heldBackRetry : Bool
-immutable individual rootTied : Bool       -- F6: ROOT_TIED
-immutable individual noReask : Bool        -- F6: NO_REASK_OPEN
+immutable individual rootTied : Bool       -- F6: ROOT_TIED (§4.2's ties, v0.8)
+immutable individual noReask : Bool        -- F6: NO_REASK_OPEN (§6.1, v0.8)
 -- §6.1, §8.1: B′'s count for an announcer goes with its connection, as `tried` does
 immutable individual countsReset : Bool
 
@@ -345,7 +345,7 @@ action parkOther (n q : node) {
 
 -- §8.1: the connection between n and q closes: what is queued, owed or in flight between them is
 -- lost, both ways; their promises close (§6.1); the state kept per connection goes: offers (the
--- ledger's too), B′'s counts, the asks' numbering with the serve count, ties (§8e) and claims;
+-- ledger's too), B′'s counts, the asks' numbering with the serve count, ties (§8.1) and claims;
 -- parks, windows and timers stay
 action close (n q : node) {
   require n ≠ q

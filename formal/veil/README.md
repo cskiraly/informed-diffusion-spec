@@ -12,10 +12,11 @@ checks (the SMT solver is not trusted):
   neighbour received, has stopped pulling, or holds that neighbour's offer; when the asking machinery
   has nothing left to do, every such offer is resolved; and, counting in plain Lean, every honest node
   reachable from the source along mesh links stops at K and completes. The mesh may change on the
-  way (peers join and leave it, connections close), with F9's candidate rule: a peer that joins the
-  mesh is announced what the node holds. How the pieces make Q1 is below.
-- `NoStallEquiv.lean`: the asking piece under equivocation, with F6's two candidate rules, in place
-  of `NoStallAsk.lean` when a proposer signs two blocks for the slot: Q1 then holds for every honest
+  way (peers join and leave it, connections close), with F9's rule, `protocol.md` §5.4 since v0.8: a
+  peer that joins the mesh is announced what the node holds. How the pieces make Q1 is below.
+- `NoStallEquiv.lean`: the asking piece under equivocation, with F6's two rules, §4.2's ties and
+  §6.1's rule against a second ask of a peer at once since v0.8, in place of `NoStallAsk.lean` when
+  a proposer signs two blocks for the slot: Q1 then holds for every honest
   node reachable from the source through nodes that installed the builder's block, given that
   every honest copy, rebuilt ones included, names that block.
 
@@ -138,7 +139,8 @@ id, and a decoder cannot tell which root the source's chunk at an index it never
 What the proof needs is that a rebuilt chunk names a block whose bid commits its group
 (`rebuiltRoot`); naming a block whose bid commits another group gets the decoder penalised (its known
 answer). Since v0.7 §4.6 says so: a rebuilt chunk names an installed block whose bid commits the
-group, and is the source's chunk byte for byte where it names the same root.
+group (since v0.8, the block the chunks it was rebuilt from name, or one of them where they name
+several), and is the source's chunk byte for byte where it names the same root.
 
 ## No stall (`NoStallTransport.lean`, `NoStallAsk.lean`, `NoStallCount.lean`)
 
@@ -152,9 +154,10 @@ chunk of the group, so they hold for each:
   neighbour's offer of the chunk. It models the source's publish, forwarding (pushed or announced,
   any targets, never to the sender or a peer known to hold it), queues that may refuse any entry
   (owed and offered, A′), the writer's cancel and projection (A′), what is owed, announcements
-  recorded as offers, the deferred store (refused copies as offers, F7's fix), copies taken in at
-  installation, repair, and a mesh that changes: peers join it (by a GRAFT, sent or accepted, and
-  are then announced what the node holds: F9's candidate rule) and leave it (a PRUNE), and
+  recorded as offers, the deferred store (refused copies as offers, F7's fix, which since v0.8 the
+  ties of §4.2 make at the block's installation), copies taken in at installation, repair, and a
+  mesh that changes: peers join it (by a GRAFT, sent or accepted, and are then announced what the
+  node holds: §5.4, F9's rule) and leave it (a PRUNE), and
   connections close, with what is queued, owed or in flight on them and the state kept per
   connection (§8.1). The mesh is directed, as gossipsub's is, and starts empty.
 - **The asking** (`NoStallAsk`): when it has nothing left to do, every offer to a node that has its
@@ -184,7 +187,7 @@ How the spec's events fall into the pieces:
 | publish (§5.1) | `publish` | the source's `install`, `arriveOther`, `stopPull` |
 | forward and write a push, an announcement or what is owed (§5.2, §7.2) | `fwd`, `writePush`, `writeIhave`, `writeOwed` | none |
 | a chunk arrives with the block (§4.2) | `recvChunk` | `arriveOther` |
-| a chunk arrives ahead of the block: deferred, or refused and offered (§4.2) | `recvChunk` | none, or `offerEarly` |
+| a chunk arrives ahead of the block: deferred, or refused and its sender an offer at installation (§4.2's tie) | `recvChunk` | none, or `offerEarly` |
 | an announcement arrives (§4.4) | `recvIhave` | `offerEarly` before the block, else `offerAsk`, `offerInWindow`, `offerParked`, `offerParkedArm`; over an IHAVE limit `offerHeldBack` (by the loop, from an unparked offerer; by §4.4's bitmap reading, from any) |
 | an ask written, handled, answered, owed; an answer written (§4.1, §4.5, §7.2) | none | `writeAsk`, `recvAsk`, `owedToQueue`, `writeAns` |
 | an answer arrives (§4.2) | `answerArrives` | `recvAns` |
@@ -192,7 +195,7 @@ How the spec's events fall into the pieces:
 | a HAVE arrives (§4.3) | `learnClaim` | `learnClaim` |
 | the block installs: its handler takes the deferred copies in, then asks for the ledger (§3, §4.2) | `install`, then `resume` | `installTakenIn` if a copy of the chunk was deferred, `installStopped` if the copies brought the group to K, else `install` |
 | the decode claim at K; the decode returns, repair (§4.6) | `stopPull`; `rebuild`, `repair` | `stopPull`; `arriveOther` |
-| a peer joins a node's mesh, by a GRAFT sent or accepted, and is announced what the node holds (F9's candidate rule) | `join` | its announcement arrives as any does |
+| a peer joins a node's mesh, by a GRAFT sent or accepted, and is announced what the node holds (§5.4) | `join` | its announcement arrives as any does |
 | a peer leaves a node's mesh (a PRUNE) | `leave` | none |
 | a connection closes (§8.1) | `close` | `close` |
 
@@ -220,7 +223,7 @@ installed that block); no traffic outside the mesh (heartbeat gossip, §6.4, and
 §5.1, are left out); lifetimes
 that outlast diffusion; a send window that lets every queue drain (W2, W3, checked on small
 instances only); an honest builder's code; and the one group admitted by §8.2's limits (so a copy
-the deferred store refuses counts as its sender's offer).
+that waits always ties its sender, §4.2).
 
 **F11, found here and closed in v0.7.** Up to v0.6, §8.2 let a node handle at most
 `MAX_IHAVE_MESSAGES` (4096) IHAVE-bearing RPCs per peer and heartbeat and ignore the rest. A node
@@ -239,14 +242,14 @@ answer `ka_ihave_dropped` shows the loss without it; in the asking, `offerHeldBa
 recorded, the retry armed), whose known answer `ka_held_back_lost` shows the offer never asked for
 without the heartbeat's retry.
 
-**F9, open in v0.7: its candidate rule proved here.** Nothing guarantees that a new connection is
+**F9, open in v0.7 and closed in v0.8: its rule proved here.** Without it, nothing guarantees that a new connection is
 offered again what the old one lost (`../README.md`, F9): offers come from announcements, which
 follow a chunk's arrival, and a closed connection takes with it what was queued, owed or in flight on
 it (§8.1). The same gap opens without a close, for a peer that joins a node's mesh after the node
 forwarded the chunk: the Quint model, in which every connection is a mesh link, could not show it.
 Heartbeat gossip may announce the chunk on a connection before it joins the mesh, and a later copy
 may be forwarded, but neither need happen (the gossip goes to a sample of the peers outside the
-mesh, for three heartbeats); the models leave both out. The candidate rule moves the resync of the
+mesh, for three heartbeats); the models leave both out. The rule, §5.4, moves the resync of the
 Quint model's `RESYNC_ON_CONNECT` from the connection to the mesh: a peer that joins a node's mesh,
 by a GRAFT either way, is announced what the node holds of each live group, minus what the node
 pushed it and what it claimed. A closed connection leaves the mesh, so a reconnection is announced
@@ -260,17 +263,17 @@ connection, as §8.1 has it, and the proof needs B′'s count to go with the con
 (`countsReset`): kept, the last resort's ask lost with the connection is never made again
 (`ka_counts_kept`).
 
-**F6, open in v0.7: its candidate rules proved here** (`NoStallEquiv.lean`). A proposer that signs
+**F6, open in v0.7 and closed in v0.8: its rules proved here** (`NoStallEquiv.lean`). A proposer that signs
 two blocks for one slot may put the same bid in both, so both commit the group. A node that installs
 the other block asks, since its bid commits the group, but every honest chunk names the builder's
 block, so a copy waits for that block, kept or refused; the node may switch to the builder's block
 later. Before the switch the providers' answers wait or are refused, their promises fall due and
 park them, B′'s ask once more is spent on them, and so are a provider's three answers per chunk and
 connection (`GOSSIP_RETRANSMISSION`); after the switch the node can stall (`../README.md`, F6). The
-candidate rules: `ROOT_TIED`, under which a copy that waits ties its sender, closes its promise and
-keeps it from being asked for the index until the root it names installs, whose installation lifts
-the sender's park and B′'s count for it and makes it an offer again; and `NO_REASK_OPEN`, no ask to a
-peer while an earlier ask of the chunk to it is outstanding, queued or promised. `NoStallEquiv` is
+rules: `ROOT_TIED` (§4.2's ties), under which a copy that waits ties its sender, closes its promise
+and keeps it from being asked for the index until the root it names installs, whose installation
+lifts the sender's park and B′'s count for it and makes it an offer again; and `NO_REASK_OPEN`
+(§6.1), no ask to a peer while an earlier ask of the chunk to it is outstanding, queued or promised. `NoStallEquiv` is
 the asking piece with the gate (a block whose bid commits the group: asks are allowed) split from the
 builder's block (which a copy needs to validate), both rules as switches, and the asks to a peer
 numbered (the first, second, third and any later one), so that two asks in flight to one peer are
@@ -288,14 +291,15 @@ breaks (its stall, some 30 steps, is the Quint model's); and B′'s counts kept 
 through nodes that installed the builder's block, along whom the counting runs
 (`every_installed_reachable_node_completes`): a node that installs only the other block cannot
 validate the chunks, so nothing reaches a node behind it. This rests on every honest copy naming the
-builder's block, rebuilt ones included. v0.7's §4.6 lets a rebuilt chunk name either installed
-block whose bid commits the group: a node that installed both may rebuild a chunk naming the other
-block, which waits for good at a neighbour with only the builder's, while its sender, which counted
-the push, sends nothing more for the index. A rule that a rebuilt chunk names the block its received
-chunks name, where they all name one, would close this: the source publishes under one block, and
-the rule keeps it, so every honest copy names the builder's block (A1's model of rebuilt chunks
-needs only that the block named commit the group, which the rule keeps). Which block a node names
-when its received chunks name several is left open. Both are the author's.
+builder's block, rebuilt ones included, which the models assume. v0.7's §4.6 let a rebuilt chunk
+name either installed block whose bid commits the group: a node that installed both could rebuild a
+chunk naming the other block, which waits for good at a neighbour with only the builder's, while its
+sender, which counted the push, sends nothing more for the index. Since v0.8, §4.6 has a rebuilt
+chunk name the block the chunks it was rebuilt from name, where they all name one: the source
+publishes under one block, and forwarding and the rule keep it, so among honest nodes every copy
+names the builder's block, and the case where a node's chunks name several, in which §4.6 lets it
+name any one of them, does not arise (A1's model of rebuilt chunks needs only that the block named
+commit the group, which the rule keeps). That argument is by inspection, not in the models.
 
 | piece | proof | traces | cost |
 |---|---|---|---|

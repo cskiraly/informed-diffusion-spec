@@ -9,7 +9,7 @@ set_option veil.solver "grind+smt"
 
 /-! # No stall, the transport part (Q1's second piece), for any number of nodes
 
-SEACAST, `protocol.md` v0.7 (§3, §4.2, §4.4, §4.6, §5, §7.2, §8.1), with F9's candidate rule:
+SEACAST, `protocol.md` v0.7 (§3, §4.2, §4.4, §4.6, §5, §7.2, §8.1), with F9's rule, §5.4 since v0.8:
 **when the transport has nothing left to do, a node that has its block holds every chunk a mesh
 neighbour received, or has stopped pulling the group, or holds that neighbour's offer of the
 chunk**, which the asking part (`NoStallAsk.lean`) then resolves. The chunk is any one chunk of the
@@ -37,7 +37,7 @@ as gossipsub's is: `mesh n m` is "m is in n's mesh", the peers n forwards to; it
 every mesh is reached by joins. What is proved is about the states in which the transport is done,
 in whatever mesh they have.
 
-The candidate rule for F9, as a switch with two known answers: a peer that joins a node's mesh is
+F9's rule (§5.4 since v0.8), as a switch with two known answers: a peer that joins a node's mesh is
 announced what the node holds of each live group, as `announce` sends it (minus what the node pushed
 it and what it claimed; a full queue owes it, A′). Without it nothing guarantees that a reconnection
 is offered again what the old connection lost (F9), or that a peer that joins the mesh after the
@@ -58,9 +58,9 @@ a copy received after rebuilding the chunk). Also assumed: §8.2's limits admit 
 modelled, so a copy the deferred store refuses counts as its sender's offer (`admitted`).
 
 Equivocation (`NoStallEquiv.lean`, F6) needs nothing more here, given that every honest copy names
-the builder's block, rebuilt ones included (assumed: v0.7's §4.6 lets a rebuilt chunk name either
+the builder's block, rebuilt ones included (assumed: v0.7's §4.6 let a rebuilt chunk name either
 installed block whose bid commits the group, and one naming the other block waits for good at a
-node with only the builder's). `installed` is the builder's block, so a node that installed the
+node with only the builder's; since v0.8 it names the block the chunks it was rebuilt from name). `installed` is the builder's block, so a node that installed the
 proposer's other block is a node without its block: its copies wait, and it forwards nothing of the
 group until it switches. With `ROOT_TIED` a copy the store refuses ties its sender instead of being
 its offer at once, and the builder's block's installation turns the tie into the offer
@@ -88,7 +88,7 @@ immutable individual refusedAsOffer : Bool   -- §4.2: a copy the deferred store
 -- §4.4 (v0.7): every announcement is recorded, an IHAVE over the receiver's IHAVE limits too (up to
 -- v0.6 the receiver ignored those for the rest of the heartbeat)
 immutable individual ihaveHandled : Bool
--- F9's candidate: a peer that joins the mesh is announced what the node holds
+-- §5.4 (v0.8), F9's rule: a peer that joins the mesh is announced what the node holds
 immutable individual resyncOnJoin : Bool
 
 relation mesh (n : node) (m : node) : Bool    -- m is in n's mesh: n forwards to m

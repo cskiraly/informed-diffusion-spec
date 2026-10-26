@@ -1570,7 +1570,10 @@ With the group's key (2026-10-23, v0.3 §1; both recordings move again, as under
 (`without-a` p99 613 → 578 ms, `cap-wait` 815 → 797 ms), and `loss-thin` is 10 ms later at the
 median and 0.11 copies lighter (1.81 copies). Since `protocol.md` §5.1 announces only to the mesh
 peers it did not choose for a chunk (2026-10-25), its `loss-thin` runs differently with the same
-medians and copies, so these distances stand.
+medians and copies, so these distances stand. With ties and no second ask of a peer at once
+(2026-10-26, `protocol.md` §4.2, §6.1; both recordings move) eleven cells are within 8 ms at the
+median, 30 ms at the tail and 0.03 copies (`silent` p50 641 → 649 ms, `without-a` p99 598 → 568
+ms), and `loss-thin` is 8 ms later at the median and 0.12 copies lighter (1.81 copies).
 Draft 0 did not reproduce the cells at all: it filtered a forwarding node's push candidates by
 what it had already pushed, which v0.3 does not, and it shuffled the
 relation peers for repair in a different order than v0.3's mesh set, so its random draws diverged;

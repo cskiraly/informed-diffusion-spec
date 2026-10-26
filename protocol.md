@@ -308,12 +308,12 @@ or 3 never counts against them.
 first one non-relay. None of them ran in the measured cells (section 9).
 - **Do not forward a chunk whose block is not installed.** Deferred chunks wait in a bounded store
   with per-peer reservations, and are validated when the block installs, or dropped when their slot
-  leaves the live window (§4.2, §8.1). A copy the store refuses counts as its sender's offer of its
-  index (§4.2).
+  leaves the live window (§4.2, §8.1). A copy that waits, kept or refused, ties its sender to the
+  root it names, and that root's installation makes the sender an offer of the index (§4.2).
 - **A receiver does not ask for what it cannot yet authenticate** (§4.4). The announcements it
   receives meanwhile stay in the offer table, its ledger, and are asked for when the block installs
   (§4.2). An answer could not be checked before then anyway: asked for early, it would wait in the
-  deferred store, and its promise would fall due and park the peer that sent it.
+  deferred store, a provider's answer spent on a copy that cannot be checked yet.
 - **Push only with evidence the peer holds the block.** Mesh membership is not such evidence. How a
   node gets it, for its mesh and for the wider set striped publishing reaches (card 13), is open,
   and the push selectors of section 5 do not apply this rule: they are the measured policy.
@@ -355,6 +355,7 @@ def on_chunk(p, f):
     mid = message_id(f)
     if seen(mid) or mid in pending_ids:              # a duplicate, a chunk rejected before, or one waiting
         if accepted(mid): send_have(p, f.group)      # [c14] duplicates are acknowledged too
+        elif mid in pending_ids: tie(p, f)           # another copy of one that waits: its sender too
         return
     if expired(f.group) or not live(f.slot): return  # past its lifetime or live window (§8.1): ignored
     on_validated(p, f, validate_chunk(f))            # level 1 (§3)
@@ -384,21 +385,45 @@ def on_validated(p, f, result):
 def defer(p, f):                                     # on the router's event loop, like installation
     if installed_block(f.slot, f.beacon_block_root):           # installed in the meantime
         return on_validated(p, f, validate_chunk(f))
+    tie(p, f)                                        # kept or refused, its sender is tied to the root
     if reserve(p, f):                                # a per-peer reservation in a bounded store (§8.2)
         pending[f.beacon_block_root].append((p, f))
         pending_ids.add(message_id(f))
-    elif admitted(p, f):                             # refused, within §8.2's limits on its group: p is
-        a = WantIndex(group=f.group, index=f.index)  #   treated as having offered the index
-        add_offer(a, p)
-        if authenticable(f.group): retry_offer(a)    #   asked as any offer is; else at installation
-    # the copy itself is not kept, so a later copy is evaluated afresh
+    # refused: the copy is not kept, so a later copy is evaluated afresh; its sender stays tied
+
+def tie(p, f):                                       # a copy that cannot be checked yet ties its
+    if expired(f.group) or not live(f.slot): return  #   sender to the root it names, per connection
+    if not admitted(p, f) or not tie_room(p, f):     #   and group, within its lifetime and window
+        return                                       #   and §8.2's limits on ties
+    tied[f.beacon_block_root][p][f.group].set(f.index)
+    close_promises(f.group, f.index, of=p)           # p answered: its promise for the index closes
+
+def tied_to_root(p, a):                              # p is not asked for a while its copy waits
+    return any(t[p][group(a)].has(index(a)) for t in tied.values())
 
 def on_block_installed(root):                        # resumes level 1
     for p, f in pending.pop(root, []):
         pending_ids.discard(message_id(f)); release(p, f)      # the reservation goes back
         on_validated(p, f, validate_chunk(f))
-    for a in ledger(bid_group(root)):                # what was announced meanwhile (§4.4) is asked
-        retry_offer(a)                               #   for now
+    g0 = bid_group(root)                             # the group this root's bid commits
+    for p, groups in tied.pop(root, {}).items():     # the copies that waited for this root
+        for g, bits in groups.items():
+            if expired(g): continue                  # its offers went with its lifetime (§8.1)
+            if g != g0:                              # a copy naming a group its root does not commit
+                drop_tie(p, g, bits); continue       #   is a forgery: nothing is released
+            park[p].pop(g, None)                     # the senders' parks for the group lift,
+            for i in bits:
+                asked_parked[(g, i)].discard(p)      #   B′'s counts for their indices clear,
+                if not mine[g].has(i):               #   and each is an offer of its index again
+                    add_offer(WantIndex(group=g, index=i), p)
+    for a in ledger(g0):                             # what was announced meanwhile (§4.4), and what
+        retry_offer(a)                               #   the ties released, is asked for now
+
+def drop_tie(p, g, bits):                            # a tie its root does not release: a mismatch,
+    for i in bits:                                   #   or its slot left the live window (§8.1)
+        drop_offer(g, i, p)                          #   p's offers of these indices go, and the
+        if authenticable(g):                         #   recovery goes on without p (else the
+            retry_offer(WantIndex(group=g, index=i)) #   ledger asks at installation)
 
 def send_have(p, g):                                 # [c7] always the whole bitmap, as it is now
     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=have_bits(g))), urgent=True)
@@ -413,14 +438,22 @@ that arrives ahead of its block is announced only when the block installs; until
 may keep pushing it, and their window slots stay held (§7.1). Announcing such a chunk by its exact
 id on arrival, which is safe because an id covers only those bytes, is a variant not evaluated yet.
 
-**A copy the deferred store refuses** is not kept, but its sender is treated as having offered its
-index, within §8.2's limits on the group, and is asked for it as any announcer is: at once if an
-installed block's bid commits the group, else when that block installs, with the other offers
-recorded while nothing could be asked (§3, §4.4). Otherwise a push the store refuses is lost: its
-sender counts it as pushed and offers it to nobody, so a node whose only peer pushed it that chunk
-never completes. The offer does not show that the sender holds the index, since the copy was refused
-before its proof was checked: a forger can draw an ask, a retry and a last resort per index this way
-(§6.1), as it can by announcing the index, before it is parked.
+**A copy that waits ties its sender** to the root it names, for its index, whether the deferred
+store keeps the copy or refuses it, within §8.2's limits on the group. The sender's promise for the
+index closes, since it answered, with a copy that cannot be checked yet, and it is not asked for the
+index again until that root installs (`tied_to_root`: §4.4, §6.1, §7.2). The installation releases
+the root's ties for the group its bid commits: each sender's park for the group lifts, B′'s count for
+it and the index clears, and it becomes an offer of the index, asked for with the rest of the ledger
+if still wanted. Without ties, a push the store refuses is lost (its sender counts it as pushed and
+offers it to nobody, so a node whose only peer pushed it that chunk never completes), and a node on
+the proposer's other block (§3), whose copies all wait for the builder's block, spends its providers'
+parks, B′'s asks once more and their answers on copies that cannot validate, and can stall once it
+switches to that block. The group and root a copy names are its sender's claim, unchecked until the
+block installs: a tie whose root's bid commits another group is a forgery, and is dropped with its
+sender's offers of those indices, the recovery going on without it; so is a tie whose slot leaves
+the live window. A forger affects only its own promise and the asks to itself. An installation
+releases its own root's ties, once, so a proposer that signs m blocks for the slot allows at most m
+releases at a node.
 
 Without card 7 the node sends the stock IDONTWANT for `mid` to its mesh, and no acknowledgement goes
 back to the sender.
@@ -455,7 +488,9 @@ def on_ihave(p, ih):                                                  # returns 
             if held(a) or expired(group(a)): continue
             add_offer(a, p)                                           # [c5] offer table (§6.1)
             if gated(a) or not authenticable(group(a)): continue      # [c6] stop-pull; the block first (§3)
+            if tied_to_root(p, a): continue                           # its copy waits (§4.2)
             if parked(p, a): last_resort(a); continue                 # [c5] park; last resort (§6.1)
+            if outstanding(p, a): continue                            # an ask of it to p is open (§6.1)
             candidates.append(a)
     asks = []
     for a in shuffled(candidates):                                    # §6.1
@@ -600,17 +635,21 @@ def drop_group(g):                                    # level 2 or level 3 faile
   nothing measurable; with only K chunks released it was not tried. A peer that claims less than it
   holds draws at most its claimed shortfall from each decoded neighbour, once per group; repair
   skips card 16's guard and draw.
-- **What a receiver sees.** A rebuilt chunk names an installed block whose bid commits the group,
-  such as the one a chunk it received names; where the source's chunk at that index names the same
+- **What a receiver sees.** A rebuilt chunk names the block the chunks it was rebuilt from name,
+  where they all name one, even when another installed block's bid commits the group; where they
+  name several, it names one of those blocks. Where the source's chunk at that index names the same
   root, the rebuilt one is that chunk, byte for byte: the same id and the same proof. Its receiver
   checks it at level 1 and forwards it like any other. Nothing marks it as rebuilt, and nothing
   needs to. Repair waits for level 2 but not for level 3: once the group has passed level 2, a
   rebuilt chunk is an authentic leaf, as a forwarded one is. The roots can differ only when a
   proposer signs two blocks of a slot whose bids commit the group: the group's chunks may then name
   either root, which their ids cover, and a node cannot tell which one the source's chunk names at
-  an index it never received. A rebuilt chunk that named a block whose bid commits another group
-  would never pass level 1: a receiver without that block defers it until the block installs, then
-  rejects it.
+  an index it never received. Keeping the root its chunks name matters then: a rebuilt chunk naming
+  the other block would wait for good at a neighbour that installed only the block the chunks name,
+  and its sender, which counted the push, would send nothing more for the index. A source names one
+  block, so with this rule every honest copy of a group names it. A rebuilt chunk that named a block
+  whose bid commits another group would never pass level 1: a receiver without that block defers
+  it until the block installs, then rejects it.
 - **Why push, and not hold or announce.** A builder may release only the K chunks needed to
   decode. Every node then needs every one of them, the slowest to reach it included, and the other
   K exist only in the nodes that have decoded. Completion times spread out, and a builder that
@@ -860,11 +899,18 @@ def may_ask(a, p):
 def retry_offer(a):
     if held(a) or stop_pull[group(a)] or expired(group(a)): return
     if now - asked_at.get(a, -inf) < IWANT_WINDOW: return
-    cands = [q for q in announcers(a) if not parked(q, a)]
-    if not cands: return last_resort(a)                   # every announcer is parked
-    pick = untried(cands, a)
-    if pick is None: pick = least_recently_tried(cands, a)
+    cands = [q for q in announcers(a) if not parked(q, a) and not tied_to_root(q, a)]
+    if not cands: return last_resort(a)                   # every announcer is parked, or tied (§4.2)
+    free = [q for q in cands if not outstanding(q, a)]    # an announcer not yet answered is not asked
+    if not free: return after(IWANT_WINDOW + RETRY_SLACK, retry_offer, a)   # again: look again later
+    pick = untried(free, a)
+    if pick is None: pick = least_recently_tried(free, a)
     if may_ask(a, pick): enqueue(pick, IWANT([a]), urgent=False)
+
+def outstanding(q, a):                                    # an ask of a's chunk to q, promised or still
+    k = (group(a), index(a))                              #   queued, in either form
+    if any(r == q and (group(b), index(b)) == k for (b, r) in promises): return True
+    return any((group(b), index(b)) == k for e in queue[q].normal for c in e.iwants() for b in c.ids)
 
 def add_offer(a, p):                                      # within §8.2's limits on a's group
     offered[p][group(a)].set(index(a))                    # every offer kept, per connection and group
@@ -897,8 +943,9 @@ def parked(p, a): return now < park[p].get(group(a), -inf)
 def last_resort(a):                                       # every announcer of a is parked: each is
     k = (group(a), index(a))                              #   asked once more, later; counted per
     done = asked_parked[k]                                #   chunk, whichever form names it
-    if k in last_resort_armed or any(not parked(q, a) for q in announcers(a)): return
-    if all(q in done for q in announcers(a)): return
+    untied = [q for q in announcers(a) if not tied_to_root(q, a)]    # a tied announcer is passed over
+    if k in last_resort_armed or any(not parked(q, a) for q in untied): return
+    if all(q in done for q in untied): return
     last_resort_armed.add(k)
     after(PROMISE * 2 ** len(done), ask_parked, a)        # 0.4 s, 0.8 s, 1.6 s, ...
 
@@ -907,12 +954,17 @@ def ask_parked(a):
     last_resort_armed.discard(k)
     if held(a) or stop_pull[group(a)] or expired(group(a)): return
     if now - asked_at.get(a, -inf) < IWANT_WINDOW: return    # someone was asked meanwhile
-    cands = [q for q in announcers(a) if not parked(q, a)]   # an announcer unparked meanwhile first
+    untied = [q for q in announcers(a) if not tied_to_root(q, a)]
+    cands = [q for q in untied if not parked(q, a)]          # an announcer unparked meanwhile first
     if not cands:
-        cands = [q for q in announcers(a) if q not in asked_parked[k]]
+        cands = [q for q in untied if q not in asked_parked[k]]
         if not cands: return
-    pick = untried(cands, a)
-    if pick is None: pick = least_recently_tried(cands, a)
+    free = [q for q in cands if not outstanding(q, a)]       # none asked again while not answered:
+    if not free:                                             #   the last resort waits as the retry does
+        last_resort_armed.add(k)
+        return after(IWANT_WINDOW + RETRY_SLACK, ask_parked, a)
+    pick = untried(free, a)
+    if pick is None: pick = least_recently_tried(free, a)
     if may_ask(a, pick) and enqueue(pick, IWANT([a]), urgent=False):
         if parked(pick, a): asked_parked[k].add(pick)     # counted once the queue has taken the ask
 ```
@@ -928,10 +980,12 @@ def ask_parked(a):
   the window or dropped at a full queue opens none, so no peer is parked for an ask it never
   received.
 - **A promise closes** when a copy of the chunk that passes level 1 arrives, from anyone, when the
-  group is decoded (§4.6), or when the peer's connection closes: the ask or its answer went with
-  the connection, and the retry, whose timer is per ask, moves on to the other announcers. A
-  withholder whose connection closes before its promise falls due is therefore not parked, and on
-  a new connection may be asked again, per index an ask, a retry and a last resort.
+  group is decoded (§4.6), when the peer's own copy waits for its block (its tie, for its promise
+  alone, §4.2), or when the peer's connection closes: the ask or its answer went with the
+  connection, and the retry, whose timer is per ask, moves on to the other announcers. A withholder
+  whose connection closes before its promise falls due is therefore not parked, and on a new
+  connection may be asked again, per index an ask and a last resort (the retry does not ask it
+  again while its promise is open, below).
 - **When every announcer is parked**, each is asked once more for the chunk, after a wait that
   doubles with each such ask: `PROMISE` × 2ⁿ for the n-th (0.4, 0.8, 1.6 s, ...), counted once the
   queue has taken the ask, so an ask a full queue refuses spends nothing. Against announcers that
@@ -944,9 +998,22 @@ def ask_parked(a):
   index under many ids gets one last resort for it. `asked_parked` lives as `tried` does.
 - **An answer can still wait for a block** at a node that asks only once its block is installed
   (§3), when it names another root: a forgery, or, when the proposer signed two blocks for the
-  slot, the other block, whose bid may commit the same group. Its promise then falls due and its
-  sender is parked: rightly for a forgery; for an honest provider on the other block it is a park
-  the equivocation caused, and the last resort asks it again later.
+  slot, the builder's block at a node that installed the other one, whose bid may commit the same
+  group. The copy ties its sender (§4.2): its promise closes, so it is not parked for the copy, and
+  it is not asked for the index again until the root the copy names installs, whose installation
+  makes it an offer again. A forgery's root never installs, or commits another group, and its tie
+  goes with it.
+- **No second ask of a peer while one is outstanding.** The retry, the last resort and §4.4 pass
+  over an announcer while an earlier ask of the chunk to it is queued or promised
+  (`outstanding`, by group and index in either form), and look again a window later when every
+  candidate is outstanding. On a live connection an answer does not overtake the ask before it, so
+  a second ask could only draw a second answer. A provider answers a peer at most
+  `GOSSIP_RETRANSMISSION` (3) times per chunk and connection (§4.5): with the rule, while its park and
+  B′'s count last, it is asked for a chunk at most twice before the root its copies name installs,
+  once and B′'s once more, so its third answer is left for after a switch to that block. Without the
+  rule, asks decided while the first answer is on its way (the window's retry, an ask held in the
+  queue, B′'s once more) can spend all three on copies that cannot validate, and the node stalls
+  after it switches.
 - **Parking** affects only asks: a parked peer's announcements are not acted on for that group, but
   its pushes and our answers to it continue.
 - Without the offer table and park, the discipline alone asks the first announcer. It re-asks
@@ -1101,7 +1168,8 @@ def filter_entry(p, entry):
             sent_to[p][f.group].set(f.index)
     for c in entry.iwants():                                   # the asker drops asks for chunks it
         c.ids = [a for a in c.ids                              #   now holds, no longer pulls, or of a
-                 if not held(a) and not gated(a) and not expired(group(a))]    # group past its lifetime
+                 if not held(a) and not gated(a) and not expired(group(a))     # group past its lifetime,
+                 and not tied_to_root(p, a)]                   #   and asks to a peer whose copy waits
         for a in c.ids:                                        # [c5] the promise starts at the write
             if (a, p) not in promises:
                 promises[(a, p)] = now
@@ -1172,10 +1240,11 @@ act.
 | `last_resort_armed` | chunk | one timer, until it fires | — |
 | `ihave_rpcs`, `ihave_asked` | connection | one heartbeat | at the next heartbeat, or when the connection closes |
 | `held_back` | chunk (group and index) of an admitted group | until the next heartbeat | at that heartbeat, which runs the retry for it (the retry checks expiry, §6.1) |
-| promises | ask and peer | `PROMISE` | when a copy that passes level 1 arrives, the group completes or expires, or the peer's connection closes |
+| promises | ask and peer | `PROMISE` | when a copy that passes level 1 arrives, the peer's copy waits for its block (a tie, §4.2), the group completes or expires, or the peer's connection closes |
 | `owed`, `owed_answers` | connection and group | until they leave | when the peer claims the chunk, when the group is dropped or expires, or when the connection closes |
 | `park` | peer id and group | `PARK_TTL` | at expiry; kept across reconnections, as scores are |
 | deferred chunks | block root | until the block installs | when their slot leaves the live window; reservations are released |
+| `tied` | block root, connection and group | until the root installs | released at its installation; dropped when its slot leaves the live window, or where the root's bid commits another group (`drop_tie`); when its group expires; when the connection closes |
 | window slots | node | until a covering HAVE | `WINDOW_TIMEOUT`, or when the peer's queue closes |
 
 - **Per-connection state** is reset when the connection closes. A restarted peer usually keeps its
@@ -1244,15 +1313,18 @@ act.
   group: its group id at the block's slot gives the group's key) and `bid_group` (the key of the
   group the bid of the block with this root commits),
   `decode_and_reencode` (§1's decoding: every chunk of the group by index, as the source built it,
-  proof included, each naming an installed block whose bid commits the group (§4.6); None if the
-  root differs) and `payload_of` (the decompressed body),
-  `close_promises` and `close_promises_of_group` (§6.1's promises for an index, in either form, or
-  for the whole group), `discard_queued` (removes a group's chunks, IHAVEs and IWANTs from every
+  proof included, each naming the block the decode's chunks name, or one of them where they name
+  several (§4.6); None if the root differs) and `payload_of` (the decompressed body),
+  `close_promises` and `close_promises_of_group` (§6.1's promises for an index, in either form, with
+  `of` one peer's alone, or for the whole group), `discard_queued` (removes a group's chunks, IHAVEs and IWANTs from every
   queue, and what is owed of it, keeping HAVEs), `gossip_history.remove_group` and `discard_paced`
   (drop a group from the gossip history and from paced jobs), `deliver` (hands the body to the
   application for level 3), and the codec functions of §1.
 - *Peers and messages:* `seen` and `mark_seen` (the stock seen cache), `pending_ids` (the ids of
-  deferred chunks), `valid_have`, `reserve`, `release`, `admitted` and `listed` (the checks and
+  deferred chunks), `drop_offer` (a peer's offers of an index, in either form, §4.2's `drop_tie`),
+  `tie_room` (§8.2's limits on ties: the copy's root and group already tied for the peer, or room for
+  another; its index in range),
+  `valid_have`, `reserve`, `release`, `admitted` and `listed` (the checks and
   reservations of §8.2; `admitted`: a chunk's group within the peer's limits; `listed`: how many
   ordered offer lists an announcer is in), `Entry` (a queue entry: at most
   one chunk, plus control; `add_ihave` adds an IHAVE to its control), `enqueue` (into the bounded
@@ -1282,8 +1354,9 @@ A node checks a message's shape before it allocates state for it.
 |---|---|---|
 | a HAVE bitmap | `MAX_HAVE_BYTES` (8192 indices); no index at or beyond N once the descriptor is known | the HAVE is ignored and counts against the sender |
 | a descriptor | `valid_descriptor` (§1) | the chunk is rejected |
-| groups not yet tied to an installed block, named in a peer's HAVEs, IHAVEs or deferred chunks | `MAX_PENDING_GROUPS` per peer | the peer's further unknown groups are ignored until one resolves or expires |
-| deferred chunks | a bounded store with per-peer reservations | the peer's further deferred chunks are dropped, neither claimed nor forwarded; each counts as the peer's offer of its index (§4.2) |
+| groups not yet bound to an installed block, named in a peer's HAVEs, IHAVEs or deferred chunks | `MAX_PENDING_GROUPS` per peer | the peer's further unknown groups are ignored until one resolves or expires |
+| deferred chunks | a bounded store with per-peer reservations | the peer's further deferred chunks are dropped, neither claimed nor forwarded; each ties the peer to the root it names, as a kept one does (§4.2) |
+| ties (§4.2) | per peer, at most `MAX_PENDING_GROUPS` roots and groups not yet installed; an index below `MAX_PLAIN_CHUNKS`, and below N where the group's descriptor is known | a copy beyond them ties nothing, and is kept or refused as any deferred copy |
 | offers | 16 announcers per id in the ordered list, an announcer in at most 256 lists; one `offered` bitmap per connection and admitted group, of at most `MAX_HAVE_BYTES` | an announcer's further ids are not listed, and its offers of them are kept in `offered` only; a peer's offers for groups beyond `MAX_PENDING_GROUPS` are ignored, as its HAVEs are |
 | IHAVE handling | `MAX_IHAVE_MESSAGES` IHAVE-bearing RPCs per peer and heartbeat, and `MAX_IHAVE_LENGTH` ids asked of the peer in reply to its IHAVEs per heartbeat | the peer's further announcements are recorded, and what the node would ask of it waits for the next heartbeat (§4.4) |
 | per-peer queue | client-chosen, shared by both lanes | a new entry is dropped, urgent control included: urgency orders dispatch, not admission. A dropped HAVE costs its window slot a timeout |
@@ -1432,8 +1505,8 @@ rerun does as this document does, the entry says so.
   full queue refused was dropped, as an ask was; this document owes it (§7.2). The rerun of
   Figures 4 and 5 does both.
 - *Rules added after v0.4,* from a model of this document's rules: the three above; no ask before
-  the block (§3, §4.4) and a refused deferred copy counted as its sender's offer (§4.2), which need
-  blocks, and the measured runs had none; promises that close with their connection (§6.1); and
+  the block (§3, §4.4) and a refused deferred copy counted as its sender's offer (§4.2; since
+  replaced by ties, below), which need blocks, and the measured runs had none; promises that close with their connection (§6.1); and
   expiry checked by the retry, the writer's ask filter and a returning decode (§6.1, §7.2, §4.6).
   The implementation behind the earlier figures predates them. The rerun of Figures 4 and 5 has
   each of them that has a counterpart in the implementation. Two have none: the implementation keeps
@@ -1459,6 +1532,12 @@ rerun does as this document does, the entry says so.
   No connection closes in the measured runs, and their meshes settle before the first publish (the
   harness waits for the grafting to finish), so the rule would act there only where gossipsub's
   upkeep grafts a peer during a payload's lifetime, which the runs did not count.
+- *Ties, and no second ask of a peer at once* (§4.2, §6.1), came after the implementation measured,
+  its rerun included, and replace v0.5's offer of a refused copy. The measured runs have no blocks,
+  so no copy waits there and nothing is tied. The rule against a second ask acts in ordinary runs:
+  in the toy's twelve cells at seeds 7 to 9 it changes the events of 31 of the 36 runs, and moves
+  the warm medians by −8 to +6 ms at p50, −15 to +34 ms at p99 and −0.04 to +0.03 copies, where a
+  change that alters no rule moves them by −1 to +5 ms, −13 to +10 ms and −0.05 to +0.01.
 - *Clearing promises on decode* in the stock gossip tracer had no effect in the measured cells,
   because the harness runs no peer scoring. In a client that scores peers it keeps honest peers from
   being penalised for asks the decode made unnecessary.
