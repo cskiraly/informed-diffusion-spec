@@ -119,7 +119,7 @@ Four ways of checking:
 | D5 | Past its active lifetime a node stores nothing of the group | §8.1 | simulation (expiry while decoding) | holds |
 | L4 | A chunk that fails level 1 counts only against a forger | §3 | simulation (forged chunks) | holds |
 | L5 | No forged copy discharges another peer's promise | §3, §6.1 | simulation (forged chunks) | holds |
-| Q1 | When nothing is left to happen, every honest node is complete | §4–§7 | TLC (K = 1, 2), simulation | holds, except in F6's and F9's cases; not checked where a group expires or the code is inconsistent, where completion is not expected |
+| Q1 | When nothing is left to happen, every honest node is complete | §4–§7 | TLC (K = 1, 2), simulation | holds, except in F6's case, and F9's before §5.4; not checked where a group expires or the code is inconsistent, where completion is not expected |
 | Q3 | Every run goes quiet, with every honest node complete | §4–§7 | TLC (K = 1, weak fairness), simulation (quiet and complete by step 600; 1,000 where four nodes only pull) | as Q1 |
 
 By construction in the model: a node keeps one ask window per chunk at a time (§6.1), though an
@@ -162,10 +162,10 @@ as written too.
 | F3 | An answer that waits for its block parks the node that sent it | simulation (a late block) | fixed (C′) |
 | F4 | `retry_offer` has no expiry check | simulation (expiry) | fixed (D′) |
 | F5 | A peer is parked for an ask that never left, held behind the window or dropped at a full queue | simulation | fixed (E) |
-| F6 | Under equivocation, a node that switches to the builder's block can stall, in two forms: B′'s once-more asks spent before the switch; and its providers' answers for a chunk (three each) spent before it, which takes a switch within the serve counts' lifetime | simulation (directed cases) | **open**: the second form stalls under v0.5's rules; the first was not found (20,000 traces), which does not show it gone |
+| F6 | Under equivocation, a node that switches to the builder's block can stall, in two forms: B′'s once-more asks spent before the switch; and its providers' answers for a chunk (three each) spent before it, which takes a switch within the serve counts' lifetime | simulation (directed cases) | **open**: the second form stalls under v0.5's rules; the first was not found (20,000 traces), which does not show it gone; its candidate rules (`ROOT_TIED`, `NO_REASK_OPEN`) are proved at any size in `veil/` (`NoStallEquiv.lean`) |
 | F7 | A push the deferred store refuses is lost | simulation (a late block, a refusing store) | fixed |
 | F8 | A promise outlives its connection and parks the peer | simulation (closes) | fixed |
-| F9 | A new connection is never offered what the old one lost: on the triangle with two closes at any time, nobody completes | simulation (closes) | **open** |
+| F9 | Nothing offers a new connection again what the old one lost: on the triangle with two closes at any time, nobody completes | simulation (closes) | **open** in v0.5 to v0.7; closed by `protocol.md` §5.4 (a peer that joins the mesh is announced what the node holds), proved at any size in `veil/` |
 | F10 | A decode that returns after its group expired stores, pushes and offers the group again; it takes a decode slower than `GROUP_TTL`, which the document does not bound | simulation (a directed case) | fixed |
 
 F6 to F10 are existence results: how often they occur in real networks is not measured. On v0.4 as
@@ -236,4 +236,4 @@ python3 -I formal/wire/check_wire.py
 - `tlc/mkcheck.sh`, `tlc/configs/`: TLC.
 - `toy/monitor.py`: the runtime monitors on the toy; `wire/check_wire.py`: §1–§2's arithmetic.
 - `package.json`, `package-lock.json`, `quint`: the pinned toolchain.
-- `veil/`: properties at any size, proved in Veil (Lean 4) for any number of nodes, groups and chunks: A1 at every place a node penalises (an ask: with no assumption under the live window, `protocol.md` §8.1, a group's key fixing its slot, §1, and under the fallback without a slot given the bound on its tombstone; a chunk that fails level 1; a malformed HAVE), and no stall (Q1), in three pieces: no quiet state in which an honest node connected to the source is incomplete, under the assumptions its README states (among them no equivocation and no disconnects, where F6 and F9 remain). The no-stall proof found an eleventh gap, F11: an IHAVE over a receiver's IHAVE limit was ignored, and nothing offered its chunks again; v0.7 closes it (`protocol.md` §4.4, and its README).
+- `veil/`: properties at any size, proved in Veil (Lean 4) for any number of nodes, groups and chunks: A1 at every place a node penalises (an ask: with no assumption under the live window, `protocol.md` §8.1, a group's key fixing its slot, §1, and under the fallback without a slot given the bound on its tombstone; a chunk that fails level 1; a malformed HAVE), and no stall (Q1), in three pieces: no quiet state in which an honest node reachable from the source along mesh links is incomplete, under the assumptions its README states (among them no equivocation, where F6 remains); the mesh may change and connections close, with §5.4's announcement to a peer that joins the mesh (F9). F6's candidate rules are proved there too, under equivocation (`NoStallEquiv.lean`, with its assumptions). The no-stall proof found an eleventh gap, F11: an IHAVE over a receiver's IHAVE limit was ignored, and nothing offered its chunks again; v0.7 closes it (`protocol.md` §4.4, and its README).

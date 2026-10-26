@@ -18,7 +18,12 @@ in plain Lean, without Veil:
   complete.
 
 The hypotheses are the per-link step, the two counting facts, and the decode's outcome; the theorem
-is about any node type, any mesh and any N and K. -/
+is about any node type, any mesh and any N and K. The mesh is the one of the quiet state: the
+transport's mesh changes (peers join and leave it, connections close), and its per-link step holds
+for every link the quiet state has, so the induction runs along those. Under equivocation
+(`NoStallEquiv.lean`) the step holds for the links into nodes that installed the builder's block,
+and the same theorem runs along the mesh restricted to them
+(`every_installed_reachable_node_completes`). -/
 
 namespace NoStallCount
 
@@ -75,16 +80,34 @@ theorem every_connected_node_completes {Node : Type} {N : Nat} (K : Nat)
   decoded n (every_connected_node_stops K mesh src rcv stop source_stopped stopped_has_K
     K_has_stopped link n h)
 
+/-- Q1 under equivocation (`NoStallEquiv.lean`): the per-link step holds for the links into nodes
+that installed the builder's block (`inst`), the block the chunks name, and a node on the proposer's
+other block forwards nothing of the group until it switches. So the counting runs along the mesh
+restricted to such nodes: every node the source reaches through them is complete. -/
+theorem every_installed_reachable_node_completes {Node : Type} {N : Nat} (K : Nat)
+    (mesh : Node → Node → Prop) (inst : Node → Prop) (src : Node)
+    (rcv : Node → Fin N → Bool) (stop complete : Node → Prop)
+    (source_stopped : stop src)
+    (stopped_has_K : ∀ n, stop n → K ≤ count (rcv n))
+    (K_has_stopped : ∀ n, K ≤ count (rcv n) → stop n)
+    -- the per-link step, for the links into nodes with the builder's block
+    (link : ∀ m n i, mesh m n → inst n → rcv m i = true → rcv n i = true ∨ stop n)
+    (decoded : ∀ n, stop n → complete n) :
+    ∀ n, Reach (fun m n => mesh m n ∧ inst n) src n → complete n :=
+  every_connected_node_completes K (fun m n => mesh m n ∧ inst n) src rcv stop complete
+    source_stopped stopped_has_K K_has_stopped (fun m n i h hi => link m n i h.1 h.2 hi) decoded
+
 end NoStallCount
 
--- the audit, a failure a build error: both theorems rest on Lean's own axioms only
+-- the audit, a failure a build error: the three theorems rest on Lean's own axioms only
 open Lean Elab Command in
 #eval show CommandElabM Unit from do
   let allowed := [``propext, ``Classical.choice, ``Quot.sound]
   let mut rest : Std.HashSet Name := {}
   for n in [``NoStallCount.every_connected_node_stops,
-      ``NoStallCount.every_connected_node_completes] do
+      ``NoStallCount.every_connected_node_completes,
+      ``NoStallCount.every_installed_reachable_node_completes] do
     for a in ← liftCoreM (collectAxioms n) do
       rest := rest.insert a
       unless allowed.contains a do logError m!"{n} rests on {a}"
-  logInfo m!"the two theorems rest on {rest.toList}"
+  logInfo m!"the three theorems rest on {rest.toList}"

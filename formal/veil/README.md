@@ -11,7 +11,13 @@ checks (the SMT solver is not trusted):
   chunk, when the transport has nothing left to do, a node with its block holds every chunk a mesh
   neighbour received, has stopped pulling, or holds that neighbour's offer; when the asking machinery
   has nothing left to do, every such offer is resolved; and, counting in plain Lean, every honest node
-  connected to the source stops at K and completes. How the pieces make Q1 is below.
+  reachable from the source along mesh links stops at K and completes. The mesh may change on the
+  way (peers join and leave it, connections close), with F9's candidate rule: a peer that joins the
+  mesh is announced what the node holds. How the pieces make Q1 is below.
+- `NoStallEquiv.lean`: the asking piece under equivocation, with F6's two candidate rules, in place
+  of `NoStallAsk.lean` when a proposer signs two blocks for the slot: Q1 then holds for every honest
+  node reachable from the source through nodes that installed the builder's block, given that
+  every honest copy, rebuilt ones included, names that block.
 
 The Quint model next door (`../diffusion.qnt`) checks these properties on three or four nodes.
 
@@ -136,9 +142,10 @@ group, and is the source's chunk byte for byte where it names the same root.
 
 ## No stall (`NoStallTransport.lean`, `NoStallAsk.lean`, `NoStallCount.lean`)
 
-Q1: **when nothing is left to happen, every honest node connected to the source is complete.** In
-three pieces, each proved for any number of nodes; the first two are about any one chunk of the
-group, so they hold for each:
+Q1: **when nothing is left to happen, every honest node reachable from the source along the mesh it
+then has is complete**, the links followed from each node to the peers in its mesh, to which it
+forwards. In three pieces, each proved for any number of nodes; the first two are about any one
+chunk of the group, so they hold for each:
 
 - **The transport** (`NoStallTransport`): when it has nothing left to do, a node that has its block
   holds every chunk a mesh neighbour received, has stopped pulling the group, or holds that
@@ -146,24 +153,31 @@ group, so they hold for each:
   any targets, never to the sender or a peer known to hold it), queues that may refuse any entry
   (owed and offered, A′), the writer's cancel and projection (A′), what is owed, announcements
   recorded as offers, the deferred store (refused copies as offers, F7's fix), copies taken in at
-  installation, and repair.
+  installation, repair, and a mesh that changes: peers join it (by a GRAFT, sent or accepted, and
+  are then announced what the node holds: F9's candidate rule) and leave it (a PRUNE), and
+  connections close, with what is queued, owed or in flight on them and the state kept per
+  connection (§8.1). The mesh is directed, as gossipsub's is, and starts empty.
 - **The asking** (`NoStallAsk`): when it has nothing left to do, every offer to a node that has its
   block is resolved: the node holds the chunk or has stopped pulling. It models one ask in its
   window, the retry, parks from promises that fall due at any time, B′'s last resort, the writer's
   ask filter, the serve limit at its worst, the claim rule's drop, answers cancelled or owed, offers
-  before the block kept and asked for at installation (C′), and offers over an IHAVE limit kept and
-  asked for by the next heartbeat's retry (v0.7).
+  before the block kept and asked for at installation (C′), offers over an IHAVE limit kept and
+  asked for by the next heartbeat's retry (v0.7), and connections that close: what is between the
+  two nodes is lost, their promises close, and the state kept per connection goes, B′'s counts with
+  it; parks stay (§6.1, §8.1).
 - **The counting** (`NoStallCount`, plain Lean): a node stops pulling at its K-th received chunk, the
   source holds all N, and with nothing pending a node that has received K has made its decode claim;
-  a node that has not stopped holds only chunks it received. Then, by induction along mesh paths
-  from the source, every connected node stops, and, its decode no longer pending, is complete.
+  a node that has not stopped holds only chunks it received. Then, by induction along the quiet
+  state's mesh paths from the source, every connected node stops, and, its decode no longer pending,
+  is complete.
 
 Each piece treats what the others do as its **environment**: events at any time, any number of
 times, that are not part of its own pending work. The transport's environment: blocks installing,
 stop-pull, the decode storing the chunk, HAVEs learned (true, possibly never sent), answers bringing
-the chunk. The asking's: offers from honest holders (before the block, kept in the ledger), the chunk
-arriving by push, stop-pull, HAVEs learned, blocks installing, and parks from the group's other
-chunks (F2's way). How the spec's events fall into the pieces:
+the chunk, and the mesh changing. The asking's: offers from honest holders (before the block, kept in
+the ledger; a new connection's resync among them), the chunk arriving by push, stop-pull, HAVEs
+learned, blocks installing, parks from the group's other chunks (F2's way), and connections closing.
+How the spec's events fall into the pieces:
 
 | spec event | transport | asking |
 |---|---|---|
@@ -178,6 +192,9 @@ chunks (F2's way). How the spec's events fall into the pieces:
 | a HAVE arrives (§4.3) | `learnClaim` | `learnClaim` |
 | the block installs: its handler takes the deferred copies in, then asks for the ledger (§3, §4.2) | `install`, then `resume` | `installTakenIn` if a copy of the chunk was deferred, `installStopped` if the copies brought the group to K, else `install` |
 | the decode claim at K; the decode returns, repair (§4.6) | `stopPull`; `rebuild`, `repair` | `stopPull`; `arriveOther` |
+| a peer joins a node's mesh, by a GRAFT sent or accepted, and is announced what the node holds (F9's candidate rule) | `join` | its announcement arrives as any does |
+| a peer leaves a node's mesh (a PRUNE) | `leave` | none |
+| a connection closes (§8.1) | `close` | `close` |
 
 The shared relations mean the same in both pieces: holding the chunk (`holds`, `got`), stop-pull,
 claims learned, the block; and a node's offers, except that before its block the asking keeps them
@@ -185,17 +202,25 @@ apart, in `ledger`, merged into `offered` when the block installs (the transport
 asking's `ledger` until then). A spec state in which nothing is pending but lifetimes has every
 piece's `work` false for every chunk: each piece's pending work is a pending event of the spec (a
 queued entry, an RPC in flight, a timer armed, a deferred copy whose block is installed, something due
-or owed). The counting's hypothesis that a node with K received chunks has stopped is what excludes a
-decode claim still due.
+or owed). The asking's `retryArmed` stands for the retry's timer or the next heartbeat's retry of
+what an IHAVE limit held back (§6.4), and a push that projection skips is owed only while its peer
+is in the mesh (§5.2's `unpush`), as in the spec. The counting's hypothesis that a node with K
+received chunks has stopped is what excludes a decode claim still due. With `NoStallEquiv` as the
+asking piece, the transport's `installed` is the builder's block; its offers before that block are
+the asking's offers once the other block has opened the gate, and its ledger before; and a refused
+copy's offer is, with `ROOT_TIED`, a tie that the builder's block's installation makes an offer.
 
 **Kernel-checked**: each piece's inductive invariant, and the counting. **Found by the SMT solver**,
 not kernel-checked (Veil keeps no proof of a trace): the non-vacuity traces and the known answers.
 **By inspection**, as for every model here: each piece's correspondence to the spec, and the table
-above. **Assumed**: honest nodes; one block (no equivocation) that every node installs; no
-disconnects; every connection a mesh link (so heartbeat gossip, which goes outside the mesh, reaches
-none); lifetimes that outlast diffusion; a send window that lets every queue drain (W2, W3, checked on
-small instances only); an honest builder's code; and the one group admitted by §8.2's limits (so a
-copy the deferred store refuses counts as its sender's offer).
+above. **Assumed**: honest nodes; one block that every node installs (`NoStallEquiv` drops this: at
+most two blocks for the slot, both committing the group, every honest copy naming the builder's
+block, rebuilt ones included, and Q1 for the nodes reachable from the source through nodes that
+installed that block); no traffic outside the mesh (heartbeat gossip, §6.4, and the source's stripes,
+§5.1, are left out); lifetimes
+that outlast diffusion; a send window that lets every queue drain (W2, W3, checked on small
+instances only); an honest builder's code; and the one group admitted by §8.2's limits (so a copy
+the deferred store refuses counts as its sender's offer).
 
 **F11, found here and closed in v0.7.** Up to v0.6, §8.2 let a node handle at most
 `MAX_IHAVE_MESSAGES` (4096) IHAVE-bearing RPCs per peer and heartbeat and ignore the rest. A node
@@ -214,11 +239,70 @@ answer `ka_ihave_dropped` shows the loss without it; in the asking, `offerHeldBa
 recorded, the retry armed), whose known answer `ka_held_back_lost` shows the offer never asked for
 without the heartbeat's retry.
 
+**F9, open in v0.7: its candidate rule proved here.** Nothing guarantees that a new connection is
+offered again what the old one lost (`../README.md`, F9): offers come from announcements, which
+follow a chunk's arrival, and a closed connection takes with it what was queued, owed or in flight on
+it (§8.1). The same gap opens without a close, for a peer that joins a node's mesh after the node
+forwarded the chunk: the Quint model, in which every connection is a mesh link, could not show it.
+Heartbeat gossip may announce the chunk on a connection before it joins the mesh, and a later copy
+may be forwarded, but neither need happen (the gossip goes to a sample of the peers outside the
+mesh, for three heartbeats); the models leave both out. The candidate rule moves the resync of the
+Quint model's `RESYNC_ON_CONNECT` from the connection to the mesh: a peer that joins a node's mesh,
+by a GRAFT either way, is announced what the node holds of each live group, minus what the node
+pushed it and what it claimed. A closed connection leaves the mesh, so a reconnection is announced
+again once the two join each other's mesh again; a reconnection whose peers never graft each other
+gets no resync, where `RESYNC_ON_CONNECT` would have announced on it. What is proved is about the
+quiet state's mesh, in which such peers are not neighbours. In the transport the rule is
+`resyncOnJoin`, with two known answers without it: `ka_rejoin_lost` (a close with a push of the chunk
+queued, the peer back in the mesh, nothing offered) and `ka_late_join` (a peer that joins after the
+publish). In the asking, a close loses what is between the two nodes and resets the state kept per
+connection, as §8.1 has it, and the proof needs B′'s count to go with the connection
+(`countsReset`): kept, the last resort's ask lost with the connection is never made again
+(`ka_counts_kept`).
+
+**F6, open in v0.7: its candidate rules proved here** (`NoStallEquiv.lean`). A proposer that signs
+two blocks for one slot may put the same bid in both, so both commit the group. A node that installs
+the other block asks, since its bid commits the group, but every honest chunk names the builder's
+block, so a copy waits for that block, kept or refused; the node may switch to the builder's block
+later. Before the switch the providers' answers wait or are refused, their promises fall due and
+park them, B′'s ask once more is spent on them, and so are a provider's three answers per chunk and
+connection (`GOSSIP_RETRANSMISSION`); after the switch the node can stall (`../README.md`, F6). The
+candidate rules: `ROOT_TIED`, under which a copy that waits ties its sender, closes its promise and
+keeps it from being asked for the index until the root it names installs, whose installation lifts
+the sender's park and B′'s count for it and makes it an offer again; and `NO_REASK_OPEN`, no ask to a
+peer while an earlier ask of the chunk to it is outstanding, queued or promised. `NoStallEquiv` is
+the asking piece with the gate (a block whose bid commits the group: asks are allowed) split from the
+builder's block (which a copy needs to validate), both rules as switches, and the asks to a peer
+numbered (the first, second, third and any later one), so that two asks in flight to one peer are
+two and a provider's answers are counted. The stages of `NoStallAsk.lean` are sets, harmless there,
+where the serve limit is at its worst, but they would hide F6's second form. The result: when the
+asking is done, a node that has installed the builder's block holds every offered chunk or has
+stopped pulling, also when it installed the other block first, and with connections closing. At its
+core, before the builder's block a provider is asked at most twice, the second time by B′, so its
+third answer is left for after the switch (`two_before`), and the third ask, made only with that
+block, is answered (`third_answered`). Known answers: without `ROOT_TIED` the switch leaves every
+announcer parked and asked once more, with nothing on its way, so no ask follows (F6's first form);
+without `NO_REASK_OPEN` a provider is asked a third time before the switch, the bound F6's second form
+breaks (its stall, some 30 steps, is the Quint model's); and B′'s counts kept across a close. With
+`NoStallEquiv` in place of `NoStallAsk`, Q1 holds for the honest nodes reachable from the source
+through nodes that installed the builder's block, along whom the counting runs
+(`every_installed_reachable_node_completes`): a node that installs only the other block cannot
+validate the chunks, so nothing reaches a node behind it. This rests on every honest copy naming the
+builder's block, rebuilt ones included. v0.7's §4.6 lets a rebuilt chunk name either installed
+block whose bid commits the group: a node that installed both may rebuild a chunk naming the other
+block, which waits for good at a neighbour with only the builder's, while its sender, which counted
+the push, sends nothing more for the index. A rule that a rebuilt chunk names the block its received
+chunks name, where they all name one, would close this: the source publishes under one block, and
+the rule keeps it, so every honest copy names the builder's block (A1's model of rebuilt chunks
+needs only that the block named commit the group, which the rule keeps). Which block a node names
+when its received chunks name several is left open. Both are the author's.
+
 | piece | proof | traces | cost |
 |---|---|---|---|
-| transport | 144 of 144 conditions, 577 theorems | 4 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered), 4 known answers (F1: a skipped push counted, offered to nobody; a refused push lost; F7: a refused copy lost; F11: an announcement ignored by the receiver's limit) | 2.2 minutes, 2.9 GB |
-| asking | 312 of 312 conditions, 932 theorems | 5 non-vacuity (an offer answered; an offerer parked by another chunk, asked once more by the last resort; an offer before the block asked for at installation; an offer over an IHAVE limit asked for by the heartbeat's retry; one from a parked offerer, asked once more by the last resort the heartbeat's retry arms), 4 known answers (F2: without B′ an offerer parked by another chunk is never asked; answers lost twice without owed answers; an offer before the block never asked without the ledger; an offer over an IHAVE limit never asked without the heartbeat's retry) | 3.9 minutes, 7.2 GB |
-| counting | two theorems | none | seconds |
+| transport | 190 of 190 conditions, 679 theorems | 6 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered; the chunk announced again to a peer back in the mesh after a close lost a queued push; and to a peer that joined after the publish), 6 known answers (F1: a skipped push counted, offered to nobody; a refused push lost; F7: a refused copy lost; F11: an announcement ignored by the receiver's limit; F9: without the resync, nothing offers the chunk to a peer back in the mesh after a close lost a queued push, nor to a late joiner) | 3.1 minutes, the library's build with only this model rebuilt; 4.0 GB, that build's peak |
+| asking | 378 of 378 conditions, 1021 theorems | 6 non-vacuity (an offer answered; an offerer parked by another chunk, asked once more by the last resort; an offer before the block asked for at installation; an offer over an IHAVE limit asked for by the heartbeat's retry; one from a parked offerer, asked once more by the last resort the heartbeat's retry arms; an ask lost with its connection, the announcer's offer on the new one asked for by the retry), 5 known answers (F2: without B′ an offerer parked by another chunk is never asked; answers lost twice without owed answers; an offer before the block never asked without the ledger; an offer over an IHAVE limit never asked without the heartbeat's retry; B′'s count kept across a close, the last resort's ask lost with the connection never made again) | 44.6 minutes at one condition at a time, beside another job (3.9 minutes at two before the closes), 7.4 GB |
+| asking, under equivocation | 660 of 660 conditions, 1411 theorems | 6 non-vacuity (an offer answered; on the other block, an answer that waits ties its sender and closes its promise; a node on the other block with a tied sender switches, the sender is asked and the chunk validates; the last resort; the ledger; an ask lost with its connection, the announcer asked afresh on the new one), 5 known answers (without `ROOT_TIED`, at the switch every announcer parked and asked once more with nothing on its way; without `NO_REASK_OPEN`, a third ask to a provider before the switch; without B′; without the ledger; B′'s counts kept across a close) | 16.4 minutes, 11.7 GB |
+| counting | three theorems | none | seconds |
 
 All conditions are theorems Lean's kernel checks, on `propext`, `Classical.choice` and `Quot.sound`
 only, the audits derived from each module; the traces are cvc5's. A first, whole model of the per-link step in one Veil
@@ -234,14 +318,15 @@ lists, from this directory:
 
 ```sh
 lake build Veil      # once: Veil and its dependencies (about 4 minutes on 8 cores)
-lake build           # the models: queries, model checks, proofs, theorems, audits (about 4 minutes)
+LEAN_NUM_THREADS=2 lake build   # the models: queries, model checks, proofs, theorems, audits
+                                #   (the asking under equivocation alone took about 16 minutes)
 ```
 
 A clean `lake build` means every check passed: a clause that fails, a query without a trace, a
 violation and a failed audit are errors. Packages and build outputs go to `.lake` (about 1.5 GB).
-Veil checks as many conditions at once as `getconf _NPROCESSORS_ONLN` reports, each with its own SMT
-run; a `getconf` placed first in `PATH` that prints a smaller number for `_NPROCESSORS_ONLN` caps it
-(two at once keep every model here under 8 GB). For larger instances `#model_check compiled` builds
+Veil checks as many conditions at once as `LEAN_NUM_THREADS` says, each with its own SMT run, or,
+where it is not set, as many as `getconf _NPROCESSORS_ONLN` reports; the variable also sizes Lean's
+own task pool, for each Lean process. Two at once keep every model here under 12 GB. For larger instances `#model_check compiled` builds
 a native checker, which needs `clang`, `lld`, `libc++-dev` and `libc++abi-dev`: on the window's
 instance above it finds the same 127,504 states in about 80 seconds with its build.
 

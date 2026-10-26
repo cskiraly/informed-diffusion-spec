@@ -804,6 +804,45 @@ def guard_fails(p, g):                                                          
 - **Tie-break:** a hash of (message id, peer id), finalised; larger first, then the larger peer id.
 - **Without card 16:** order candidates by that tie-break alone.
 
+### 5.4 A peer joins the mesh
+
+```python
+def on_mesh_join(p):                                  # p joins our mesh: by our GRAFT, or by one of p's
+    for g in list(chunks):                            #   that we accept (stock gossipsub decides who)
+        if expired(g) or state[g] == INVALID: continue    # nothing of an expired or dropped group
+        announce(p, g, bitmap(set(chunks[g])))        # what we can serve, received or rebuilt (§5.2)
+```
+
+- **A peer that joins the mesh is announced what the node holds.** Offers come from announcements,
+  and a node announces a chunk when it forwards it, which follows the chunk's arrival. Without this,
+  nothing would ensure that a peer that joins the mesh after a chunk was forwarded is offered it, nor
+  that a peer whose connection closed is offered on the new connection what the old one lost: a
+  closed connection takes with it what was queued, owed or in flight on it (§8.1). Heartbeat gossip
+  may announce a chunk on a connection outside the mesh, and a later copy may be forwarded, but
+  neither need happen: the gossip goes to a sample of the peers outside the mesh and names only the
+  last three heartbeats' chunks (§6.4). A closed connection leaves the mesh, so a reconnection is
+  announced again once the two graft each other again.
+- **What is announced** is what `resolve` answers (§4.5): the chunks the node stores, received or
+  rebuilt, one bitmap per group, minus what it pushed the peer and what the peer claimed
+  (`announce`, §5.2), owed if a full queue refuses it. Not the decode claim, which names chunks not
+  yet rebuilt, and nothing of a group that expired or was dropped.
+- **At the source** that is every chunk of a group it publishes, sent or not, as §5.1's
+  announcements are at the publish; its HAVE stays paced (P4). The announcement stays inside the
+  mesh: on connections outside it, the source's announcement of every chunk at once would tell more
+  peers who published.
+- **When it runs**: at every addition of a peer to the node's mesh for the topic, whatever adds it:
+  a GRAFT the node accepts, its own GRAFT when it joins the topic, the heartbeat's upkeep (a mesh
+  below `Dlo`, the outbound quota) and opportunistic grafting. The node's own GRAFT runs it at once,
+  without waiting for the peer to accept: a peer that prunes the node instead has received an
+  ordinary offer from a peer outside its mesh. A GRAFT from a peer already in the mesh adds nothing
+  and runs nothing; a peer that leaves the mesh and joins it again, even within a heartbeat, is
+  announced again.
+- **Its cost** is one IHAVE bitmap per stored group and join (the bitmap 16 bytes at N = 128, up to
+  1 KiB at `MAX_PLAIN_CHUNKS`, plus the group id and framing), several groups' bitmaps in one RPC
+  where they fit, and the asks they draw. At the receiver they count as any IHAVE does: its IHAVE
+  limits delay the asks, not the reading of the bitmaps nor the retries (§4.4), and its offers are
+  kept within §8.2's limits on admitted groups.
+
 ## 6. Asking
 
 ### 6.1 One ask per chunk at a time, move on, park [c5]
@@ -1416,6 +1455,10 @@ rerun does as this document does, the entry says so.
   rerun included. The measured runs have no blocks and no expiry within a payload's lifetime, so
   neither would act there: in those runs the key only renames groups, which in the toy moves the
   recorded cells as any renaming does (`toy/README.md`).
+- *A peer that joins the mesh* (§5.4) came after the implementation measured, its rerun included.
+  No connection closes in the measured runs, and their meshes settle before the first publish (the
+  harness waits for the grafting to finish), so the rule would act there only where gossipsub's
+  upkeep grafts a peer during a payload's lifetime, which the runs did not count.
 - *Clearing promises on decode* in the stock gossip tracer had no effect in the measured cells,
   because the harness runs no peer scoring. In a client that scores peers it keeps honest peers from
   being penalised for asks the decode made unnecessary.

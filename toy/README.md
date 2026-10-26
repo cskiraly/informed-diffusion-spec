@@ -106,7 +106,8 @@ What the toy adds to the document, and nothing else:
   same seed. Seed 7 prints the harness's own line, one-way mean 56 ms, p10 8, p50 61, p90 99.
 - **Connections and mesh:** a random 70-regular graph (a circulant mixed by edge swaps, as the
   harness builds it, though not the harness's graph for the seed), and a gossipsub mesh kept
-  between 6 and 12 by grafting and pruning, around D = 8.
+  between 6 and 12 by grafting and pruning, around D = 8. The mesh is built before the first publish
+  and no connection closes, so §5.4, a peer joining the mesh, never runs here.
 - **Links:** each node has an uplink and a downlink. A writer hands its entries to the
   connection's transport at once, as a QUIC stream accepts writes; the window (card 14) is what
   holds chunks back, as in the document. The uplink is shared equally by the connections with

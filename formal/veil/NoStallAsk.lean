@@ -9,7 +9,8 @@ set_option veil.solver "grind+smt"
 
 /-! # No stall, the asking part (Q1's first piece), for any number of nodes
 
-SEACAST, `protocol.md` v0.5 (§4.1, §4.4, §4.5, §6.1, §7.2), with v0.7's IHAVE limits (§4.4, §6.4):
+SEACAST, `protocol.md` v0.5 (§4.1, §4.4, §4.5, §6.1, §7.2), with v0.7's IHAVE limits (§4.4, §6.4)
+and connections that close (§8.1):
 **when the asking machinery has nothing left to do, a node that has the block holds every chunk an
 honest peer offered it, or has stopped pulling the group.** The chunk is any one chunk of the group,
 so the result holds for each.
@@ -38,8 +39,16 @@ The block (C′, §3, §4.2): nothing is asked before it is installed; an offer 
 recorded, and the installation asks for what was offered meanwhile (the ledger: here the retry is
 armed, and finds the offers). A node stops pulling, and takes a chunk in, only once it has its block.
 
+A connection closes at any time (§8.1), also part of the environment: what is queued, owed or in
+flight between the two nodes is lost both ways; their promises close (§6.1: the ask or its answer
+went with the connection, and the retry, whose timer is per ask, stays armed); and the state kept
+per connection goes: the offers (the ledger's too), B′'s counts, the serve count and the claims.
+Parks stay, kept by peer id. The offers a new connection brings (F9's resync) are offers from
+honest holders, as above. Resetting B′'s counts is a switch with a known answer: kept across the
+close, an announcer whose last resort the close lost is never asked again.
+
 Not modelled here: how offers come about (the transport: `NoStallTransport.lean`), lifetimes,
-adversaries, disconnects. -/
+adversaries. -/
 
 veil module NoStallAsk
 
@@ -56,6 +65,8 @@ immutable individual owedAnswers : Bool    -- §4.1, §7.2: an answer a full que
 immutable individual askLedger : Bool      -- C′ (§3, §4.2): what was offered before the block is asked
 -- §4.4, §6.4 (v0.7): an ask an IHAVE limit holds back is retried at the next heartbeat
 immutable individual heldBackRetry : Bool
+-- §6.1, §8.1: B′'s count for an announcer goes with its connection, as `tried` does
+immutable individual countsReset : Bool
 
 relation installed (n : node) : Bool               -- n's block is installed
 relation got (n : node) : Bool                     -- n holds the chunk
@@ -75,10 +86,11 @@ relation stage (k : kind) (a : node) (b : node) : Bool
 relation everLastResort (n : node) : Bool
 relation everEarly (n : node) : Bool
 relation everHeldBack (n : node) : Bool
+relation closedAsk (n : node) : Bool               -- a close lost an ask of n's
 
 #gen_state
 
-theory ghost relation premises := lastResort ∧ owedAnswers ∧ askLedger ∧ heldBackRetry
+theory ghost relation premises := lastResort ∧ owedAnswers ∧ askLedger ∧ heldBackRetry ∧ countsReset
 
 -- the machinery's actions' enabling conditions, each its action's only `require`
 ghost relation en_writeAsk (n : node) (q : node) := stage askQ n q
@@ -124,6 +136,7 @@ after_init {
   everLastResort N := false
   everEarly N := false
   everHeldBack N := false
+  closedAsk N := false
 }
 
 /-! ## The environment -/
@@ -237,6 +250,30 @@ action learnClaim (q n : node) {
 -- §6.1: a promise for another chunk of the group falls due and parks q for the group
 action parkOther (n q : node) {
   parked n q := true
+}
+
+-- §8.1: the connection between n and q closes: what is queued, owed or in flight between them is
+-- lost, both ways; their promises close (§6.1); the state kept per connection goes (offers, the
+-- ledger's too, B′'s counts, the serve count, claims); parks, windows and timers stay
+action close (n q : node) {
+  require n ≠ q
+  if stage askQ n q ∨ stage askF n q then
+    closedAsk n := true
+  stage K n q := false
+  stage K q n := false
+  promise n q := false
+  promise q n := false
+  offered n q := false
+  offered q n := false
+  ledger n q := false
+  ledger q n := false
+  if countsReset then
+    askedParked n q := false
+    askedParked q n := false
+  served n q := false
+  served q n := false
+  peerHas n q := false
+  peerHas q n := false
 }
 
 /-! ## The machinery -/
@@ -355,7 +392,7 @@ invariant [ledger_before] ledger N Q → ¬ installed N
 invariant [ask_holder] (stage askQ N Q → got Q) ∧ (stage askF N Q → got Q)
 invariant [claims_true] peerHas Q N → got N ∨ stop N
 invariant [window_retry] inWindow N → retryArmed N
-invariant [askedparked_offered] askedParked N Q → offered N Q
+invariant [askedparked_offered] premises → askedParked N Q → offered N Q
 -- the machinery runs only with the block: offers (earlier ones are in the ledger), timers, asks,
 -- and so the answers that come back
 invariant [after_block] (offered N Q → installed N) ∧ (retryArmed N → installed N) ∧
@@ -368,6 +405,13 @@ invariant [offer_active] premises → offered N M →
   got N ∨ stop N ∨ ¬ installed N ∨ retryArmed N ∨ lrArmed N ∨
     (∃ Q, stage askQ N Q ∨ stage askF N Q ∨ served Q N) ∨
     (∀ Q, offered N Q → parked N Q ∧ askedParked N Q)
+-- an offer from an unparked announcer keeps the retry armed, and one from a parked announcer not yet
+-- asked once more keeps the retry or the last resort armed: so a close that loses the ask in flight
+-- leaves the asking going
+invariant [unparked_retry] premises → installed N → offered N Q → ¬ parked N Q →
+  got N ∨ stop N ∨ retryArmed N
+invariant [parked_timer] premises → installed N → offered N Q → parked N Q → ¬ askedParked N Q →
+  got N ∨ stop N ∨ retryArmed N ∨ lrArmed N
 -- an answer, once given, arrives (or was cancelled by a claim)
 invariant [served_answer] premises → served Q N →
   got N ∨ stop N ∨ stage ansQ Q N ∨ stage ansOwed Q N ∨ stage ansF Q N ∨ peerHas Q N
@@ -460,6 +504,26 @@ sat trace [held_back_parked] {
   assert (premises ∧ ¬ work ∧ ∃ N, got N ∧ everHeldBack N ∧ everLastResort N)
 }
 
+-- an ask lost with its connection: the announcer offers again on the new one (F9's resync), and the
+-- retry asks it, armed as it was, once the window has passed
+sat trace [close_reasked] {
+  install
+  arriveOther
+  install
+  offerAsk
+  writeAsk
+  close
+  offerInWindow
+  windowElapse
+  retryAsk
+  writeAsk
+  recvAsk
+  writeAns
+  recvAns
+  retryNoop
+  assert (premises ∧ ¬ work ∧ ∃ N, got N ∧ closedAsk N)
+}
+
 /-! ## Known answers: with any one rule off, an offer is never resolved -/
 
 -- F2: an offerer parked by another chunk is never asked
@@ -469,7 +533,7 @@ sat trace [ka_no_last_resort] {
   install
   parkOther
   offerParked
-  assert (¬ lastResort ∧ owedAnswers ∧ askLedger ∧ heldBackRetry ∧ stalled)
+  assert (¬ lastResort ∧ owedAnswers ∧ askLedger ∧ heldBackRetry ∧ countsReset ∧ stalled)
 }
 
 -- an answer a full queue refuses is lost, twice: the ask's and the last resort's
@@ -489,7 +553,7 @@ sat trace [ka_answer_lost] {
   promiseDue
   windowElapse
   retryParked
-  assert (lastResort ∧ ¬ owedAnswers ∧ askLedger ∧ heldBackRetry ∧ stalled)
+  assert (lastResort ∧ ¬ owedAnswers ∧ askLedger ∧ heldBackRetry ∧ countsReset ∧ stalled)
 }
 
 -- an offer recorded before the block is never asked for
@@ -498,7 +562,7 @@ sat trace [ka_no_ledger] {
   arriveOther
   offerEarly
   install
-  assert (lastResort ∧ owedAnswers ∧ ¬ askLedger ∧ heldBackRetry ∧ stalled)
+  assert (lastResort ∧ owedAnswers ∧ ¬ askLedger ∧ heldBackRetry ∧ countsReset ∧ stalled)
 }
 
 -- F11's recovery without its retry: an offer over an IHAVE limit is recorded and never asked for
@@ -507,7 +571,24 @@ sat trace [ka_held_back_lost] {
   arriveOther
   install
   offerHeldBack
-  assert (lastResort ∧ owedAnswers ∧ askLedger ∧ ¬ heldBackRetry ∧ stalled)
+  assert (lastResort ∧ owedAnswers ∧ askLedger ∧ ¬ heldBackRetry ∧ countsReset ∧ stalled)
+}
+
+-- B′'s count kept across a close: the last resort's ask is lost with the connection, the announcer
+-- offers again on the new one, and it is never asked: its count says it was asked once more
+sat trace [ka_counts_kept] {
+  install
+  arriveOther
+  install
+  parkOther
+  offerParkedArm
+  lrAsk
+  writeAsk
+  close
+  offerParked
+  windowElapse
+  retryParked
+  assert (lastResort ∧ owedAnswers ∧ askLedger ∧ heldBackRetry ∧ ¬ countsReset ∧ stalled)
 }
 
 /-! ## The proof: the clauses above are an inductive invariant -/

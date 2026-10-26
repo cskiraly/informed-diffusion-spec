@@ -8,4 +8,4 @@ package fvveil where
 
 @[default_target]
 lean_lib FvVeil where
-  roots := #[`ClaimWins, `SenderFault, `NoStallAsk, `NoStallTransport, `NoStallCount]
+  roots := #[`ClaimWins, `SenderFault, `NoStallAsk, `NoStallTransport, `NoStallCount, `NoStallEquiv]
