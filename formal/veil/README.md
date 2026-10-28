@@ -18,7 +18,8 @@ checks (the SMT solver is not trusted):
   §6.1's rule against a second ask of a peer at once since v0.8, in place of `NoStallAsk.lean` when
   a proposer signs two blocks for the slot: Q1 then holds for every honest
   node reachable from the source through nodes that installed the builder's block, given that
-  every honest copy, rebuilt ones included, names that block.
+  every honest copy, rebuilt ones included, names that block (a node that relabels chunks under the
+  other block's root breaks this: `protocol.md` §4.6 lists the gap as open).
 
 The Quint model next door (`../diffusion.qnt`) checks these properties on three or four nodes.
 
@@ -299,7 +300,11 @@ chunk name the block the chunks it was rebuilt from name, where they all name on
 publishes under one block, and forwarding and the rule keep it, so among honest nodes every copy
 names the builder's block, and the case where a node's chunks name several, in which §4.6 lets it
 name any one of them, does not arise (A1's model of rebuilt chunks needs only that the block named
-commit the group, which the rule keeps). That argument is by inspection, not in the models.
+commit the group, which the rule keeps). That holds while no node relabels a chunk: a node that
+puts the other block's root in a chunk makes an authentic copy, which honest nodes on that block
+forward and rebuild from, and a node behind them with only the builder's block can then stall;
+`protocol.md` §4.6 lists this gap as open, with its options. That argument is by inspection, not in
+the models.
 
 | piece | proof | traces | cost |
 |---|---|---|---|

@@ -67,6 +67,9 @@ twelve cells it moved them by −8 to +6 ms at p50, −15 to +34 ms at p99 and �
 where `--check-ms 5.01`, a change that alters no rule, moved them by −1 to +5 ms, −13 to +10 ms
 and −0.05 to +0.01. Its digests at seed 7 are those of the run that measured it.
 
+Asks that go with their announcer's dropped offers (2026-10-28, §6.1) change no event in either
+recording: nothing is tied in the toy, and its offers expire only after their group has completed.
+
 ## How it maps onto the document
 
 | file | what it holds |

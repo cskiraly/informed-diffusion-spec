@@ -55,7 +55,9 @@ both blocks could rebuild a chunk naming the other one; at a node with only the 
 that copy waits for good, and its sender, which counted it, sends nothing more for the index.
 v0.8's §4.6 has a rebuilt chunk name the block the chunks it was rebuilt from name, where they all
 name one: the source publishes under one block, and forwarding and the rule keep it, so among
-honest nodes every copy names it. That argument is by inspection, not in this model.
+honest nodes every copy names it, while no node relabels a chunk under the other block's root
+(`protocol.md` §4.6, open: honest nodes forward such a copy and rebuild from it). That argument is
+by inspection, not in this model.
 
 Not modelled here: how offers come about (the transport), lifetimes, adversaries (so every tie is
 honest: a copy naming the builder's root, whose bid commits the group), and more than two blocks

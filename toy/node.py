@@ -1288,23 +1288,36 @@ class Node:
 
     def expire_offers(self, now):
         """§8.1: an announcer's offers of a group go 30 s after its last one (the ordered lists and
-        `offered`), checked at each heartbeat, so an offer can outlive its 30 s by up to one. A
-        group's diffusion takes well under that, so what goes here is what a group that completed
-        by decoding left behind; it matters for `listed` alone."""
+        `offered`), checked at each heartbeat, so an offer can outlive its 30 s by up to one, and
+        its asks of those indices go with them (§6.1's `drop_offer`: an ask still queued to it is
+        removed, and its promise for the index closes). A group's diffusion takes well under that,
+        so what goes here is what a group that completed by decoding left behind; it matters for
+        `listed` alone."""
         ns, old = self.ns, now - OFFER_TTL
         gone = [k for k, t in self._offer_at.items() if t < old]
         for p, g in gone:
             del self._offer_at[(p, g)]
-            ns["offered"][p].pop(g, None)
+            bits = ns["offered"][p].pop(g, None)
+            idx = set(bits) if bits is not None else set()
             empty = []
             for a, lst in ns["offers"].items():
                 if p in lst and ns["group"](a) == g:
                     lst.remove(p)
+                    idx.add(ns["index"](a))
                     self._listed[p] -= 1
                     if not lst:
                         empty.append(a)
             for a in empty:
                 del ns["offers"][a]
+            dropped = lambda a: ns["group"](a) == g and ns["index"](a) in idx
+            q = ns["queue"].get(p)
+            if q is not None:
+                for e in q.normal:
+                    for m in e.iwants():
+                        m.ids = [a for a in m.ids if not dropped(a)]
+                q.normal = [e for e in q.normal if not e.is_empty()]
+            for k in [k for k in ns["promises"] if k[1] == p and dropped(k[0])]:
+                del ns["promises"][k]
 
     # ---- the writer: one per peer (§7.2)
 
