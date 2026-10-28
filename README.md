@@ -37,52 +37,20 @@ keeps its title.
 - [`formal/`](formal/): a model of §4–§7, checked on small instances: what holds, what v0.5 fixed.
 - [`formal/veil/`](formal/veil/): properties proved in Veil for any number of nodes, groups and chunks: A1, an honest node never penalised, for an ask (with no assumption under the live window, `protocol.md` §8.1, a group's key fixing its slot, §1, and under the fallback for groups without a slot given the bound on its tombstone), for a chunk that fails level 1 or for a malformed HAVE; and no stall (Q1): no quiet state in which an honest node reachable from the source along mesh links is incomplete, under the assumptions its README states, with the mesh changing and connections closing (§5.4 closes F9 for them), whose proof found the IHAVE gap that v0.7 closes (§4.4); and under equivocation, with §4.2's ties and §6.1's rule against a second ask of a peer at once, which close F6, for the nodes the source reaches through nodes that installed the builder's block (`NoStallEquiv.lean`).
 
-**Status:** draft v0.8, 2026-10-28. Since v0.7: a peer that joins a node's mesh is announced what
-the node holds, so a peer that joins after a chunk was forwarded, or whose connection closed, is
-offered it (§5.4; F9 in `formal/`); a copy that waits for its block ties its sender to the root it
-names, and that root's installation makes the sender an offer of the index, in place of v0.5's
-offer of a refused copy (§4.2); and no peer is asked for a chunk while an earlier ask of it to that
-peer is outstanding (§6.1). The last two close F6, a stall under equivocation. Where a peer's offers
-of a chunk are dropped, with its tie or at their expiry, its queued ask of the chunk goes with them
-and its promise closes (§6.1): kept, the ask could keep a node from ever asking a parked announcer,
-a stall. A rebuilt chunk names the block the chunks it was rebuilt from name (§4.6), so among honest
-nodes every copy names the builder's block, as their proof assumes, as long as no node relabels a
-chunk under the proposer's other block: such a copy is authentic, honest nodes forward it, and a
-node behind them can stall, a gap §4.6 lists as open, with its options. `formal/veil/` proves no stall (Q1) with the mesh changing
-and connections closing, and under equivocation for the nodes the source reaches through nodes that
-installed the builder's block. The rule against a second ask changes the toy's events in all twelve
-recorded cells and in eleven of the next version's, both recordings made again; asks that go with
-their announcer's offers change none.
+## Where SEACAST stands
 
-v0.7, 2026-10-25. Since v0.6: a group whose slot has left a node's live window
-is expired for good, its tombstone kept until then, and a group without a slot keeps its tombstone
-`TOMBSTONE_TTL` (§8.1, §8.3); a group is named in diffusion by its key, the hash of its group id and
-slot, so its slot is fixed (§1); an IHAVE over either of gossipsub's IHAVE limits is recorded
-instead of ignored, its asks waiting for the next heartbeat's retry, with the limits' values the
-client's (§4.4, §6.4, §8.2); §5.1's source announces a chunk only to the mesh peers it did not
-choose for a push, so a push its queue refuses is offered once; and a rebuilt chunk names an
-installed block whose bid commits its group (§4.6). §9 says where the rerun of the SEACAST post's
-Figures 4 and 5 does as this document does (v0.6.1). `formal/veil/` proves A1 at every place a node
-penalises, and no stall (Q1), at any size; the no-stall proof found the IHAVE gap. The toy runs the
-text as written: under the group's key every recorded cell moved, as under any renaming.
-
-v0.6, 2026-10-21. Since v0.5: the name SEACAST; the formal model (`formal/`), which checks v0.5's
-rules; and a draft of SEACAST's next version (`protocol-v2.md`), which adds availability sampling
-and other object types, with the toy's support for it. `protocol.md` and the toy's recorded cells
-were as in v0.5.
-
-v0.5, 2026-10-21. Since v0.4, fixes from a model check of v0.4: a push to a
-mesh peer that does not happen is offered to it instead, and an offer or answer a full queue
-refuses is owed (§5.2, §7.2, §4.1); every offer is kept, per connection and group, and when every
-announcer of a chunk is parked, each is asked once more, at a wait that doubles (§6.1, §8.2); no
-ask before the block is installed, and what was offered meanwhile is asked for then (§3, §4.4,
-§4.2); expiry is checked by the retry, the writer's ask filter and a decode that returns, and a
-group's pull state goes at its expiry (§6.1, §7.2, §4.6, §8.1); a promise starts when the ask is
-written and closes with its connection (§7.2, §6.1); and a copy the deferred store refuses counts
-as its sender's offer (§4.2). §8's state, limits and constants follow, and §9 lists these rules
-among those the implementation behind the earlier figures predates; the SEACAST post's Figures 4
-and 5 were rerun on an implementation with them. The toy runs the text as written, so its recorded
-results moved.
+- **The latest release is [v0.8](https://github.com/cskiraly/informed-diffusion-spec/tree/v0.8)**, 2026-10-28:
+  `protocol.md` at version 0.8, the toy and its recorded cells, and the proofs in `formal/veil/`.
+  [`CHANGELOG.md`](CHANGELOG.md) says what each release changed; changes after the latest tag are on
+  `main`, and the changelog's first entry names them.
+- **Each measurement says which code it ran.** The SEACAST post's figures ran on a research
+  implementation; `protocol.md` §9 lists where it does as this text does and where it does not, and
+  each results record names its code.
+- **SEACAST's next version is a draft**, `protocol-v2.md` (above), checked in the toy only.
+- **Results.** The announcement post, *[SEACAST: fast, lean broadcast for Ethereum, with an executable
+  spec and a formal model](https://ethresear.ch/t/seacast-fast-lean-broadcast-for-ethereum-with-an-executable-spec-and-a-formal-model/26167)*
+  (2026), stays as published; its text is kept current, with the latest results and the data and scripts
+  behind them, in [eth-networking-studies](https://github.com/cskiraly/eth-networking-studies/tree/main/seacast), and news is posted as replies to the post.
 
 ## Running it
 
