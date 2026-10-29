@@ -102,6 +102,9 @@ def main(argv):
     ap.add_argument("--net", default="home", choices=sorted(scenario.NETS))
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--nodes", type=int, default=500)
+    ap.add_argument("--payload", type=int, default=0,
+                    help="bytes of each payload (default 1 MiB); the compressed size follows at the same ratio. "
+                         "16384 gives K = 1 and N = 2, 32768 K = 2 and N = 4: small groups for hand-counted cases")
     ap.add_argument("--msgs", type=int, default=6)
     ap.add_argument("--degree", type=int, default=70)
     ap.add_argument("--without", default="", help="comma-separated card numbers to switch off")
@@ -210,6 +213,8 @@ def main(argv):
                REPAIR_SAMPLE=[tuple(int(x) for x in step.split(":")) for step in a.repair_sample.split(",")] if a.repair_sample else None,
                invariants=(a.doc == "v2" and not a.no_invariants), answers_first=a.answers_first, answer_due=a.answer_due,
                source_offers=a.source_offers, MERGE_HOLDINGS=a.merge_holdings == "on")
+    if a.payload:
+        cfg["payload"], cfg["COMPRESSED"] = a.payload, round(a.payload / CFG["COMPRESSION"])
     for k in filter(None, a.without.split(",")):
         cfg[f"card{int(k)}"] = False
     if not cfg["card11"]:
@@ -256,6 +261,7 @@ def main(argv):
           f"{' loss=%d%%' % a.loss_data if a.loss_data else ''}{' up=%g' % a.up if a.up else ''}{' down=%g' % a.down if a.down else ''}"
           f"{' dc=%g' % a.dc_mbps if a.dc_mbps else ''}{' builder=%g' % a.builder_mbps if a.builder_mbps else ''}"
           f"{' merge-holdings=on' if a.merge_holdings == 'on' else ''}{' send-buffer=%d' % a.send_buffer if a.send_buffer else ''}"
+          f"{' payload=%d' % a.payload if a.payload else ''}"
           f"{' topology=' + a.topology if a.topology else ''}")
     for note in notes:
         print(f"note: {note}")
