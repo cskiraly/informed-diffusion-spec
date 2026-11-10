@@ -70,6 +70,16 @@ and −0.05 to +0.01. Its digests at seed 7 are those of the run that measured i
 Asks that go with their announcer's dropped offers (2026-10-28, §6.1) change no event in either
 recording: nothing is tied in the toy, and its offers expire only after their group has completed.
 
+The source's announcement and HAVE at the acknowledgement (2026-11-10, §5.1) re-recorded `golden.txt`:
+every cell, at seed 7 by −14 to +1 ms at the median, −47 to +12 ms at the tail and −0.11 to +0.06
+copies. The toy's transport takes a write at once (`--send-buffer 0`), so at publish the source's offers
+used to leave with its pushes still queued and drew asks for them; at 60 nodes and degree 30 the asks
+the publisher receives fall to about a third and its upload by about one payload. One cost appears with
+it: the publisher's HAVE names a chunk about a round trip later than before, and a mesh peer that got
+the chunk from a forwarder meanwhile may push it back to the publisher (a few chunks a payload at that
+size; cancel drops the pushes still queued when the HAVE arrives). `golden-v2.txt` is unchanged: the
+next version keeps its own source.
+
 ## How it maps onto the document
 
 | file | what it holds |

@@ -5,6 +5,20 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
+## Draft v0.9, 2026-11-10 (on `main`, not yet tagged)
+
+The source announces a chunk to the mesh peers it did not push it to, and its HAVE names the chunk, at the
+chunk's acknowledgement: the first HAVE naming it from any peer, or its first copy's window timeout (§5.1,
+§4.3, §7.1), in place of v0.8's announcement at publish and HAVE at the write. Announced at publish, the
+offers raced the pushes wherever the transport takes the batch at once, and the source answered asks for
+chunks whose pushes were still queued. A new §7.3 says what the transport below the writer should hold: a
+writer should hand a chunk to the transport only while the connection has less than one chunk unsent, what
+that bounds and what it does not, how quic-go and TCP keep it, and a note for operators on the access
+link's queue. §9 records that the measured implementation announced at publish over quic-go. The toy's
+events change in every recorded cell of `golden.txt` (at seed 7 by −14 to +1 ms at the median, −47 to
++12 ms at the tail and −0.11 to +0.06 copies), the recording made again; `golden-v2.txt` is unchanged,
+since the next version keeps its own source.
+
 ## v0.8, 2026-10-28 (`bc7a0a6`)
 
 A peer that joins a node's mesh is announced what the node holds, so a peer that joins after a chunk

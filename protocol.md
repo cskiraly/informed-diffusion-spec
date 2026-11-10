@@ -1,6 +1,6 @@
 # Informed Diffusion: the protocol in pseudocode
 
-> **DRAFT v0.8, 2026-10-28.** Companion to the post [*Informed Diffusion: making home builders
+> **DRAFT v0.9, 2026-11-10.** Companion to the post [*Informed Diffusion: making home builders
 > publish fast*](https://ethresear.ch/t/informed-diffusion-making-home-builders-publish-fast/26151). Field level on the wire; byte-exact layouts follow in a second phase. Written from
 > the research implementation (Prysm and a go-libp2p-pubsub fork) and revised after a review
 > against it; section 9 lists where the measured runs differ from what is written here.
@@ -430,7 +430,7 @@ def send_have(p, g):                                 # [c7] always the whole bit
     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=have_bits(g))), urgent=True)
 
 def have_bits(g):                                    # what our HAVE says of g: what we hold, or, for a
-    return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what we have sent [P4]
+    return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what is known to have arrived [P4]
 ```
 
 A node announces a chunk once its proof checks, not on arrival as stock IDONTWANT does: a held
@@ -472,6 +472,7 @@ def on_have(p, h: HaveBitmap):
     for i in newly:
         holders[h.group][i].add(p)                    # [c9] distinct live holders
         window_release(p, h.group, i)                 # [c14] a slot to p frees when p holds i, from anyone
+        if h.group in planned: origin_acked(h.group, i)   # [c3, P4] a copy of i exists elsewhere (§5.1)
 ```
 
 `peer_has` is the one view of what each peer holds. Cancel and projection (§7.2), the push
@@ -730,14 +731,16 @@ def publish(block, d, shards):
                     led.add(p)              #   it, as a forwarding node's HAVE precedes its pushes
                     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=origin[g] | bitmap({f.index}))), urgent=True)
                 if not enqueue(p, f, urgent=False): unpush(p, g, f.index)   # refused: offered instead (§5.2)
-    for f, targets in plan:                 # [c3] mesh peers not chosen to be pushed a chunk are
-        for p in mesh:                      #   announced it (a refused push is owed already, §5.2)
-            if p not in targets: announce(p, g, bitmap({f.index}))
+    planned[g] = {f.index: set(targets) for f, targets in plan}    # [c3] the mesh peers not chosen to be
+                                            #   pushed a chunk are announced it at its acknowledgement
 
-def origin_sent(f):                         # [P4] a chunk of a group we publish leaves for the first
-    if origin[f.group].has(f.index): return     # time (§7.2): it joins our HAVE, which goes to the
-    origin[f.group].set(f.index)                # mesh as a forwarding node's does when a chunk arrives (§4.2)
-    for q in mesh: send_have(q, f.group)
+def origin_acked(g, i):                     # [c3, P4] a chunk of a group we publish is known to have
+    if origin[g].has(i): return             #   arrived somewhere: a peer's HAVE names it (§4.3), or its
+    origin[g].set(i)                        #   first copy's slot timed out (§7.1). It joins our HAVE, which
+    for q in mesh: send_have(q, g)          #   goes to the mesh as a forwarding node's does when a chunk
+    for p in mesh:                          #   arrives (§4.2), and the mesh peers not chosen to be pushed
+        if p not in planned[g].get(i, ()):  #   it are announced it (a refused push is owed already, §5.2)
+            announce(p, g, bitmap({i}))
 
 def candidates_for_source(f):
     pool = connected_topic_peers() if UPLINK >= STRIPE_UPLINK else mesh    # [c13] configured uplink
@@ -757,10 +760,18 @@ def candidates_for_source(f):
   queue refuses is offered it instead (§5.2), so no peer is offered a chunk twice; other connections
   get no announcement from this step, though heartbeat gossip may announce to them later (§6.4).
 - The source pushes each chunk to R = 2 peers. It never uses the fast-class degree of card 17.
+- **The source announces at the acknowledgement** [c3]. The mesh peers not chosen to be pushed a
+  chunk are announced it once a copy of it is known to exist elsewhere: at the first HAVE naming it,
+  from any peer (§4.3), or, if none comes, when its first copy's window slot times out (§7.1).
+  Announced at publish, the offers would race the pushes: a transport that takes the whole batch at
+  once (a deep library buffer, a socket's send buffer, a router's queue) lets every announcement
+  leave at once, the mesh asks for chunks whose pushes are still queued, and the source answers on
+  top of its pushes. The acknowledgement is the one event the source sees whatever the transport
+  holds (§7.3); the offers trail the pushes by about a round trip.
 - **The source's HAVE is paced** [P4], for the source's privacy. A HAVE that names every chunk
   before any chunk has left can come only from the source, so it tells each mesh peer who published
-  the payload. The source's HAVE therefore names only chunks it has sent: a chunk joins it when the
-  source's writer first sends it, and the HAVE then goes to the mesh, as a forwarding node's does when a chunk
+  the payload. The source's HAVE therefore names only chunks known to have arrived somewhere: a chunk
+  joins it at the same acknowledgement, and the HAVE then goes to the mesh, as a forwarding node's does when a chunk
   arrives. A peer the source pushes to gets a HAVE naming its first chunk just ahead of it, as a
   forwarding node's HAVE precedes its pushes. The HAVE still keeps the other nodes from pushing the source's chunks
   back to it, a chunk at a time. HAVEs to the mesh that would leave together may be merged into one,
@@ -1144,6 +1155,7 @@ def window_timeout(key, at):
     if sent.get(key) == at:
         del sent[key]
         free_slot()
+        if key[1] in planned: origin_acked(key[1], key[2])    # [c3, P4] no claim came in time: released anyway (§5.1)
 
 def free_slot():
     global in_flight
@@ -1155,6 +1167,8 @@ def free_slot():
 - **What gives it back:** a HAVE from that peer that newly covers the chunk's index (§4.3), or
   `WINDOW_TIMEOUT` (500 ms) after sending, or the peer's queue closing.
 - **What bypasses it:** urgent control (HAVEs, acknowledgements, decode claims) never waits.
+- **At the source,** a slot's return or timeout also releases the chunk's announcements and its
+  place in the source's HAVE (§5.1).
 - **A second copy** of a chunk still in flight to the same peer waits for a slot like any chunk but
   returns it at once: the window counts chunks a peer is not yet known to hold, not bytes on the
   wire.
@@ -1189,7 +1203,6 @@ def next_to_send(p):
         if out:
             if out.chunk:
                 track_in_flight(p, out.chunk); slot_held[p] = False    # [c14] the slot is used
-                if out.chunk.group in origin: origin_sent(out.chunk)   # [P4] our HAVE grows (§5.1)
             return with_owed(p, out)                           # owed offers ride along
         # nothing was left of the entry: start again from the urgent lane
 
@@ -1259,6 +1272,39 @@ Without cards 8, 9 and 12 the writer sends its queue in order. Without card 14 i
 the transport accepts, and the backlog moves into the transport, where none of the rules above can
 act.
 
+### 7.3 Below the writer: what the transport holds
+
+The rules above act on a chunk while it is in the node's own queue. Once the writer hands it to the
+transport, nothing here reaches it: the library's buffer, the socket, the host's queue and the access
+link's queue hold it until it leaves, and a chunk the peer has meanwhile claimed is sent all the same.
+This document decides at the moment of sending, so it needs the backlog to be in the queue.
+
+- **A writer should hand a chunk to the transport only while the connection has less than one chunk
+  unsent.** The write of §7.2 then completes when the transport has taken all but about one chunk,
+  and the queue holds the rest: cancel, projection and rarest-first act on what has not left (§7.2),
+  the window counts what no peer is yet known to hold (§7.1), and the queue's order is the link's.
+  The rule bounds the library's buffer and nothing below it: the connection's congestion window, the
+  socket and the link's queue still hold up to about a round trip of the path plus the connection's
+  share of the bottleneck's standing queue, which the window is sized to cover.
+- **Not met,** nothing breaks and no peer can tell. The backlog sits below the queue, where cancel and
+  projection cannot drop it, and the node sends copies its peers no longer need. The node itself can
+  tell: a chunk's write that returns at once on a slow link, or asks for chunks whose pushes it has
+  not yet sent.
+- **Per transport.** quic-go's stream write blocks until all but one packet of its data is packed, so
+  a node on it keeps the rule as it is. Over TCP the kernel's send buffer takes several chunks ahead
+  of the link, and go-libp2p's yamux returns a stream write once its frame is in a channel of 64
+  frames above the socket: keeping the rule there takes `TCP_NOTSENT_LOWAT` at about `CHUNK_BYTES`,
+  or a poll of the socket's unsent bytes, together with a multiplexer whose write waits for the
+  socket. A stack that offers neither a blocking write nor a count of its unsent bytes cannot keep
+  the rule, and runs with the backlog below the queue.
+- **For operators,** not a rule of this protocol: the queue at the access link decides what sits
+  below the socket. A deep FIFO, as older modems and a Linux gateway's default transmit queue have,
+  holds hundreds of milliseconds to a second of a slow uplink, lets the congestion window fill it,
+  and stretches the window's holds past `WINDOW_TIMEOUT`. An AQM at the bottleneck (fq_codel, cake or
+  PIE, as SQM routers and DOCSIS 3.1 modems run) keeps the standing queue at a few milliseconds and
+  moves the backlog up to the queue, where this protocol drops it: cancel [c8] and the group's expiry
+  are the drops it needs.
+
 ## 8. State, limits and constants
 
 ### 8.1 State and its lifetime
@@ -1267,6 +1313,7 @@ act.
 |---|---|---|---|
 | own chunks, ids, `mine`, `received`, `desc`, `state` | group | its active lifetime: `GROUP_TTL` after its last chunk arrived or it completed, ended sooner if its slot leaves the live window | at expiry, leaving a tombstone (the group's key and slot) until its slot leaves the live window (where groups have no slot, for `TOMBSTONE_TTL`) |
 | `origin` | group we publish | the group's active lifetime | with the group [P4] |
+| `planned` | group we publish | the group's active lifetime | with the group [c3] |
 | `asked_at` | ask | `IWANT_WINDOW` after the last ask | at expiry, or when the chunk arrives |
 | `peer_has` (and `holders`, `sent_to` for that peer) | connection and group | `HAVE_TTL` after the peer's last HAVE for the group | at expiry, or when the connection closes; the peer leaves `holders` |
 | `pushed` (with `first_push`) | connection and group | `PUSH_TTL` after the last push | at expiry, or when the connection closes |
@@ -1509,7 +1556,17 @@ rerun does as this document does, the entry says so.
   each mesh peer, all before the data, which names the source to its mesh. This document paces it
   instead (§5.1, [P4]). A change of 2026-10-07 makes the implementation send one HAVE before the
   data by default, and pace it as an option (`SEGMENT_SRC_HAVE=paced`). The rerun of Figures 4 and 5
-  paces it, as this document does.
+  paces it at the write; this document's HAVE grows at the acknowledgement instead (§5.1), about a
+  round trip later.
+- *The source announced at publish.* The implementation queues a chunk's offers to the mesh peers it
+  does not push it to in the same step as the pushes; this document queues them at the chunk's
+  acknowledgement (§5.1). Over quic-go, whose stream write blocks until all but one packet is
+  packed, the offers waited behind the pushes in each peer's queue and drew few asks. Over a
+  transport that takes the whole batch at once, offers made at publish drew asks for chunks whose
+  pushes were still queued, an order of magnitude more asks at the source than the harness saw
+  (the cross-check of 2026-10-07, on the toy).
+- *The transport below the writer* was quic-go's: the measured runs kept §7.3's rule by the
+  library's behaviour, not by a rule, and the harness's per-peer queue held the backlog.
 - *The sender counts as a holder* in a forwarding node's budget (§5.2), so R = 2 means one further push per
   received chunk. This is what was measured. The sender is also excluded from the candidates here;
   in the code it could take a budget slot and then be skipped, which is rare.
