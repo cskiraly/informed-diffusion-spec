@@ -17,7 +17,9 @@ that bounds and what it does not, how quic-go and TCP keep it, and a note for op
 link's queue. §9 records that the measured implementation announced at publish over quic-go. The toy's
 events change in every recorded cell of `golden.txt` (at seed 7 by −14 to +1 ms at the median, −47 to
 +12 ms at the tail and −0.11 to +0.06 copies), the recording made again; `golden-v2.txt` is unchanged,
-since the next version keeps its own source.
+since the next version keeps its own source. The toy takes `--payload BYTES`, the bytes of each payload
+(default 1 MiB), the compressed size following at the same ratio, so that small sizes give hand-counted cases
+(16384 bytes: K = 1, N = 2); the recorded cells are unchanged by it.
 
 ## v0.8, 2026-10-28 (`bc7a0a6`)
 
