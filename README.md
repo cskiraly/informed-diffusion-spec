@@ -12,25 +12,26 @@ keeps its title.
   parity chunks), and the chunks spread by push and pull, which tier 4 guides with HAVE bitmaps. The
   document covers every tier; the wire is specified to the field, and byte-exact layouts follow
   later.
-- [`protocol-v2.md`](protocol-v2.md): **a draft** of SEACAST's next version (open decisions in its §8; checked
-  in the toy only; no client or full simulation runs it; not model-checked), the protocol on its
-  own notions: object types, interest and duty, push and announce relations per family and colour,
-  one HAVE and one WANT per link and group, claims, repair as one rule with parameters. It contains `protocol.md` as one
-  setting and variant C, PeerDAS custody, RowDAS rows and FullDAS sampling as others; its open
-  decisions are marked `[D1]` to `[D11]`. The toy runs it on top of `protocol.md` (`toy/run.py --doc
-  v2 --setting t4|c|custody|rows`, `toy/check.py --doc v2` against its own `golden-v2.txt`): under
-  its tier 4 setting it stays within 10 ms at the median and 35 ms at the tail of `protocol.md`'s
-  check cells (one seed each, a toy check; `check.py --doc v2 --golden golden.txt`; its §6.1 says
-  what the distance is); variant C, PeerDAS custody, FullDAS sampling and RowDAS rows run as
-  settings, with the invariants of every setting checked on each run (`toy/invariants.py`),
-  cross-fill and the claim's deferral included. Executing the settings found a stall in v0.3's
-  window (fixed in `protocol.md` §7.1, the cells re-recorded), that card 12's projection assumes a
-  code (its §4.9), that the window's slot unit throttles small chunks (its §4.11: the window in
-  bytes), that a proposer of many groups must send its own chunks before its offers and answers (its
-  §4.12, where answering before pushing is an option that was a wash in three-seed toy checks), that a row member needs
-  a custodian link for every column, to gather its row and to repair the columns (its §4.6: the
-  repair floor, which EIP-8371's fanout presumes), and that a rebuilt cell must complete the groups
-  it fills (its §4.6).
+- [`protocol-v2.md`](protocol-v2.md): **a draft** of SEACAST's next version (its decisions taken, in
+  its §8; checked in the toy only; no client runs it, and the research harness's simulations ran
+  only designs it contains as settings; not model-checked), the protocol on its own notions: object
+  types, interest and duty, push and announce relations per family and colour, one HAVE and one WANT
+  per link and group, claims, repair as one rule with parameters. It contains `protocol.md` as one
+  setting (but for a source with no mesh peer, its §6.1) and variant C, PeerDAS custody, RowDAS rows
+  and FullDAS sampling as others; its decisions are marked `[D1]` to `[D12]`. The toy runs it on top
+  of `protocol.md` (`toy/run.py --doc v2 --setting t4|c|custody|rows`, `toy/check.py --doc v2`
+  against its own `golden-v2.txt`): under its tier 4 setting it stays within 13 ms at the median and
+  18 ms at the tail of `protocol.md`'s check cells (one seed each, a toy check; `check.py --doc v2
+  --golden golden.txt`; its §6.1 says what the distance is); variant C, PeerDAS custody, FullDAS
+  sampling and RowDAS rows run as settings, with the invariants of every setting checked on each run
+  (`toy/invariants.py`), cross-fill and the claim's deferral included. Executing the settings found
+  a stall in v0.3's window (fixed in `protocol.md` §7.1, the cells re-recorded), that card 12's
+  projection assumes a code (its §4.9), that the window's slot unit throttles small chunks (its
+  §4.11: the window in bytes), that a proposer of many groups must send its own chunks before its
+  offers and answers (its §4.12, where answering before pushing is an option that was a wash in
+  three-seed toy checks), that a row member needs a custodian link for every column, to gather its
+  row and to repair the columns (its §4.6: the repair floor, which EIP-8371's fanout presumes), and
+  that a rebuilt cell must complete the groups it fills (its §4.6).
 - [`toy/`](toy/): runs every `python` block of `protocol.md`, once per node, on a simulated
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.

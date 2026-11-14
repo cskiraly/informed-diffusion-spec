@@ -35,10 +35,17 @@ A 500-node cell takes about five minutes on one core and about 250 MB.
 
 ## Checking a change
 
-`check.py` runs twelve small cells (60 nodes, three payloads) in parallel and compares each with
+`check.py` runs thirteen small cells (60 nodes, three payloads) in parallel and compares each with
 `golden.txt`. Each cell's digest hashes every event the simulator processes, in order: its time,
 its node, the function it runs, and its int and bytes arguments. A change in what any node does, at
 any moment, changes the digest, even when the printed numbers stay the same.
+
+The thirteenth cell, `ihave-limits` (2026-10-27), sets stock gossipsub's two IHAVE limits
+(`--ihave-limits 10,5000`).
+- The others set none, so it is the one cell where asks are held back to the next heartbeat
+  (`protocol.md` §4.4).
+- In `protocol.md`'s run, 24 538 asks are held back. The warm median goes from the `push` cell's
+  464 ms to 544 ms, and every node completes.
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then
@@ -70,15 +77,16 @@ and −0.05 to +0.01. Its digests at seed 7 are those of the run that measured i
 Asks that go with their announcer's dropped offers (2026-10-28, §6.1) change no event in either
 recording: nothing is tied in the toy, and its offers expire only after their group has completed.
 
-The source's announcement and HAVE at the acknowledgement (2026-11-10, §5.1) re-recorded `golden.txt`:
-every cell, at seed 7 by −14 to +1 ms at the median, −47 to +12 ms at the tail and −0.11 to +0.06
-copies. The toy's transport takes a write at once (`--send-buffer 0`), so at publish the source's offers
-used to leave with its pushes still queued and drew asks for them; at 60 nodes and degree 30 the asks
-the publisher receives fall to about a third and its upload by about one payload. One cost appears with
-it: the publisher's HAVE names a chunk about a round trip later than before, and a mesh peer that got
-the chunk from a forwarder meanwhile may push it back to the publisher (a few chunks a payload at that
-size; cancel drops the pushes still queued when the HAVE arrives). `golden-v2.txt` is unchanged: the
-next version keeps its own source.
+The source's announcement and HAVE at the acknowledgement (2026-11-10, §5.1) re-recorded
+`golden.txt`: every cell, at seed 7 by −14 to +1 ms at the median, −47 to +12 ms at the tail and
+−0.11 to +0.06 copies. The toy's transport takes a write at once (`--send-buffer 0`), so at publish
+the source's offers used to leave with its pushes still queued and drew asks for them; at 60 nodes
+and degree 30 the asks the publisher receives fall to about a third and its upload by about one
+payload. One cost appears with it: the publisher's HAVE names a chunk about a round trip later than
+before, and a mesh peer that got the chunk from a forwarder meanwhile may push it back to the
+publisher (a few chunks a payload at that size; cancel drops the pushes still queued when the HAVE
+arrives). `golden-v2.txt` was unchanged by it: the next version kept its own source until it took
+the rule for every object type (2026-11-11) and was recorded again.
 
 ## How it maps onto the document
 
@@ -93,6 +101,7 @@ next version keeps its own source.
 | `run.py` | the command line |
 | `check.py`, `golden.txt` | the check above, and its recorded digests |
 | `xcheck.py` | the harness's network loaded from its dump, and the counters and invariants it prints, counted here the same way (below) |
+| `graft_check.py` | `protocol-v2.md` §4.1's JOIN and answered GRAFT: its functions as written, on two nodes, over every interleaving from the link's first JOIN, for one link and one relation, with `--both` for a `SYMMETRIC` type's relation (an end that holds it one way acts on it at any count), `--diverged` to start from linked ends that disagree (the yes again; with `--both`, every way but whole or empty at both), `--doc` for another version of the text (its three controls in `controls/` must fail) and `--model` for the abstract comparison of the three ways (`python3 graft_check.py`: "ok", about 2.5 minutes and 2.3 GiB) |
 
 What the toy adds to the document, and nothing else:
 - **The environment the document assumes:** the clock (`now`, `after`), the per-peer queues and
@@ -115,9 +124,9 @@ What the toy adds to the document, and nothing else:
   owed for it (§4.1) is dropped when the writer queues it again.
 - **What the runs leave out:** every block installs at its publish, at every node, so nothing is
   deferred or asked for at installation; groups do not expire; connections do not close; the
-  queues have no limit but the loss above, and neither IHAVE limit is set (§8.2), so nothing is
-  held back to the next heartbeat (§4.4). The document's rules for those cases are not exercised
-  here.
+  queues have no limit but the loss above, and neither IHAVE limit is set (§8.2) but in the
+  `ihave-limits` cell, so elsewhere nothing is held back to the next heartbeat (§4.4). The
+  document's rules for the other cases are not exercised here.
 
 ## The network
 
@@ -164,7 +173,40 @@ invariants the document's rules imply, each a count that must be zero:
 
 The recorder reads node state without creating entries and schedules nothing, so a run's events
 and digest are the same with it or without it. A duplicate is a chunk received before, as the
-harness's seen cache counts it, not one held only since the decode.
+harness's seen cache counts it, not one held only since the decode. It counts tier 4's events and
+runs under `--doc v03` only: under `--doc v2` its window hook takes the wrong arguments.
+
+**A DAS dump** (the research harness's column proxy, 2026-11-01) runs under `--doc v2 --setting
+custody` or `rows`. Besides `net`, it has records of its own:
+- `network`: the base graph;
+- `shape`: the links the harness added, each with its pass (custody floor, the proposer's fanout,
+  the repair floor);
+- `faults`;
+- `das`: each node's custody as its columns, the supernodes, the reconstructors and the row subnets;
+- from a running cell, a `block` record and a mesh per column topic.
+
+The toy takes these in place of its own draws, and the protocol's derived interest reads the dump's
+custody and row subnets. The graph is taken whole: no floor link is added. The meshes are the
+running cell's first block's, or are built on the graph where the dump has none (one resolved
+without a run). The proposer's relation stays the toy's: its custodian links per column. The dump
+gives `--cgc`, `--blobs`, `--row-subnets`, `--reconstructors`, `--repair-floor`, `--source-floor`,
+`--supernodes` and `--samplers`, so these are refused. A running cell's blocks give `--withhold`, and
+cap `--msgs` at the blocks dumped. `--fault`, if given, names what the dump's faulty set does: the
+toy's draw of that share must be the dump's set (both are the harness's failSelect).
+
+The load stops where the records disagree:
+- `net`'s edges must be `network`'s plus `shape`'s, one-way delays included;
+- `faults` must repeat `net`'s fault fields;
+- the supernodes must be exactly the nodes custodying all 128 columns;
+- a node's mesh on a column must be empty unless it custodies the column, and hold links only;
+- the proposer must be node 0 in every block (per-block proposers are not run yet);
+- the withheld columns must be the last ones;
+- nothing may be preseeded, and there may be no samplers.
+
+The `dump graph:` line reads the graph as the harness's `graphLine()` does. It also says how far the
+graph falls short of the floors `custody_topology` builds. On the rows network of 2026-11-01, 482
+of 499 row members have fewer than the floor's 6 fellow members as links: the harness adds no
+subnet floor.
 
 ## Known differences from the harness
 
@@ -247,15 +289,17 @@ with its parameters, the join tables, the push relation behind the mesh, and the
 messages onto v0.3's wire (its §7, last column): a holding is an IDONTWANT bitmap, an offer an
 IHAVE bitmap, an ask a `WantIndex`. Relations are static, as the mesh is for v0.3.
 
-`check.py --doc v2` runs the twelve cells against the next version's own recording, `golden-v2.txt`
-(`--update` records it, as for v0.3). `check.py --doc v2 --golden golden.txt` compares the next version
-against `protocol.md`'s cells instead (v0.3's until 2026-10-13, v0.4's until 2026-10-21, v0.5's until 2026-10-25, v0.7's until 2026-10-26, v0.8's since); there a cell whose digest moved but whose numbers did not is
-reported as such and does not count, since the next version iterates the relation in peer order where
-v0.3 iterates the mesh set, which reorders same-instant sends. On 2026-10-07, with v0.3's slot
-window, eleven cells reproduced v0.3's numbers exactly and `rr-stripe` differed by 3 ms at the
-median; with the window in bytes (`protocol-v2.md` §4.11) the cells differ from v0.3's by at most
-7 ms at the median, 15 ms at the tail and 0.04 copies either way, which is the writer choosing the
-entry before taking room and control taking none, not the unit.
+`check.py --doc v2` runs the thirteen cells against the next version's own recording,
+`golden-v2.txt` (`--update` records it, as for v0.3). `check.py --doc v2 --golden golden.txt`
+compares the next version against `protocol.md`'s cells instead (v0.3's until 2026-10-13, v0.4's
+until 2026-10-21, v0.5's until 2026-10-25, v0.7's until 2026-10-26, v0.8's until 2026-11-12, v0.9's
+since); there a cell whose digest moved but whose numbers did not is reported as such and does not
+count, since the next version iterates the relation in peer order where v0.3 iterates the mesh set,
+which reorders same-instant sends. On 2026-10-07, with v0.3's slot window, eleven cells reproduced
+v0.3's numbers exactly and `rr-stripe` differed by 3 ms at the median; with the window in bytes
+(`protocol-v2.md` §4.11) the cells differ from v0.3's by at most 7 ms at the median, 15 ms at the
+tail and 0.04 copies either way, which is the writer choosing the entry before taking room and
+control taking none, not the unit.
 
 **v0.4's P4 in the next version** (2026-10-21, `protocol-v2.md` §4.7): the source's holding names only the
 chunks it has sent. Against v0.4's recording the twelve cells now sit within 3 ms at the median,
@@ -332,7 +376,11 @@ before the merge, with P4 (60 nodes, warm medians; over several seeds the median
 
 In the liar cell the row members' short pairs fall from 108 to 2 (none on eight seeds; seed 13's
 p99 is infinite both ways, through its two custodians that stay short either way); the rows' own
-tail, infinite on every seed before, is finite on eight after, 2.2 to 8.4 s; not traced. With
+tail, infinite on every seed before, is finite on eight after, 2.2 to 8.4 s. A toy check at seeds
+9, 14 and 15 names the cause: with v0.5's last resort switched off (no parked announcer asked once
+more) the short pairs are 12, 24 and 18, as before v0.5 (12, 22, 20); with the candidates limited
+to the ordered list of the first sixteen announcers they stay at 0, 1 and 0, as with all of v0.5.
+The asks of the last resort delivered 274 and 351 cells at seeds 14 and 15. With
 half the columns withheld and supernodes, 107 (peer, group) pairs are parked on a broken promise
 against 283. Custody with
 `--loss-data 10` leaves 149 (node, group) pairs short over three blocks, against 150 before the
@@ -422,10 +470,15 @@ custodians among its random peers. At block arrival each sampler draws `--sample
 block at random and declares each to one link whose interest includes it, as §4.10 says: the WANT
 is a standing request, answered when the custodian holds the cell, with no promise timer; after
 `--sample-retry` (2 s) an unanswered sample is declared to another link and the first is parked.
-A sample whose column no link custodies is counted as unreachable and dropped from the sampler's
-interest (`unreachable`, the application's decision in the document). The report's `sampling`
-line gives the samplers, the samples declared and unreachable, and the custodians' serving load
-towards samplers. Indications on the 60-node cell (12 samplers), one seed:
+A sample that no link can serve (no link custodies its column, or every one that does was parked)
+is counted as unreachable and dropped from the sampler's interest (`unreachable`, the
+application's decision in the document), and the sampler then confirms nothing for that block: the
+`samples` line counts a sampler as complete only once every cell it declared arrived, so its
+`missing` is the samplers that did not confirm, and the time over the samples that arrived follows
+on the same line. The `sampling` line gives the samplers, the samples declared and unreachable,
+and the custodians' serving load towards samplers. Indications on the 60-node cell (12 samplers),
+one seed, recorded before 2026-10-23, when the `samples` line still left out the samples given up
+(the table's "samples missing" counts samples, and its times are over the samples that arrived):
 
 | cell | custodians p50 / p99 | samples p50 / p99 | samples missing | unreachable | chunks to samplers per custodian |
 |---|---|---|---|---|---|
@@ -448,6 +501,141 @@ unreachable, which is the rise from 25 to 43. The unreachable samples of the hon
 connection graph's: a column is custodied by none of a sampler's peers 14 % of the time at degree
 30, and about 3 % at degree 70 when a fifth of those peers are samplers themselves.
 
+Counted the current way (2026-10-23; 60 nodes, degree 30, 12 samplers, a 1 Gbps proposer with
+`--net bld`, seed 7), a sampler with a sample given up confirms nothing, and at degree 30 that is
+most of them. In the honest cell 7, 7 and 5 of the 12 samplers do not confirm in its three blocks
+(35 of 288 samples unreachable; with 14 % of columns custodied by none of a sampler's peers,
+1 − 0.86⁸ ≈ 70 % of samplers would hold at least one such sample), and under 30 % withholders 8, 8
+and 7 (63 unreachable). With half the columns withheld and no supernodes (`--withhold 64`, two
+blocks), 12 and 11 of the 12 do not confirm (105 of 192 samples unreachable), where the line had
+read 200 ms at the median and nobody missing. The runs' event digests are those of the earlier
+report: only the counting changed. What a sampler does with a sample no link can serve, a verdict
+of unavailable or another round through other peers, the document leaves to the application
+(§4.10).
+
+**A sampler's reach** (`protocol-v2.md` `[D12]`: the coverage floor of §1.3, routed sample requests
+and LiteDAS's two phases in §4.10). `--sample-cover T` builds the floor with the graph: each sampler
+adds sampling-only links, the custodian covering the most columns still short first, until every
+column has T custodians among its links, counted by distinct links, a node of high custody (more
+than `--cgc` columns, the proposer included) counting for at most `--cover-high` (1) of them; its
+draws are its own, after the meshes, so that the graph and the meshes are those of a run without
+it, and the proposer counts where it already is a link and is never added (proposers rotate).
+`--route on|off` (on) lets a sample that no link serves go as a routed request to a link with duty
+`FORWARD`, which passes it one step on (§4.5), `--route-hops` (1) steps at most; `--sample-retry2`
+(0.5 s), `--sample-outstanding` (4) and `--forward-limit` (none) are the second phase's wait per
+peer, its asks in flight per block and the forwarders' limit. A sampler asks a peer for at most one
+sample of a block, and a peer of high custody only in the second phase. The `reach` line gives the
+floor's links per sampler, by which ask each sample first arrived, the asks per sample, the routed
+requests passed on per node, the most samples of a block one peer was asked for by one sampler,
+and how many were asked of the block's source. A sample nobody delivered is missing (the document
+no longer gives one up): it is reported on a line of its own, not as a completion violation, which
+stays the custodians' invariant.
+
+Known answers (2026-10-23; 60 nodes, degree 30, 12 samplers, `--net bld`, seed 7): without samplers
+the custody and row cells' digests are those from before the change, and both `check.py` runs pass.
+With the samplers, no peer is asked for more than one of a sampler's samples in a block, in every
+cell. With neither the floor nor routed requests, 9, 9 and 8 of the 12 do not confirm: the 35
+samples that no link serves, and those whose only serving links had been asked for another of the
+sampler's samples (when a peer could be asked again, 7, 7 and 5).
+With routed requests alone every sampler confirms (71 samples routed, the source asked for none);
+with the floor alone (two covers) 7 of the 36 do not confirm, since seven of the 128 columns are
+custodied by nobody but the proposer at 60 nodes and the floor never adds it; with both every
+sampler confirms (14 routed, the source asked for none, the samples' p50 and p99 292 and 376 ms
+against the custodians' 339 and 437). With half the columns withheld, 12 and 11 of 12 do not confirm
+under every combination, and the hunt is bounded by one sample per peer: 1.3 to 1.7 asks per sample
+without routed requests, 3.0 with them and 5.2 with the floor as well. With `--route-hops 2` one
+request took a second step, and its sample came at 468 ms where it had waited for the second phase.
+At 500 nodes (graph only, seeds 7 to 16, high custody counted in full, the earlier rule) the floor
+of one cover added 0 / 0 / 2 / 3 / 5 links per sampler (min, p10, median, p90, max; mean 1.8) at
+degree 70 and 0 / 12 / 13 / 15 / 18 (mean 13.0) at degree 16, as `sampler_graph.py a` counts with
+its own greedy cover (0 / 0 / 2 / 3 / 6 and 0 / 12 / 13 / 15 / 17). Before one sample per peer, the proposer was asked
+for 28 of the 288 samples in the honest cell with both, up to 5 of one sampler's 8. With 30 %
+withholders, both (one cover) and seed 8, every sample arrived, at a median of 2.7 to 3.7 s and a 99th
+percentile up to 7.7 s (2.2 to 2.7 s and 4.9 s when a peer could be asked again).
+
+The document's graph figures for `[D12]` (§1.3, §4.10, the `SAMPLE_COVER` and `ROUTE_FLOOR` rows of
+§6.3, §8) come from two scripts that build the toy's networks and run no events, 500 nodes, a fifth
+samplers, seeds 7 to 16: `python3 sampler_graph.py a|c|e` (the floor's links, routed requests' hops
+under the routing rules, rows as a second axis; 2 to 3 minutes each) and `python3 sampler_match.py
+custody 70|16` (eight and sixteen samples matched to distinct serving links under each floor, 400
+draws per sampler; about a minute). Both print markdown tables.
+
+The matrix (2026-10-23, on that day's draft, with `[D12]` as proposed then; 60 nodes, degree 30, 12
+samplers, `--net bld`, seeds 7 to 9, three blocks each, two with half withheld; the seed-7 cells'
+digests equal the local runs'): samplers that did not confirm, of the sampler-blocks; the samples'
+p50 and p99 over the blocks (inf where most did not confirm); the custodians'; samples routed per
+run; asks per sample. "Off" is neither the floor nor routed requests, A the floor of two covers (the
+draft then proposed one; two were decided later), C routed requests, one step.
+
+| network | off | A | C | A+C | samples p50 / p99, C and A+C | custodians p50 / p99 | routed, C / A+C | asks per sample, off / A / C / A+C |
+|---|---|---|---|---|---|---|---|---|
+| honest | 76 of 108 | 24 of 108 | 0 | 0 | 321 / 411 and 292 / 406 ms | 327–335 / 439–466 ms | 73 / 18 | 1.00 throughout |
+| 30 % withholders (`wh30`) | 99 of 108 | 61 of 108 | 0 | 0 | 2 749 / 4 732 and 2 682 / 4 539 ms | 353–370 / 1 035–1 208 ms, 2 or 3 missing | 119 / 50 | 1.20 / 1.30 / 1.63 / 1.54 |
+| half withheld (`--withhold 64`) | 71 of 72 | 70 of 72 | 70 of 72 | 70 of 72 | – | never (276 missing) | 25 / 7 | 1.36 / 1.72 / 3.01 / 5.28 |
+
+With routed requests every sampler confirmed in every honest and withholding block, and the block's
+source was asked for no sample. Without them, one sample per peer leaves a sample nowhere to go once
+its serving links were asked for others or withhold: under 30 % withholders 99 and 61 of 108 did not
+confirm. Under withholders the samplers' median is the first phase's 2 s wait (`--sample-retry`):
+with eight samples and 30 % withholders, nearly every sampler declares one sample to a withholder
+first (all eight escape with probability 0.7⁸ ≈ 6 %). With half withheld, the one or two sampler
+blocks that confirm are those whose eight samples all fell in the published half (2⁻⁸ per sampler
+and block): availability is never confirmed by reaching more custodians. The floor's 24 and 61
+honest and withholding misses at 60 nodes are the columns only the proposer custodies (above).
+
+The matrix at 500 nodes (2026-10-26, on the draft of 2026-10-23): degree 70 and 16, a fifth of the
+nodes sampling, `--setting custody --net bld --msgs 2`, seeds 7 to 16, honest and 30 % withholders.
+Off is set against A+C with the floor of one cover (then the draft's proposal; two were decided
+later) and of two. The batch's first cell, the 60-node `r-honest-AC-s7`, printed its digest again.
+Every A+C cell's floor links equal those of a build of its graph alone (2 and 8 added per sampler on
+top of 70, 13 and 29 on top of 16, as `protocol-v2.md` §6.3 counts).
+
+The table gives, over 2 000 sampler-blocks per row:
+- short: samplers that did not confirm;
+- the samples' p50 and p99 at one cover and at two, medians over the 20 blocks;
+- the custodians' p50 and p99 over the three arms, and their missing summed over the blocks (off,
+  one, two);
+- samples routed per run;
+- asks per sample;
+- the data copies per node.
+
+| network | short: off / one / two | samples, one; two | custodians p50 / p99; missing | routed, one / two | asks per sample, off / one / two | data copies, off / one / two |
+|---|---|---|---|---|---|---|
+| degree 70, honest | 461 / 0 / 0 | 482 / 648; 486 / 660 ms | 520–522 / 666–678 ms; none | 16 / 2 | 1.00 throughout | 1.34 / 1.35 / 1.35 |
+| degree 70, `wh30` | 1 103 / 0 / 0 | 2 604 / 5 638; 2 528 / 5 054 ms | 939–946 / 1 390–1 419 ms; 26 / 26 / 26 | 136 / 79 | 1.34 / 1.50 / 1.47 | 1.23 / 1.24 / 1.25 |
+| degree 16, honest | 1 994 / 0 / 0 | 520 / 2 197; 502 / 679 ms | 544–546 / 694–702 ms; none | 140 / 7 | 1.00 throughout | 1.25 / 1.35 / 1.35 |
+| degree 16, `wh30` | 1 999 / 7 / 0 | 2 856 / 6 116; 2 667 / 6 004 ms | 945–954 / 1 386–1 412 ms; 39 / 43 / 49 | 470 / 179 | 1.08 / 1.65 / 1.54 | 1.12 / 1.24 / 1.24 |
+
+**Two covers.** Every sampler confirmed in every block, and the block's source was asked for no
+sample (off asked it for 6 to 16 a run).
+
+**One cover.**
+- At 70 links it did as well as two.
+- At 16 it cost the tail. Honest, the samples' p99 rose to 2.2 s against 0.7 s, above 2 s in 16 of
+  the 20 blocks: a few samples a block are asked again after the first phase's 2 s wait. The most
+  asks of one sample is 2 or 3 in every run, against 1 or 2 with two covers. A trace of seed 7
+  names them. In all seven slow samples, the sampler's only serving link was taken by another of
+  its samples. The sample went routed through a forwarding link drawn at random, which had no link
+  serving the column and dropped it silently. The second routed request delivered it after the
+  wait. 7 of 132 routed first asks found no route; no custodian was slow.
+- Under withholders, at 16 links, 7 sampler-blocks in five of the ten seeds did not confirm (10
+  samples never delivered, one sample asked up to 19 times). In seed 12's trace, the two samples
+  never delivered belong to the two samplers of 100 with the most withholders among their links
+  (53 % and 52 %, median 30 %). Their hunts ended with no fresh link left.
+
+**The custodians** were not slowed: within 30 ms of off. Their missing at degree 16 under
+withholders differ only in two seeds, in opposite directions:
+- seed 7: 6 off, 29 with two covers;
+- seed 15: 27 off, 14 with two covers.
+
+**The data copies** rise by 0.10 at 16 links and 0.01 at 70. These are the samples that now
+arrive. Each node's bytes count against its own interest, and a sampler's interest is its eight
+sampled cells. So each sample that arrives adds 1/8 to its sampler's ratio, and samplers are a fifth
+of the nodes. At 16 links, (1 600 − 806) / 1 600 × 1/5 = 0.099. The custodians' own data barely
+move.
+
+**Under withholders,** the samplers' median is again the first phase's 2 s wait.
+
 `--setting rows` is the RowDAS row of `protocol-v2.md` §6.2 on top of custody (EIP-8371 as the
 pinned draft reads): a second object type, the row, with N = 128 cells and K = 64; every cell is
 index b of column c and index c of row b, so one arrival fills both groups (R4); each node has one
@@ -468,8 +656,11 @@ reconstruction can fill them, and `--fault claimNN` makes that share of the node
 of their row at the first one and never answer. The report adds the cross-fill check (cells not
 mirrored in their other group: must be none) and the rows line: decodes at K and later, duties
 deferred, claims verified by the probe, re-arms with the claimant penalised, and the links the
-repair floor added. Indications at 60 nodes (degree 30, a 1 Gbps proposer, 6 reconstructors), one
-seed:
+repair floor added. `--col-announce` and `--row-announce` set the columns' and the rows'
+`ANNOUNCE_EXTRA` (`protocol-v2.md` `[D5]`; `ALL_JOINED`, the default, `SAMPLE` or `NONE`). A cell is
+published under its column, and its message id names that group, so the heartbeat's gossip offers
+cells under their columns: the rows' `SAMPLE` runs as `NONE` (the same events in the rows cell at
+seed 7). Indications at 60 nodes (degree 30, a 1 Gbps proposer, 6 reconstructors), one seed:
 
 | cell | custodians p50 / p99 | rows at 64 p50 / p99 | decodes at K / later | deferred / verified / re-armed | completion |
 |---|---|---|---|---|---|
@@ -505,6 +696,20 @@ its burst of rebuilt cells. In the liar cell the probe parks the liars it meets 
 claimants in one block under the slot window) and the re-arms decode the rows the liars claimed;
 the rows still missing are the liars' own. The empty subnets of the 32-subnet cell are the EIP's
 team-size floor seen at toy scale: 59 members over 32 subnets leave some with none.
+
+**The probe of a claim** (R5, since 2026-11-15; `protocol-v2.md` §4.6). The claimant passes only on
+its own copy; the probe's WANT carries `probe`, which the toy's binding carries beside the index
+(`wire.FlaggedWant`) and charges no bytes, as it does `standing` and `hops`; and the probed index is
+drawn at random among those lacked. The toy draws that index from a generator of its own, seeded by
+the run's seed and the node (`probe-index/<seed>/<node>` in `node.py`), so that the draw moves no
+other; the claimant is then drawn from the node's own generator, as before. Over five cells at 60
+nodes, degree 30, three blocks and seeds 7 to 9, with `--send-buffer 0` (`--setting rows`; `--fault claim20`; with
+`--row-subnets 16 --withhold 64`; the same with `--fault hoard20` in place of the liars; and the
+liars' withheld cell with `--supernodes 5`), no honest or hoarding claimant failed its probe (3 of
+1 289 verdicts failed with the claimant's own copy alone), and liars passed 3, 1 and 61 times in the
+three liar cells, where any peer's copy passed at least 57, 115 and 558. Figures in this section
+measured before 2026-11-15 ran with the lowest index, without the mark and the kept WANT, and with any
+peer's copy passing the claimant, unless they say otherwise.
 
 The table's rows are seed 7. Over seeds 7 to 19 the withheld 16-subnet cell completes on every seed
 with the repair floor, and without it (`--repair-floor 0`) leaves custodians short in five of the
@@ -691,8 +896,9 @@ four such subnets; on seed 14 at 50 % the three supernodes are hoarders too. The
 slower (3.25 s against 2.44 s without hoarders, the rebuilds coming at the third phase plus a
 deferral) and no dearer (2.33 copies against 2.36), since hoarders repair nothing. In the liar cell
 without supernodes it fires 1 to 3 times per run on 5 of 13 seeds, each time (traced at seeds 8, 11
-and 12) on a liar's claim that passed the probe because another peer brought the probed cell: the
-member rebuilds instead of trusting it. The check moved the few pairs short in that cell on those
+and 12) on a liar's claim that passed the probe because another peer brought the probed cell
+(measured when such a copy also passed the claimant, before 2026-11-15): the member rebuilds
+instead of trusting it. The check moved the few pairs short in that cell on those
 three seeds by one or two (4 to 5, 0 to 1, 3 to 5), and in the three traces every short pair, with
 and without the check, is a liar's own row, which the toy's liars never rebuild; in the liar cell
 with supernodes it never fires.
@@ -765,6 +971,42 @@ cell was of that row, and the block's last custody cells came at 19.65 s at the 
 trace of the run with the member check alone they came at 17.37 s, the late nodes' last cells of
 several rows, so that row had been rebuilt earlier there (the runs diverge from the first block).
 
+**A custodian's alarm** (`--alarm-wait S`, an option proposed on 2026-10-28; off by default,
+which changes no event).
+- **The custodian.** An honest custodian that, `S` seconds after `known_at` (plus up to
+  `--alarm-jitter`), still lacks a cell of its custody columns that no peer's holding shows sends a
+  standing WANT for it. The WANT names the row's group at the column's index, and goes to a member
+  of the row's subnet among its links. Every `--alarm-next` seconds it asks another member, up to
+  `--alarm-max`.
+- **The member.** A member that deferred on a claim its probe verified asks that claimant for the
+  index, once, as the probe is asked. If that promise breaks, it penalises the claimant and rebuilds.
+- Faulty nodes neither alarm nor act on one (`node.py`, `_alarm`).
+
+**`--fault hoardcol<pct>`**, with `--rebuilt-seen on`, is a hoarder that repairs every withheld
+column of its row but one, the document's `push_rebuilt` for the rest.
+- The hidden column is, per subnet, the highest withheld column no honest member custodies. When
+  a member probed the lowest index it lacked, the hidden one was never a probe, and the figures
+  below were measured so. Since the probed index is drawn at random (2026-11-15), a member can probe
+  the hidden cell, and the hoarder, which serves it to nobody, then fails the probe; not measured.
+- The hoarder serves the hidden cell to nobody.
+- It passes the member check and the repair sample's one lost cell.
+- The report gives the fault's known answer per block: the custodians of the hidden columns of the
+  rows no honest node rebuilt, the rebuilders aside. With the alarm off, that is the block's
+  `missing`.
+
+At 60 nodes (degree 20, 4 subnets, half the columns withheld, the repair sample with re-ask), the
+fault bites only where a subnet's row reconstructors are hoarders alone (`seed 22`; at seeds 9 and 11
+every row was rebuilt by an honest node).
+- **Seed 22, alarm off:** 8 and 5 rows were not rebuilt by an honest node. 5 custodians are short in
+  each block, as predicted.
+- **Alarm at 3.5 s:** none is short, and the p99 is 4.90 and 4.92 s.
+  - 42 alarms went from 3 custodians for 42 cells, against a bound of 126. 27 were kept by honest
+    members as standing asks, and 15 were refused by hoarders.
+  - There were 26 asks of a claimant (at most the 27 kept), all broken, so 26 members rebuilt their
+    row: about two per row.
+- Without a fault, under `hoardm20` with the member check alone, and under `claim20`, no alarm was
+  sent at seed 11.
+
 `--answers-first` sets the writer's order (`protocol-v2.md` §4.12). The default sends a source's
 own chunks first, past its offers and answers, by rarity, and `on` adds the option of answers
 before pushes. `v03` is v0.3's order, rarest-first up to the first control-only entry. The other
@@ -815,4 +1057,145 @@ seeds 7 to 9, and 81 to 94 % of those answers arrive as duplicates. Without its 
 cells' medians move by less than 10 ms. A fast builder uploads 9.7 to 12.0 copies with its offers
 and 2.0 without, and then completes 10 ms later at the median. A rule keyed on the configured
 uplink, as striping's is, could save the home builder's bytes where they are scarce. It is not in
-the document.
+the document; v0.9's timing of the source's offers, below, saves most of them instead.
+
+**v0.9 in the next version** (2026-11-11, `protocol-v2.md` §4.7, §4.11). What the next version
+takes from v0.9, as written:
+- the source's holding grows at a chunk's acknowledgement, not at its write;
+- its offers wait for the acknowledgement, for every object type;
+- §4.11 takes v0.9's rule below the writer, which the toy runs as `--send-buffer 1`.
+
+The choice follows a toy check of v0.9's rules in this document, at 60 nodes (seeds 7 to 16) and at
+500 (seeds 7 to 9). Offers per object type (the payload's at the acknowledgement, a column's at
+publish) were chosen first, on 2026-11-10. They were replaced on 2026-11-11, once the 500-node
+seeds showed the rows' cost to be a 60-node finding. The tables keep them as "offers per type".
+
+At 60 nodes, the median of the seeds and its range: p50 in ms, against the document before.
+
+| cell | as taken: offers at the acknowledgement for every type | offers per type | no source offers | `--send-buffer 1` | as taken, with `--send-buffer 1` |
+|---|---|---|---|---|---|
+| payload, `push` | −4 (−12 to +1) | the same | – | −42 (−53 to −12) | −42 (−53 to −15) |
+| payload, `--rebuilt none` | −4 (−9 to +6) | the same | – | −38 (−54 to −6) | −39 (−52 to −12) |
+| payload, `sil30` | −8 (−19 to +4) | the same | – | −48 (−98 to −5) | −54 (−102 to −8) |
+| payload, 1 Gbps builder (`dcb20`) | 0 (−4 to +4) | the same | – | −3 (−8 to +2) | −2 (−7 to +2) |
+| rows | +178 (+69 to +304) | 0 (−20 to +34) | +128 (−10 to +235) | −109 (−171 to −65) | +199 (−24 to +318) |
+| rows, liars (`claim20`) | +214 (+39 to +429) | −1 (−32 to +9) | – | −97 (−184 to −44) | +255 (−42 to +384) |
+| custody, 50 Mbps proposer | −24 (−46 to +10) | −5 (−34 to 0) | −38 (−61 to −6) | +22 (−77 to +69) | +10 (−48 to +61) |
+| custody, 1 Gbps proposer (`--net bld`) | +38 (+24 to +114) | −6 (−9 to +4) | +47 (+14 to +127) | +4 (−2 to +14) | +37 (+6 to +106) |
+
+**The payload's source, at the acknowledgement**, with writes that complete at once:
+- it is asked 61 % less (222 ids over three payloads against 572);
+- it uploads 2.07 copies of the message instead of 2.50, and a 1 Gbps builder 5.9 instead of 10.0;
+- 2 to 6 of its chunks come back a message at the median of the seeds, and up to 59 at one seed,
+  since its holding names them a round trip later.
+
+With `--send-buffer 1` the offers' timing changes nothing measurable there (40 asks against 45, the
+medians within 4 ms), and 0 to 2 chunks come back.
+
+**Why the rows pay at 60 nodes.** At seed 7, with the offers at publish, the proposer's relation
+peers pulled from it, while it pushed, the cells it did not push them, and completed at 1.8 to
+2.0 s. Offered each cell only at its acknowledgement, they completed 410 to 470 ms later, and the
+other nodes 56 ms later. Those pulls are also what a column's source saves at the acknowledgement
+(the medians of the seeds):
+- it is asked 88 to 99 % less (the rows' proposer 214 ids over three blocks against 6 241);
+- it uploads 5 to 28 % less (the rows' proposer 1.49 copies of its block instead of 2.07, a 1 Gbps
+  proposer 1.96 instead of 2.74, a 50 Mbps proposer 1.46 instead of 1.54).
+
+With `--send-buffer 1` the savings are about the same: 87 to 96 % of the asks and 5 to 29 % of the
+upload, against `--send-buffer 1` alone.
+
+**At 500 nodes** (degree 70, seed 7, one run each; p50 in ms, against the document before):
+
+| cell | as taken | offers per type | `--send-buffer 1` | as taken, with `--send-buffer 1` |
+|---|---|---|---|---|
+| payload, tier 4 in the all-home network | −4 | the same | −19 | −22 |
+| rows | −8 | −15 | −31 | −9 |
+| custody, 50 Mbps proposer | −48 | −30 | – | – |
+| custody, 1 Gbps proposer, a fifth of the nodes sampling | +5 | −1 | −9 | – |
+
+- **The payload's source, as taken,** is asked 22 % less (2 139 ids over six payloads against
+  2 733) and uploads 3.06 copies of the message instead of 3.24.
+- **`--send-buffer 1`** saves 0.31 copies of the payload, with v0.9's offers or without.
+
+**The two options at 500 nodes, over seeds 7 to 9.** Offers at the acknowledgement for every type,
+as taken, against offers per type, paired by seed: the median of the seeds and its range, in ms,
+and the range over the seeds of what a column's source saves.
+
+| cell | p50 | seeds later | p99 | the source's upload | its asks |
+|---|---|---|---|---|---|
+| rows | +7 (−15 to +17) | 2 of 3 | −7 (−34 to +19) | 14 to 23 % less | 95 to 97 % less |
+| rows, `--send-buffer 1` | +28 (+18 to +54) | 3 of 3 | +33 (+23 to +37) | 14 to 18 % less | 92 to 98 % less |
+| custody, 50 Mbps proposer | −26 (−38 to −18) | 0 of 3 | −41 (−62 to −30) | 8 to 9 % less | 91 to 96 % less |
+| custody, 1 Gbps proposer, a fifth of the nodes sampling | +9 (+6 to +15) | 3 of 3 | +22 (+9 to +31) | 28 to 33 % less | 57 to 69 % less |
+
+- **The rows' cost** of a column's offers at the acknowledgement is 175 ms against offers per type
+  at 60 nodes (seeds 7 to 16; 300 with `--send-buffer 1`), and 7 ms here (28).
+- **The proposer's relation peers.** At seed 7, 12 of the 499 nodes pull more than 20 cells from
+  the rows' proposer with offers per type, against 26 of 59 at 60 nodes in the document before.
+  With offers at the acknowledgement for every type they complete 18 ms later at the median (−140
+  to +292). The two of them that completed first, at 1.79 and 2.05 s, are 292 and 253 ms later.
+  The 449 nodes that pull nothing from the proposer move by 5 ms.
+- **`--send-buffer 1` on the rows** brings them 2 ms sooner (1 to 21) as taken, and 45 ms sooner
+  (12 to 58) with offers per type.
+
+**`golden-v2.txt` is re-recorded.**
+- At seed 7 every cell moves, by −10 to +2 ms at the median, −35 to +9 ms at the tail and −0.13 to
+  +0.06 copies. `golden.txt` is unchanged.
+- Against v0.9's own recording, eleven cells are within 13 ms at the median, 18 ms at the tail and
+  0.06 copies. `loss-thin` is 6 ms later and 0.14 copies lighter.
+
+**The announce relation's width and the row pull delay** (`protocol-v2.md` §8, `[D5]` and `[D8]`,
+decided 2026-11-14). Each arm is run against `base` (`ALL_JOINED` on both axes, a 1 s row delay)
+and paired with it by seed; a figure is the median over the seeds of the arm's change. The arms:
+`--col-announce SAMPLE` or `NONE`, `--row-announce NONE`, and `--row-delay 0`, `0.5` or `2`. The
+custodians' times are their warm p50 and p99, and a row member's are those of its 64th cell; ∞
+where a node never got there. *Short* counts the nodes with a group incomplete in a block, summed
+over the seeds and blocks, the arm's against `base`'s. *Copies* are data and control; *offers* are
+the arm's total against `base`'s. §8 reads them by its rule.
+
+At 60 nodes (degree 30, three blocks, seeds 7 to 16; `--setting custody` or `rows`; the 1 Gbps
+proposer `--net bld`; half withheld `--withhold 64`, with `--supernodes 10` in custody and
+`--row-subnets 16` in rows; liars `--fault claim20`, a fifth of the nodes lying about their row
+holdings):
+
+| setting | arm | custodians p50 / p99 (ms) | row member's 64th cell p50 / p99 (ms) | short: custodians; row members (arm / `base`) | copies | offers |
+|---|---|---|---|---|---|---|
+| custody | columns `SAMPLE` | +1 / +3 | – | 0 / 0 | +0.00 | −29.5 % |
+| custody | columns `NONE` | +1 / +0 | – | 0 / 0 | +0.00 | −29.6 % |
+| custody, 1 Gbps proposer | columns `SAMPLE` | −1 / −0 | – | 0 / 0 | −0.00 | −29.2 % |
+| custody, 1 Gbps proposer | columns `NONE` | −1 / −0 | – | 0 / 0 | −0.00 | −29.2 % |
+| custody, half withheld | columns `SAMPLE` | +2 / −5 | – | 0 / 0 | −0.04 | −19.4 % |
+| custody, half withheld | columns `NONE` | +4 / −4 | – | 0 / 0 | −0.04 | −19.7 % |
+| rows | columns `SAMPLE` | −10 / −26 | −13 / −14 | 0 / 0; 0 / 0 | −0.02 | −21.4 % |
+| rows | columns `NONE` | −11 / −45 | −10 / −12 | 0 / 0; 0 / 0 | −0.03 | −24.6 % |
+| rows | rows `NONE` | +156 / +138 | +∞ / +∞ | 0 / 0; 1365 / 0 | −0.45 | −31.2 % |
+| rows | delay 0 s | −4 / −5 | −28 / +9 | 0 / 0; 0 / 0 | +0.01 | −0.6 % |
+| rows | delay 0.5 s | +10 / −8 | −47 / −10 | 0 / 0; 0 / 0 | +0.02 | −0.5 % |
+| rows | delay 2 s | +161 / +181 | +893 / +888 | 0 / 0; 0 / 0 | +0.21 | +3.8 % |
+| rows, liars | columns `SAMPLE` | −12 / −15 | −11 / −414 | 3 / 1; 0 / 1 | −0.03 | −21.3 % |
+| rows, liars | columns `NONE` | −12 / −26 | −20 / −361 | 2 / 1; 1 / 1 | −0.04 | −24.5 % |
+| rows, liars | rows `NONE` | +144 / +201 | +∞ / +∞ | 3 / 1; 1444 / 1 | −0.39 | −31.5 % |
+| rows, liars | delay 0 s | −10 / −15 | −85 / +∞ | 2 / 1; 219 / 1 | +0.00 | −1.6 % |
+| rows, liars | delay 0.5 s | −7 / −14 | −80 / +∞ | 1 / 1; 154 / 1 | +0.00 | −1.2 % |
+| rows, liars | delay 2 s | +147 / +194 | +846 / −1872 | 0 / 1; 0 / 1 | +0.13 | +4.7 % |
+| rows, half withheld | columns `SAMPLE` | +8 / +16 | −21 / −40 | 0 / 0; 0 / 0 | −0.04 | −22.8 % |
+| rows, half withheld | columns `NONE` | −2 / −2 | −34 / −48 | 0 / 0; 0 / 0 | −0.06 | −25.3 % |
+| rows, half withheld | rows `NONE` | +∞ / +∞ | +∞ / +∞ | 1743 / 0; 1770 / 0 | −1.47 | −68.7 % |
+| rows, half withheld | delay 0 s | +10 / +1 | +2 / −30 | 0 / 0; 0 / 0 | −0.00 | −0.1 % |
+| rows, half withheld | delay 0.5 s | −6 / +6 | −24 / −55 | 0 / 0; 0 / 0 | −0.01 | +0.1 % |
+| rows, half withheld | delay 2 s | +386 / +333 | +860 / +818 | 0 / 0; 0 / 0 | −0.03 | +2.6 % |
+
+With liars, a row member's p99 is ∞ on some seeds of `base` as well as of the arm, so its median
+change there (−414, −361, −1872) compares finite with infinite seeds and says little.
+
+At 500 nodes (degree 70, two blocks, seeds 7 to 9, `--msgs 2`; half withheld `--withhold 64
+--row-subnets 32 --net bld`). Three seeds show a pass or a fail by the rule, not a comparison:
+
+| setting | arm | custodians p50 / p99 (ms) | row member's 64th cell p50 / p99 (ms) | short: custodians; row members (arm / `base`) | copies | offers |
+|---|---|---|---|---|---|---|
+| custody | columns `SAMPLE` | +3 / +6 | – | 0 / 0 | −0.03 | −7.1 % |
+| custody | columns `NONE` | +2 / −7 | – | 0 / 0 | −0.03 | −7.2 % |
+| rows, half withheld, 1 Gbps proposer | columns `SAMPLE` | +11 / +26 | +0 / +1 | 0 / 0; 0 / 0 | −0.14 | −26.9 % |
+| rows, half withheld, 1 Gbps proposer | columns `NONE` | +11 / +7 | −1 / −8 | 0 / 0; 0 / 0 | −0.15 | −28.5 % |
+| rows, liars | columns `NONE` | +19 / +16 | −6 / −2 | 0 / 0; 0 / 0 | −0.17 | −30.6 % |
+| rows, half withheld, 1 Gbps proposer, liars | columns `NONE` | +40 / +13 | +11 / +18 | 0 / 0; 0 / 0 | −0.17 | −30.0 % |

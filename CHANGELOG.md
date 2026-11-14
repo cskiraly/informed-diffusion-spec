@@ -16,10 +16,38 @@ writer should hand a chunk to the transport only while the connection has less t
 that bounds and what it does not, how quic-go and TCP keep it, and a note for operators on the access
 link's queue. §9 records that the measured implementation announced at publish over quic-go. The toy's
 events change in every recorded cell of `golden.txt` (at seed 7 by −14 to +1 ms at the median, −47 to
-+12 ms at the tail and −0.11 to +0.06 copies), the recording made again; `golden-v2.txt` is unchanged,
-since the next version keeps its own source. The toy takes `--payload BYTES`, the bytes of each payload
-(default 1 MiB), the compressed size following at the same ratio, so that small sizes give hand-counted cases
-(16384 bytes: K = 1, N = 2); the recorded cells are unchanged by it.
++12 ms at the tail and −0.11 to +0.06 copies), the recording made again; `golden-v2.txt` was unchanged
+by it, since the next version kept its own source until it took this rule (below). The toy takes
+`--payload BYTES`, the bytes of each payload (default 1 MiB), the compressed size following at the same
+ratio, so that small sizes give hand-counted cases (16384 bytes: K = 1, N = 2); the recorded cells are
+unchanged by it.
+
+The draft of SEACAST's next version (`protocol-v2.md`) changed since v0.6. Every decision of its §8 is
+taken, those chosen among alternatives with what was not taken: among them a protocol of its own carried
+by §7's three bindings (`[D1]`); a sampler's reach, a coverage floor built for diversity with routed
+sample requests on LiteDAS's two phases (`[D12]`); a column's and a row's offers to every joined peer,
+offers to the relations only permitted for columns (`[D5]`); the row pull delay of 1 s, shorter at a cost
+where nodes lie about their holdings (`[D8]`); the promise's length; and the window in bytes. §6.3 states
+its limits by their bounds, the values the client's. v0.7's, v0.8's and v0.9's rules are carried in,
+v0.9's acknowledgement for every object type (§4.7). The relations' upkeep is written out and runs on the
+toy's wire (§4.1: a GRAFT is answered, JOINs, GRAFTs and PRUNEs are owed at a full queue, a symmetric type
+keeps one relation both ways), and `toy/graft_check.py` checks the JOIN and GRAFT exchanges in every
+interleaving for one link and one relation, in small bounds. A PRUNE names its direction from its sender's
+side (§4.1), and a binding validates a block's cell header no later than it installs the block (§4.2). A
+source publishes at once to the links it has in a family it does not custody (§4.7, `source_pool`,
+`SOURCE_FLOOR`), the payload's too, where `protocol.md`'s source with no mesh peer sends nothing (§6.1),
+and owes a push to them that a full queue refuses, as to a relation peer (`unpush`); a
+source's own chunks go before its offers and answers (§4.12); repair keeps a floor of custodian links, and
+its sample, rebuilt cells marked seen and a custodian's alarm are options (§4.6); the probe of a claim
+judges the claimant by its own copy only, is marked so that the claimant answers it whatever the asker
+holds (`Want.probe`, once per asker and group), is kept in the asker's queue while it waits, and asks for
+a cell drawn at random among those lacked, where it asked for the lowest (§4.6, R5); and §7 says how a
+sampler rides gossipsub's wires and frames the standalone binding as Waggle does. The toy gains options
+for these (among them `--sample-cover`, `--upkeep`, `--churn`, `--col-announce`, `--row-announce`,
+`--alarm-wait` and `--rebuilt-seen`), `--topology` also loads the research harness's DAS graphs, and
+`golden-v2.txt` is recorded again where a carried rule changed its events; `toy/sampler_graph.py` and
+`toy/sampler_match.py` compute `[D12]`'s figures on graphs alone. `toy/check.py` gains a cell with stock
+gossipsub's IHAVE limits (`ihave-limits`), recorded in `golden.txt`.
 
 ## v0.8, 2026-10-28 (`bc7a0a6`)
 

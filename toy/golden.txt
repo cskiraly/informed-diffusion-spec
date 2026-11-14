@@ -11,3 +11,4 @@ rr-stripe e3438337966070e1 p50 409ms p99 496ms copies 2.47
 without-a 927199f021a3d11d p50 455ms p99 551ms copies 4.08
 without-b ccf07befba029f69 p50 435ms p99 489ms copies 3.15
 loss-thin 45725803a182bd2f p50 830ms p99 965ms copies 1.94
+ihave-limits 22142777e1153f82 p50 544ms p99 628ms copies 2.40

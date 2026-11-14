@@ -12,9 +12,12 @@ what each node received, in copies of the compressed payload (746262 bytes at 1 
 chunks' bytes) and control, as the harness's rx/node and ctrl rx/node.
 """
 import argparse
+import math
+import re
 import statistics as st
 import sys
 import time
+from collections import Counter
 
 import scenario
 import xcheck
@@ -76,7 +79,8 @@ def run(cfg, out=sys.stdout):
         s = r.get("samplers")
         if s:
             print(f"  samples {r['msg']}: {s['nodes']} samplers, p50 {s['p50']*1000:.0f}ms p99 {s['p99']*1000:.0f}ms "
-                  f"max {s['max']*1000:.0f}ms missing {s['missing']} unreachable {s['unreachable']}", file=out)
+                  f"max {s['max']*1000:.0f}ms missing {s['missing']} unreachable {s['unreachable']}; "
+                  f"the samples that arrived p50 {s['arrived_p50']*1000:.0f}ms p99 {s['arrived_p99']*1000:.0f}ms", file=out)
         s = r.get("rows")
         if s:
             print(f"  rows {r['msg']}: {s['nodes']} members at 64 cells, p50 {s['p50']*1000:.0f}ms p99 {s['p99']*1000:.0f}ms "
@@ -89,12 +93,108 @@ def run(cfg, out=sys.stdout):
           f"copies {summary['copies']:.2f}  [{sim.events} events, {time.time()-t0:.0f}s]", file=out)
     if sim.inv is not None:
         sim.inv.report(out)
+    if cfg.get("MAX_IHAVE_MESSAGES", math.inf) < math.inf or cfg.get("MAX_IHAVE_LENGTH", math.inf) < math.inf:
+        held = sum(nd.held_back for nd in sim.nodes.values())
+        print(f"  ihave limits: {held} asks held back to the next heartbeat", file=out)
+    if cfg.get("upkeep"):                       # --upkeep on: protocol-v2.md §4.1's messages on the wire
+        tot = sum((nd.relation_msgs for nd in sim.nodes.values()), Counter())
+        print(f"  upkeep: {tot['Join']} JOINs, {tot['Graft']} GRAFTs, {tot['Prune']} PRUNEs sent; the coverage floor "
+              f"short {sum(nd.cover_gaps for nd in sim.nodes.values())} times, "
+              f"{sum(nd.cover_opened for nd in sim.nodes.values())} sampling-only links opened", file=out)
+    if cfg.get("churn"):
+        print(f"  churn: {len(sim.churn_log)} link replacements; {sim.churn_dropped} entries dropped on closed links",
+              file=out)
+    if cfg.get("keep_floor"):
+        print(f"  keep-floor: {len(sim.floor_log)} links opened to custodians of a column below the floor of "
+              f"{cfg['F_LO']}, by {len({x for _, x, _, _ in sim.floor_log})} nodes", file=out)
+    if cfg.get("ALARM_WAIT"):                   # each count against its bound
+        tot = Counter()
+        for nd in sim.nodes.values():
+            tot.update(nd.alarm)
+        cells = sum(len(nd.alarm_cells) for nd in sim.nodes.values())
+        got = sum(1 for nd in sim.nodes.values() for (g, b) in nd.alarm_cells
+                  if nd.ns["received"][g].has(b) or nd.ns["rebuilt"][g].has(b))
+        print(f"  alarm: {tot['sent']} sent by {sum(1 for nd in sim.nodes.values() if nd.alarm_cells)} custodians for "
+              f"{cells} cells (at most {cells * cfg['ALARM_MAX']}), {got} of the cells held at the end; members kept "
+              f"{tot['kept']} as standing asks, {tot['answered']} answered, {tot['held at once']} answered at once "
+              f"(held), {tot['alarms refused by a hoarder']} refused by a hoarder; {tot['asks of a claimant']} asks of a claimant "
+              f"(at most {tot['kept']}), {tot['broken']} broken, {tot['rebuilds']} rebuilds on an alarm; "
+              f"{tot['no member left']} cells with no member left to ask", file=out)
+    if cfg.get("hoard_column"):                 # the fault's known answer: per block, the custodians of each row's hidden
+        tot = Counter()                         #   column but the row's rebuilders, where no honest node rebuilt the row
+        for nd in sim.nodes.values():
+            tot.update(nd.alarm)
+        faulty = cfg["faulty"]
+        for k, ((_, groups), pub) in enumerate(zip(sim.msgs, sim.pubs)):
+            short, hidden, honest = set(), 0, 0
+            for rg in (g for g in groups if sim.gtype.get(g) == "row"):
+                x = sim.hoard_x.get(sim.gsub.get(rg))
+                if x is None:
+                    continue
+                hidden += 1
+                if any(nd.ns["rebuilt"].get(rg) for i, nd in sim.nodes.items() if i not in faulty):
+                    honest += 1
+                    continue
+                short |= {i for i, nd in sim.nodes.items()
+                          if i != pub and x in nd.custody and not nd.ns["rebuilt"].get(rg)}
+            print(f"  hoardcol block {k + 1}: {hidden} rows with a hidden column, {honest} rebuilt by an honest node; "
+                  f"{len(short)} custodians of the others' hidden columns, not rebuilders", file=out)
+        print(f"  hoardcol: {tot['probe at the hidden index']} probes at a hidden index, {tot['hidden refused']} asks "
+              f"for a hidden cell refused; {sum(1 for x in sim.hoard_x.values() if x is None)} subnets with no column "
+              f"to hide", file=out)
     if cfg.get("MERGE_HOLDINGS"):
         merged, sent = (sum(nd.merged[k] for nd in sim.nodes.values()) for k in (0, 1))
         print(f"  merged holdings: {merged} of {sent} holdings of published groups went into one still queued", file=out)
     if sim.digest is not None:
         print(f"digest {sim.digest.hexdigest()}", file=out)
     return summary, rows
+
+
+FAULT = r"(wh|sil|claim|hoardcol|hoardm|hoard)(\d+)"       # sim.py's --fault kinds
+
+
+def das_dump(ap, a, argv, cfg, topo):
+    """A DAS dump (xcheck.apply_das) under --doc v2 --setting custody or rows. The flags whose values the
+    dump gives are refused; a running cell's blocks give --withhold and cap --msgs; --fault, if given,
+    names the behaviour of the dump's faulty set, whose draw the toy's must equal (both are the harness's
+    failSelect), and without it that set withholds or is silent, as the dump says. The header prints the
+    dump's values. Returns the notes worth printing."""
+    given = lambda flag: any(x == flag or x.startswith(flag + "=") for x in argv)
+    if a.doc != "v2" or a.setting not in ("custody", "rows"):
+        ap.error("a DAS dump runs under --doc v2 --setting custody or rows")
+    for flag in ("--row-subnets", "--reconstructors", "--repair-floor", "--source-floor", "--supernodes",
+                 "--supernode-link", "--samplers", "--sample-cover", "--cgc", "--blobs"):
+        if given(flag):
+            ap.error(f"{flag}: the dump gives it")
+    das = topo["das"]
+    if a.setting == "custody" and (das.get("row_subnets") or das["reconstructors"]):
+        ap.error("a rows network: run it with --setting rows")
+    if a.setting == "rows" and not das.get("row_subnets"):
+        ap.error("--setting rows needs a dump with row subnets")
+    try:
+        notes = xcheck.apply_das(cfg, topo, cfg["latency"])
+    except ValueError as err:
+        ap.error(f"{a.topology}: {err}")
+    dd = cfg["das_dump"]
+    if dd["blocks"]:                                   # a running cell: what its blocks did
+        w = len(dd["withheld"])
+        if given("--withhold") and a.withhold != w:
+            ap.error(f"--withhold {a.withhold}: the dump's blocks withhold {w}")
+        cfg["withhold"] = w
+        cfg["msgs"] = min(cfg["msgs"], dd["blocks"])
+    if a.fault:
+        m = re.fullmatch(FAULT, a.fault)
+        if m is None:
+            ap.error(f"--fault {a.fault}: not one of the toy's kinds")
+        if scenario.fail_select(cfg["seed"], cfg["nodes"], int(m[2])) != cfg["faulty"]:
+            ap.error(f"--fault {a.fault}: the toy's draw is not the dump's faulty set ({len(cfg['faulty'])} nodes)")
+        if (m[1] == "sil") != cfg["silent"]:
+            ap.error(f"--fault {a.fault}: the dump's faulty set is {'' if cfg['silent'] else 'not '}silent")
+        cfg["fault"] = a.fault
+    cfg["xcheck"] = a.xcheck                           # its counters are tier 4's: on only when asked
+    a.blobs, a.cgc, a.source_floor, a.withhold = cfg["blobs"], cfg["cgc"], cfg["SOURCE_FLOOR"], cfg["withhold"]
+    a.row_subnets, a.repair_floor = cfg["ROW_SUBNETS"], cfg["REPAIR_FLOOR"]
+    return notes
 
 
 def main(argv):
@@ -123,14 +223,17 @@ def main(argv):
     ap.add_argument("--rb-max", type=int, default=0, help="push: at most this many chunks per peer (0: its whole shortfall)")
     ap.add_argument("--fault", default="", help="wh<pct> withholders or sil<pct> silent nodes, as the harness picks them; "
                     "v2: claim<pct> claim their row and never answer, hoard<pct> rebuild and claim, answer only the probe and repair nothing, "
-                    "hoardm<pct> the same but push each row member the row's cells of its custody columns")
+                    "hoardm<pct> the same but push each row member the row's cells of its custody columns; "
+                    "hoardcol<pct> (option, with --rebuilt-seen on) repair every withheld column but one per subnet, serving none of it")
     ap.add_argument("--loss-data", type=int, default=0, help="percent of chunks every node drops at admission")
     ap.add_argument("--up", type=float, default=0, help="Mbps: every home node's uplink (downlink twice it)")
     ap.add_argument("--down", type=float, default=0, help="Mbps: every home node's downlink")
     ap.add_argument("--topology", default="", help="the harness's SEGMENT_XC_DUMP file: run on its graph, latencies, "
-                    "link classes, meshes, publishers and faulty set (--net, --nodes, --fault are then ignored)")
+                    "link classes, meshes, publishers and faulty set (--net, --nodes, --fault are then ignored); a DAS "
+                    "dump (with a das record) under --doc v2 --setting custody or rows also gives custody, supernodes, "
+                    "reconstructors, row subnets and the withheld columns, and --fault then names its faulty set's behaviour")
     ap.add_argument("--xcheck", action="store_true", help="print the harness's xcheck line per message "
-                    "(per-rule counts and invariants at publish + 3 s); on with --topology")
+                    "(per-rule counts and invariants at publish + 3 s); on with --topology, but for a DAS dump")
     ap.add_argument("--dc-mbps", type=float, default=0, help="Mbps: every datacenter node's link, both ways (default 1000)")
     ap.add_argument("--builder-mbps", type=float, default=0, help="Mbps: a datacenter builder's link, both ways (default 1000)")
     ap.add_argument("--latency-only", action="store_true")
@@ -169,7 +272,24 @@ def main(argv):
                          "e.g. 3:1,6:2; the protocol-v2.md parameter REPAIR_SAMPLE")
     ap.add_argument("--repair-reask", default="off", choices=("off", "on"), help="rows (option, R5): on, a lost sample cell is "
                          "re-asked of another custodian of its column, with the extension or, at the last step, in one more wait")
+    ap.add_argument("--rebuilt-seen", default="off", choices=("off", "on"), help="custody, rows (option): on, a node marks "
+                         "the cells it rebuilt seen (decode_group), so pushed copies of them are acknowledged, not validated "
+                         "or forwarded again; makes --fault hoardm strict")
+    ap.add_argument("--repair-bias", type=float, default=0.0, help="rows (option): the share of each repair-sample step's "
+                         "new cells drawn first from the cells lacked in columns no linked member of the row's subnet "
+                         "custodies (a claimant aside); 0, every cell drawn uniformly as the document does")
     ap.add_argument("--sample-wait", type=float, default=0.5, help="rows: seconds before each step of the repair sample is judged")
+    ap.add_argument("--alarm-wait", type=float, default=0.0, help="rows (option): seconds after known_at at which an honest "
+                    "custodian still lacking a cell no peer holds asks a member of the row's subnet for it (a standing WANT), and "
+                    "a member that deferred on a verified claim asks the claimant, rebuilding if that promise breaks; 0: off")
+    ap.add_argument("--alarm-jitter", type=float, default=0.2, help="--alarm-wait: up to this many seconds more, per custodian")
+    ap.add_argument("--alarm-next", type=float, default=1.5, help="--alarm-wait: seconds before the next member is asked")
+    ap.add_argument("--alarm-max", type=int, default=3, help="--alarm-wait: members asked per cell, at most")
+    ap.add_argument("--col-announce", default="ALL_JOINED", choices=("ALL_JOINED", "SAMPLE", "NONE"),
+                    help="custody, rows: the columns' ANNOUNCE_EXTRA ([D5]): offers beyond the relations to every joined peer "
+                         "whose interest holds the cell, at forward time; SAMPLE: the heartbeat's paced gossip; NONE: none")
+    ap.add_argument("--row-announce", default="ALL_JOINED", choices=("ALL_JOINED", "SAMPLE", "NONE"),
+                    help="rows: the rows' ANNOUNCE_EXTRA ([D5]), as --col-announce")
     ap.add_argument("--row-delay", type=float, default=1.0, help="rows: seconds from the block before a member asks for row cells (R7, [D8])")
     ap.add_argument("--phase3", type=float, default=2.0, help="rows: seconds from the block before a member decodes a row still short (phase 3)")
     ap.add_argument("--phase3-jitter", type=float, default=0.2, help="rows: random extra seconds on the phase-3 delay")
@@ -182,6 +302,31 @@ def main(argv):
     ap.add_argument("--samplers", type=int, default=0, help="custody: percent of nodes that sample instead of custodying (interest DECLARED, duty NONE)")
     ap.add_argument("--samples", type=int, default=8, help="custody: cells each sampler declares per block")
     ap.add_argument("--sample-retry", type=float, default=2.0, help="custody: seconds a sampler waits before asking another link")
+    ap.add_argument("--sample-cover", type=int, default=0, help="custody: protocol-v2.md's SAMPLE_COVER [D12]: each sampler adds "
+                    "sampling-only links until every column has this many custodians among its links (the coverage floor, §1.3); 0: its links as drawn")
+    ap.add_argument("--cover-high", type=int, default=1, help="custody: COVER_HIGH [D12]: columns a node of high custody (more than "
+                    "--cgc, or the proposer) counts for in the coverage floor (§1.3: diversity, not the fewest links); a large value counts it in full")
+    ap.add_argument("--route", default="on", choices=("on", "off"), help="custody: protocol-v2.md's routed sample requests [D12]: a sample "
+                    "no link serves goes to a link with duty FORWARD, which passes it one step on (§4.5, §4.10)")
+    ap.add_argument("--churn", type=int, default=0, help="with --upkeep on: link replacements per message gap; in "
+                    "each, a node other than the source closes one of its links and opens one to a node it has none "
+                    "with, at an instant drawn from the churn's own generator (0: none)")
+    ap.add_argument("--keep-floor", default="off", choices=("off", "on"), help="custody, with --upkeep on: protocol-v2.md "
+                    "§4.1's keep_floor for the columns, the custodian floor per column the graph is built with (--floor) "
+                    "kept at runtime: at its heartbeat a custodian short of it in a column opens links to custodians it "
+                    "has none with (off, the ablation: keep_floor finds no candidates, and the floor is met at setup only)")
+    ap.add_argument("--upkeep", default="off", choices=("off", "on"), help="protocol-v2.md §4.1 on the wire: JOINs, "
+                    "GRAFTs and PRUNEs sent and read, and the heartbeat's maintain_relations given candidates (off: the "
+                    "relations stay as built, the messages are not sent)")
+    ap.add_argument("--symmetric", default="on", choices=("on", "off"), help="the payload's SYMMETRIC (protocol-v2.md "
+                    "§4.1, §6.1: v0.3's mesh, one relation both ways); off: its in- and out-relations kept apart, the "
+                    "upkeep before 2026-11-09")
+    ap.add_argument("--prune-backoff", type=float, default=0.0, help="seconds: every type's PRUNE_BACKOFF (protocol-v2.md "
+                    "§4.1): after a PRUNE received, its relation is not grafted again before then (0: none)")
+    ap.add_argument("--route-hops", type=int, default=1, help="custody: ROUTE_HOPS, the forwarding steps of a routed request (1: two hops)")
+    ap.add_argument("--sample-retry2", type=float, default=0.5, help="custody: SAMPLE_RETRY2, the second phase's wait per peer (§4.10)")
+    ap.add_argument("--sample-outstanding", type=int, default=4, help="custody: SAMPLE_OUTSTANDING, second-phase asks in flight per block (§4.10)")
+    ap.add_argument("--forward-limit", type=float, default=math.inf, help="custody: FORWARD_LIMIT, routed requests a node passes on per peer and block")
     ap.add_argument("--no-invariants", action="store_true", help="--doc v2: skip the invariants report (invariants.py)")
     ap.add_argument("--answers-first", default="off",
                     choices=("off", "on", "v03", "oldest", "line", "others", "fresh", "late", "othersans"),
@@ -201,18 +346,30 @@ def main(argv):
     ap.add_argument("--merge-holdings", default="off", choices=("off", "on"),
                     help="--doc v2: protocol-v2.md §6.3's MERGE_HOLDINGS, an option: a holding of a group the node publishes "
                          "that is still in its queue takes the newer chunks instead of a second holding (§4.2, §4.7)")
+    ap.add_argument("--ihave-limits", default="",
+                    help="MESSAGES,LENGTH: gossipsub's two IHAVE limits, the client's (protocol.md §4.4, §8.2; protocol-v2.md "
+                         "§4.3): offer-bearing RPCs per peer and heartbeat, and asks in reply to them; the asks over either "
+                         "wait for the next heartbeat's retry (stock gossipsub: 10,5000). Empty: no limit")
     a = ap.parse_args(argv)
+    limits = [float(x) for x in a.ihave_limits.split(",")] if a.ihave_limits else [math.inf, math.inf]
     cfg = dict(CFG, seed=a.seed, nodes=a.nodes, msgs=a.msgs, degree=a.degree, CHECK_TIME=a.check_ms / 1000,
-               digest=a.digest, doc=a.doc, setting=a.setting, blobs=a.blobs, cgc=a.cgc, F_LO=a.floor,
+               digest=a.digest, doc=a.doc, setting=a.setting, blobs=a.blobs, cgc=a.cgc, F_LO=a.floor, upkeep=a.upkeep == "on",
+               churn=a.churn, keep_floor=a.keep_floor == "on", symmetric=a.symmetric, prune_backoff=a.prune_backoff,
                SOURCE_FLOOR=a.source_floor, REPAIR_FLOOR=a.repair_floor, samplers=a.samplers, samples=a.samples, SAMPLE_RETRY=a.sample_retry,
-               ROW_SUBNETS=a.row_subnets, reconstructors=a.reconstructors, withhold=a.withhold, ROW_DELAY=a.row_delay,
+               SAMPLE_COVER=a.sample_cover, COVER_HIGH=a.cover_high, route=a.route, ROUTE_HOPS=a.route_hops, SAMPLE_RETRY2=a.sample_retry2,
+               SAMPLE_OUTSTANDING=a.sample_outstanding, FORWARD_LIMIT=a.forward_limit,
+               ROW_SUBNETS=a.row_subnets, reconstructors=a.reconstructors, withhold=a.withhold, ROW_DELAY=a.row_delay, COL_ANNOUNCE=a.col_announce, ROW_ANNOUNCE=a.row_announce,
                PHASE3=a.phase3, PHASE3_JITTER=a.phase3_jitter, DEFER_WINDOW=a.defer_window,
                supernodes=a.supernodes, PHASE2=a.phase2, PHASE2_JITTER=a.phase2_jitter, supernode_link=a.supernode_link,
                repair_budget=a.repair_budget, repair_keepers=a.repair_keepers, keeper_claims=a.keeper_claims, repair_push=a.repair_push, PROMISE=a.promise, ASK_UPLINK=a.ask_uplink * 1e6, promise_mode=a.promise_mode,
-               member_check=a.member_check, SAMPLE_WAIT=a.sample_wait, REPAIR_REASK=a.repair_reask == "on",
+               member_check=a.member_check, rebuilt_seen=a.rebuilt_seen, REPAIR_BIAS=a.repair_bias, SAMPLE_WAIT=a.sample_wait, REPAIR_REASK=a.repair_reask == "on",
                REPAIR_SAMPLE=[tuple(int(x) for x in step.split(":")) for step in a.repair_sample.split(",")] if a.repair_sample else None,
                invariants=(a.doc == "v2" and not a.no_invariants), answers_first=a.answers_first, answer_due=a.answer_due,
-               source_offers=a.source_offers, MERGE_HOLDINGS=a.merge_holdings == "on")
+               source_offers=a.source_offers, MERGE_HOLDINGS=a.merge_holdings == "on",
+               MAX_IHAVE_MESSAGES=limits[0], MAX_IHAVE_LENGTH=limits[1],
+               ALARM_WAIT=a.alarm_wait, ALARM_JITTER=a.alarm_jitter, ALARM_NEXT=a.alarm_next, ALARM_MAX=a.alarm_max)
+    if a.fault.startswith("hoardcol") and a.rebuilt_seen != "on":
+        ap.error("--fault hoardcol is meant strict: with --rebuilt-seen on")
     if a.payload:
         cfg["payload"], cfg["COMPRESSED"] = a.payload, round(a.payload / CFG["COMPRESSION"])
     for k in filter(None, a.without.split(",")):
@@ -228,41 +385,65 @@ def main(argv):
     cfg["latency"] = scenario.geo_latency(a.seed)
     cfg["topology"] = scenario.topology
     cfg["xcheck"] = a.xcheck or bool(a.topology)
-    notes = []
+    notes, graph = [], None
     if a.topology:
-        topo = xcheck.load(a.topology)
-        if topo["net"]["seed"] != a.seed:
-            print(f"note: --seed {a.seed} replaced by the dump's seed {topo['net']['seed']}")
-            cfg["seed"] = topo["net"]["seed"]
+        try:
+            topo = xcheck.load(a.topology)
+        except ValueError as err:
+            ap.error(str(err))
+        try:
+            xcheck.check(topo)
+        except ValueError as err:
+            ap.error(f"{a.topology}: {err}")
+        base = topo["net"] or topo["network"]
+        if base["seed"] != a.seed:
+            print(f"note: --seed {a.seed} replaced by the dump's seed {base['seed']}")
+            cfg["seed"] = base["seed"]
             cfg["latency"] = scenario.geo_latency(cfg["seed"])
-        notes = xcheck.apply(cfg, topo, cfg["latency"])
-        if len(topo["meshes"]) < a.msgs:
-            cfg["msgs"] = len(topo["meshes"])
+        if topo["das"] is None:
+            if topo["net"] is None:
+                ap.error(f"{a.topology}: a dump without a das record needs its net record")
+            notes = xcheck.apply(cfg, topo, cfg["latency"])
+            if len(topo["meshes"]) < a.msgs:
+                cfg["msgs"] = len(topo["meshes"])
+        else:
+            notes = das_dump(ap, a, argv, cfg, topo)
+            graph = xcheck.graph_line(cfg, topo["shape"])
     if a.latency_only:
         print(latency_summary(cfg["latency"](a.nodes, None), a.nodes))
         return
+    recon = (f"{a.reconstructors}%" if cfg.get("das_dump") is None
+             else f"{len(cfg['das_dump']['reconstructors'])} (dump)")
+    supers = f"{a.supernodes}% ({a.supernode_link})" if cfg.get("das_dump") is None else f"{cfg['supernodes']} (dump)"
     print(f"toy: doc={a.doc}{' setting=' + a.setting if a.doc == 'v2' else ''}"
           f"{f' blobs={a.blobs} cgc={a.cgc} floor={a.floor}/{a.source_floor}' if a.setting in ('custody', 'rows') else ''}"
-          f"{f' subnets={a.row_subnets} reconstructors={a.reconstructors}% withhold={a.withhold} row-delay={a.row_delay:g}s phase3={a.phase3:g}+{a.phase3_jitter:g}s defer={a.defer_window:g}s repair-floor={a.repair_floor}' if a.setting == 'rows' else ''}"
+          f"{f' subnets={a.row_subnets} reconstructors={recon} withhold={a.withhold} row-delay={a.row_delay:g}s phase3={a.phase3:g}+{a.phase3_jitter:g}s defer={a.defer_window:g}s repair-floor={a.repair_floor}' if a.setting == 'rows' else ''}"
           f"{f' samplers={a.samplers}% samples={a.samples} retry={a.sample_retry:g}s' if a.samplers else ''}"
+          f"{f' cover={a.sample_cover}/{a.cover_high} route={a.route}/{a.route_hops} retry2={a.sample_retry2:g}s outstanding={a.sample_outstanding} forward-limit={a.forward_limit:g}' if a.samplers else ''}"
           f"{f' withhold={a.withhold}' if a.withhold and a.setting == 'custody' else ''}"
-          f"{f' supernodes={a.supernodes}% ({a.supernode_link}) phase2={a.phase2:g}+{a.phase2_jitter:g}s' if a.supernodes and a.setting in ('custody', 'rows') else ''}"
+          f"{f' supernodes={supers} phase2={a.phase2:g}+{a.phase2_jitter:g}s' if cfg.get('supernodes') and a.setting in ('custody', 'rows') else ''}"
           f" net={a.net if not a.topology else 'dump'} seed={cfg['seed']} n={cfg['nodes']} msgs={cfg['msgs']} without={a.without or '-'} stripe={a.stripe} uplink={a.uplink} rebuilt={a.rebuilt}"
           f"{' jitter=%gms' % a.rb_jitter_ms if a.rb_jitter_ms else ''}{' rbmax=%d' % a.rb_max if a.rb_max else ''}"
           f"{' fault=' + a.fault if a.fault else ''}{' answers-first=' + a.answers_first if a.answers_first != 'off' else ''}"
           f"{' source-offers=' + a.source_offers if a.source_offers != 'on' else ''}"
+          f"{' col-announce=' + a.col_announce if a.col_announce != 'ALL_JOINED' else ''}"
+          f"{' row-announce=' + a.row_announce if a.row_announce != 'ALL_JOINED' else ''}"
           f"{' repair-budget=on' if a.repair_budget == 'on' else ''}"
           f"{' repair-keepers=' + a.repair_keepers if a.repair_keepers != 'push' else ''}"
           f"{' keeper-claims=' + a.keeper_claims if a.keeper_claims != 'defer' else ''}"
           f"{' member-check=off' if a.member_check == 'off' else ''}"
           f"{' repair-sample=' + a.repair_sample + ' wait=%gs' % a.sample_wait if a.repair_sample else ''}"
-          f"{' reask' if a.repair_sample and a.repair_reask == 'on' else ''}"
+          f"{' reask' if a.repair_sample and a.repair_reask == 'on' else ''}{' rebuilt-seen=on' if a.rebuilt_seen == 'on' else ''}{f' repair-bias={a.repair_bias:g}' if a.repair_bias else ''}"
+          f"{f' alarm={a.alarm_wait:g}+{a.alarm_jitter:g}s next={a.alarm_next:g}s max={a.alarm_max}' if a.alarm_wait else ''}"
           f"{' repair-push=' + a.repair_push if a.repair_push != 'push' else ''}{f' promise={a.promise:g}s' if a.promise != 0.4 else ''}{f' ask-uplink={a.ask_uplink:g}' if a.ask_uplink != 50 else ''}{' promise-mode=' + a.promise_mode if a.promise_mode != 'fixed' else ''}"
           f"{' loss=%d%%' % a.loss_data if a.loss_data else ''}{' up=%g' % a.up if a.up else ''}{' down=%g' % a.down if a.down else ''}"
           f"{' dc=%g' % a.dc_mbps if a.dc_mbps else ''}{' builder=%g' % a.builder_mbps if a.builder_mbps else ''}"
           f"{' merge-holdings=on' if a.merge_holdings == 'on' else ''}{' send-buffer=%d' % a.send_buffer if a.send_buffer else ''}"
+          f"{' ihave-limits=' + a.ihave_limits if a.ihave_limits else ''}"
           f"{' payload=%d' % a.payload if a.payload else ''}"
           f"{' topology=' + a.topology if a.topology else ''}")
+    if graph:
+        print(graph)
     for note in notes:
         print(f"note: {note}")
     run(cfg)

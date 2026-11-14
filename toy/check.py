@@ -36,6 +36,7 @@ CELLS = {                               # name -> run.py's arguments on top of B
     "without-a": ["--without", "8,9,12,15"],
     "without-b": ["--without", "11,13,14,17"],
     "loss-thin": ["--loss-data", "10", "--up", "20"],
+    "ihave-limits": ["--ihave-limits", "10,5000"],   # stock gossipsub's: asks held back to the heartbeat (§4.4)
 }
 WARM = re.compile(r"^warm median: (p50 \S+ p99 \S+ copies \S+)", re.M)
 DIGEST = re.compile(r"^digest ([0-9a-f]{64})$", re.M)

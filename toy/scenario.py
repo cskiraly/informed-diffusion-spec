@@ -137,16 +137,17 @@ def row_subnet(node_id, count):
     return int.from_bytes(hashlib.sha256(node_id).digest()[8:16], "little") % count
 
 
-def family_topology(conns, members, rng, D, floor, exclude=()):
+def family_topology(conns, members, rng, D, floor, exclude=(), top_up=True):
     """Top up the connection graph so that every member of a family has `floor` fellow members as
     peers (or all there are), as peer search for subnet coverage does, and build a gossipsub mesh
     per family on the members' subgraph. members: {family: [nodes]}; nodes in `exclude` (the
-    source) get no top-ups here and sit in no mesh."""
+    source) get no top-ups here and sit in no mesh. top_up=False: the graph is taken as it is (a
+    harness dump's), and only the meshes are built."""
     fams_of = {}
     for fam, ms in members.items():
         for v in ms:
             fams_of.setdefault(v, []).append(fam)
-    order = [v for v in conns if v not in exclude and v in fams_of]
+    order = [v for v in conns if v not in exclude and v in fams_of] if top_up else []
     rng.shuffle(order)
     for v in order:
         for fam in sorted(fams_of[v]):
@@ -166,7 +167,8 @@ def family_topology(conns, members, rng, D, floor, exclude=()):
     return meshes
 
 
-def custody_topology(n, d, D, rng, custody, floor=6, source_floor=2, row_subnets=None, repair_floor=0, repair_rng=None):
+def custody_topology(n, d, D, rng, custody, floor=6, source_floor=2, row_subnets=None, repair_floor=0, repair_rng=None,
+                     samplers=(), sample_cover=0, cover_rng=None, cover_high=1, base_custody=8):
     """Connections and a mesh per column (and per row subnet) for the custody and row settings. The
     base is the random d-regular graph; then each node adds custodian peers until it has `floor` of
     them for every column it custodies (or all there are), the source, node 1, until it has
@@ -176,7 +178,12 @@ def custody_topology(n, d, D, rng, custody, floor=6, source_floor=2, row_subnets
     `repair_floor`, each row member adds custodian peers until it has that many for every column
     it does not custody (the rebuilders' fanout, protocol-v2.md §4.6), drawn from `repair_rng` after
     the meshes, so that the graph and the meshes are the same with and without it and these links
-    are in no mesh. Returns the connections, the meshes and the number of links the floor added."""
+    are in no mesh. With `sample_cover` = t, each of `samplers` then adds sampling-only links until
+    every column has t custodians among its links (protocol-v2.md §1.3, the coverage floor), by
+    `sample_cover_links`, drawn from `cover_rng`, a node custodying more than `base_custody` columns
+    counting for at most `cover_high` of them (the diversity floor); node 1, the block's proposer,
+    counts so where it is already a link and is never added (proposers rotate). Returns the connections, the meshes, the
+    number of links the repair floor added and the sampling-only links added per sampler."""
     conns = random_regular(n, d, rng)
     custodians = {c: [v for v in conns if v != 1 and c in custody[v]] for c in range(NUMBER_OF_COLUMNS)}
     meshes = family_topology(conns, custodians, rng, D, floor, exclude={1})
@@ -207,7 +214,65 @@ def custody_topology(n, d, D, rng, custody, floor=6, source_floor=2, row_subnets
                     conns[v].add(u)
                     conns[u].add(v)
                     added += 1
-    return conns, meshes, row_meshes, added
+    cover = {}
+    if sample_cover:                                    # the coverage floor, after everything else: the graph and
+        mask = {v: sum(1 << c for c in custody[v]) for v in conns}   #   the meshes are those of a run without it
+        for v in sorted(samplers):
+            high = lambda u: len(custody[u]) > base_custody
+            new = sample_cover_links([(mask[u], high(u)) for u in sorted(conns[v])],
+                                     [(u, mask[u], high(u)) for u in sorted(conns) if u != v and u != 1 and mask[u]
+                                      and u not in conns[v]], sample_cover, cover_rng, cover_high)
+            for u in new:
+                conns[v].add(u)
+                conns[u].add(v)
+            cover[v] = len(new)
+    return conns, meshes, row_meshes, added, cover
+
+
+def given_meshes(conns, D, rng, custody, row_subnets=None):
+    """custody_topology's meshes on a given graph (a harness dump's, run.py --topology), taken whole:
+    no floor, fanout, repair or coverage link is added. Returns the meshes per column, and per row
+    subnet with row_subnets (else None)."""
+    custodians = {c: [v for v in conns if v != 1 and c in custody[v]] for c in range(NUMBER_OF_COLUMNS)}
+    meshes = family_topology(conns, custodians, rng, D, 0, exclude={1}, top_up=False)
+    row_meshes = None
+    if row_subnets:
+        members = {}
+        for v, s in row_subnets.items():
+            if s is not None:
+                members.setdefault(s, []).append(v)
+        row_meshes = family_topology(conns, members, rng, D, 0, exclude={1}, top_up=False)
+    return meshes, row_meshes
+
+
+def sample_cover_links(have, cands, t, rng, cover_high=1):
+    """protocol-v2.md §4.1's keep_coverage on column masks: the candidates (node, mask, high) added, each
+    the one covering the most columns still short of t custodians, ties at random, until every column
+    has t among `have` (the (mask, high) of the links already there) and the added; a node of high
+    custody covers at most `cover_high` of the short columns, its lowest (`counted`). For t = 1 and
+    high custody counted in full, a greedy multi-cover (sampler_graph.py, floor_links)."""
+    need = [t] * NUMBER_OF_COLUMNS
+
+    def counted(h, high):
+        cols = [c for c in range(NUMBER_OF_COLUMNS) if h >> c & 1 and need[c] > 0]
+        return cols[:cover_high] if high else cols
+
+    for h, high in have:
+        for c in counted(h, high):
+            need[c] -= 1
+    pool = list(cands)
+    rng.shuffle(pool)                                   # ties broken at random
+    out = []
+    while any(n > 0 for n in need):
+        gains = [len(counted(h, high)) for _, h, high in pool]
+        if not gains or max(gains) == 0:
+            return out                                  # nobody left can cover it: the floor stays short
+        k = gains.index(max(gains))
+        u, h, high = pool.pop(k)
+        out.append(u)
+        for c in counted(h, high):
+            need[c] -= 1
+    return out
 
 
 def fail_select(seed, n, pct, domain=0xF1F1F1F1F1F1F1F1):

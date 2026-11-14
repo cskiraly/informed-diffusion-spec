@@ -11,6 +11,7 @@ Network model (deliberately simple; README.md says what it leaves out):
   downlink has carried everything that reached it first.
 Processing takes no time, as in the harness's virtual clock.
 """
+import bisect
 import hashlib
 import heapq
 import math
@@ -83,6 +84,7 @@ class Sim:
         self.grow = {}                         # (block root, blob row) -> row group
         self.gcolgroup = {}                    # (block root, column) -> column group
         self.custody = {}                      # node -> set of columns (the custody setting)
+        self.hoard_x = {}                      # --fault hoardcol: row subnet -> the withheld column its hoarders hide
         self.events = 0
         self.recorder = None                   # xcheck.Recorder, when run.py installs one
         # --send-buffer: the bytes a connection's transport accepts ahead of the link; a writer waits
@@ -92,8 +94,27 @@ class Sim:
             raise ValueError("--send-buffer needs the processor-sharing uplink")
         self.digest = hashlib.sha256() if cfg.get("digest") else None
         self.inv = Checker(self) if cfg.get("invariants") else None
+        # --churn R (with --upkeep on): R link replacements in each message's gap, at instants drawn from
+        # their own generator; a closed link's entries still on the wire are dropped at arrival (epoch)
+        self.churn = cfg.get("churn", 0)
+        if self.churn and not cfg.get("upkeep"):
+            raise ValueError("--churn needs --upkeep on: links and relations follow the JOINs only then")
+        self.churn_rng = random.Random(cfg["seed"] * 7919 + 3301)
+        self.epoch, self.entry_epoch = {}, {}
+        self.churn_log, self.churn_dropped = [], 0
+        # --keep-floor on (with --upkeep on, custody): protocol-v2.md §4.1's keep_floor for the columns, the
+        # custodian floor per column the graph is built with (scenario.family_topology) kept at runtime: at
+        # its heartbeat a custodian short of F_LO custodian links in a column opens links to custodians it has
+        # none with, drawn from the floor's own generator, so the other draws stay the same (node.py's
+        # floor_links, floor_candidates, open_link); off, the document's keep_floor finds no candidates
+        self.keep_floor = cfg.get("keep_floor", False)
+        if self.keep_floor and not (cfg.get("upkeep") and cfg.get("setting") == "custody"):
+            raise ValueError("--keep-floor needs --upkeep on and --setting custody")
+        self.floor_rng = random.Random(cfg["seed"] * 7919 + 5303)
+        self.floor_log = []
         self._ids = {}
         self._custody_cache = {}
+        self._dump_ids = set()                 # node ids whose custody and row subnet a harness dump gave
         self._build()
 
     # ---- the clock
@@ -133,6 +154,8 @@ class Sim:
         key = (node_id, count)
         s = self._custody_cache.get(key)
         if s is None:
+            if node_id in self._dump_ids:               # a dump's custody is seeded at _build, at each node's count
+                raise ValueError(f"custody of a dumped node asked at count {count}, not its own")
             s = self._custody_cache[key] = (set(range(COLUMNS)) if count >= COLUMNS
                                             else scenario.custody_columns(node_id, count))
         return s
@@ -154,24 +177,31 @@ class Sim:
         c, n = self.cfg, self.cfg["nodes"]
         classes = c["classes"](n, self.rng)                    # node id -> {"up", "down"}
         if c.get("fault"):                                     # wh<pct>, sil<pct> (the harness's set), claim<pct>, hoard<pct>
-            kind, pct = re.fullmatch(r"(wh|sil|claim|hoardm|hoard)(\d+)", c["fault"]).groups()   # or hoardm<pct> (v2)
-            c["faulty"] = scenario_fail_select(c["seed"], n, int(pct))
+            kind, pct = re.fullmatch(r"(wh|sil|claim|hoardcol|hoardm|hoard)(\d+)", c["fault"]).groups()   # or hoardm<pct>,
+            c["faulty"] = scenario_fail_select(c["seed"], n, int(pct))                           #   hoardcol<pct> (v2)
             c["silent"] = kind == "sil"
             c["claim"] = kind == "claim"
-            c["hoard"] = kind in ("hoard", "hoardm")
+            c["hoard"] = kind in ("hoard", "hoardm", "hoardcol")
             c["hoard_members"] = kind == "hoardm"              # repairs only the row's members' custody cells
+            c["hoard_column"] = kind == "hoardcol"             # repairs every withheld column but one per subnet
         das = c.get("doc") == "v2" and c.get("setting") in ("custody", "rows")
-        if das and c.get("samplers"):
+        dump = c.get("das_dump") if das else None              # a harness dump's network (run.py --topology,
+        if das and c.get("samplers"):                          #   xcheck.apply_das): no draw below runs
             k = max(1, (c["samplers"] * (n - 1) + 50) // 100)         # samplers: interest without duty (§4.10)
             c["sampler_ids"] = set(self.rng.sample(range(2, n + 1), k))
         self.custody_count = {}
-        if das and c.get("setting") == "rows" and c.get("reconstructors"):
+        if dump is not None:
+            c["reconstructor_ids"], c["supernode_ids"] = set(dump["reconstructors"]), set(dump["supernodes"])
+            for i, cs in dump["custody"].items():
+                if len(cs) != c["cgc"]:
+                    self.custody_count[i] = len(cs)
+        elif das and c.get("setting") == "rows" and c.get("reconstructors"):
             pool = [i for i in range(2, n + 1) if i not in c.get("sampler_ids", ())]
             k = max(1, (c["reconstructors"] * (n - 1) + 50) // 100)   # row reconstructors: 64 columns (EIP-8371)
             c["reconstructor_ids"] = set(self.rng.sample(pool, k))
             for i in c["reconstructor_ids"]:
                 self.custody_count[i] = 64
-        if das and c.get("supernodes"):                        # supernodes: every column (PeerDAS), drawn apart so that
+        if dump is None and das and c.get("supernodes"):       # supernodes: every column (PeerDAS), drawn apart so that
             pool = [i for i in range(2, n + 1)                 #   the other draws are those of a run without them
                     if i not in c.get("sampler_ids", ()) and i not in c.get("reconstructor_ids", ())]
             k = max(1, (c["supernodes"] * (n - 1) + 50) // 100)
@@ -186,7 +216,21 @@ class Sim:
         self.links = {i: Link(classes[i]["up"], classes[i]["down"]) for i in self.nodes}
         self.lat = c["latency"](n, self.rng)                   # (i, j) -> one-way seconds
         setting = c.get("setting") if c.get("doc") == "v2" else None
-        if setting in ("custody", "rows"):                     # PeerDAS custody: columns as the object type; rows on top
+        if setting in ("custody", "rows") and dump is not None:   # the dump's custody, row subnets and graph; the
+            self.custody.update(dump["custody"])               #   derived interest of the protocol reads them too
+            for i in self.nodes:
+                self._custody_cache[(self.peer_id(i), len(self.custody[i]))] = self.custody[i]
+                self._custody_cache[("row", self.peer_id(i))] = dump["row_subnet"][i]
+            self._dump_ids = {self.peer_id(i) for i in self.nodes}
+            row_subnets = dict(dump["row_subnet"]) if setting == "rows" else None
+            conns = {i: set(ns) for i, ns in dump["conns"].items()}
+            meshes, row_meshes = scenario.given_meshes(conns, c["D"], self.rng, self.custody, row_subnets)
+            if dump["meshes"] is not None:                     # a running cell's: its first block's meshes
+                meshes = dump["meshes"]
+            if dump["row_meshes"] is not None:
+                row_meshes = dump["row_meshes"]
+            self.repair_links, cover = dump["passes"].get("repair_floor", 0), {}
+        elif setting in ("custody", "rows"):                   # PeerDAS custody: columns as the object type; rows on top
             for i, nd in self.nodes.items():                   # node 1, the proposer, holds every column
                 self.custody[i] = (set() if nd.sampler else set(range(COLUMNS)) if i == 1
                                    else scenario.custody_columns(self.peer_id(i), self.custody_count.get(i, c["cgc"])))
@@ -194,12 +238,17 @@ class Sim:
             if setting == "rows":                              # EIP-8371: one designated row subnet per node
                 row_subnets = {i: (None if i == 1 or nd.sampler else scenario.row_subnet(self.peer_id(i), c["ROW_SUBNETS"]))
                                for i, nd in self.nodes.items()}
-            conns, meshes, row_meshes, self.repair_links = scenario.custody_topology(
+            conns, meshes, row_meshes, self.repair_links, cover = scenario.custody_topology(
                 n, c["degree"], c["D"], self.rng, self.custody, floor=c["F_LO"], source_floor=c["SOURCE_FLOOR"],
                 row_subnets=row_subnets, repair_floor=c.get("REPAIR_FLOOR", 0),
-                repair_rng=random.Random(c["seed"] * 7919 + 4243))      # its own draws: the graph stays the same
+                repair_rng=random.Random(c["seed"] * 7919 + 4243),      # its own draws: the graph stays the same
+                samplers=c.get("sampler_ids", ()), sample_cover=c.get("SAMPLE_COVER", 0),
+                cover_rng=random.Random(c["seed"] * 7919 + 6151),       # [D12] the coverage floor's, likewise
+                cover_high=c.get("COVER_HIGH", 1), base_custody=c["cgc"])
+        if setting in ("custody", "rows"):
             for i, nd in self.nodes.items():
                 nd.peers = sorted(conns[i])
+                nd.cover_added = cover.get(i, 0)
                 nd.custody = self.custody[i]
                 if row_subnets:
                     nd.row_subnet = row_subnets[i]
@@ -211,6 +260,12 @@ class Sim:
                 if row_subnets and nd.row_subnet is not None:
                     row_rel = {nd.row_subnet: row_meshes[nd.row_subnet][i]}
                 nd.set_column_relations(rel, row_rel)
+            if c.get("hoard_column") and row_subnets:          # --fault hoardcol: per subnet, the column its hoarders
+                withheld = range(COLUMNS - c.get("withhold", 0), COLUMNS)   #   leave unrepaired: the highest withheld
+                for s in range(c["ROW_SUBNETS"]):              #   column no honest member custodies (a member probes
+                    held = set().union(*(self.custody[i] for i, r in row_subnets.items()   # the lowest index it lacks,
+                                         if r == s and i not in c["faulty"]))              #   so not a probe); None: none
+                    self.hoard_x[s] = max((col for col in withheld if col not in held), default=None)
         else:
             conns, mesh = c["topology"](n, c["degree"], c["D"], self.rng)
             colour_meshes = None
@@ -225,7 +280,50 @@ class Sim:
             off = self.rng.uniform(0, c["HEARTBEAT"]) if c.get("random_phase") else phase
             self.after(nd, off, self._heartbeat, nd)
 
+    # ---- churn (--churn R): a node replaces one of its links
+
+    def _churn_event(self):
+        rng = self.churn_rng
+        nodes = [i for i in sorted(self.nodes) if i != 1 and any(q != 1 for q in self.nodes[i].peers)]
+        a = rng.choice(nodes)                              # the source keeps its links
+        b = rng.choice([q for q in self.nodes[a].peers if q != 1])
+        free = [i for i in sorted(self.nodes) if i not in (a, 1) and i not in self.nodes[a].peers]
+        self.close_link(a, b)
+        c = rng.choice(free) if free else None
+        if c is not None:
+            self.open_link(a, c)
+        self.churn_log.append((self.now, a, b, c))
+
+    def close_link(self, a, b):
+        """protocol-v2.md §3's lifetimes at a close: per-peer entries, relations, our unanswered GRAFTs
+        and anything owed end at both ends; entries not yet sent go, and those on the wire are dropped."""
+        key = (min(a, b), max(a, b))
+        self.epoch[key] = self.epoch.get(key, 0) + 1
+        for x, y in ((a, b), (b, a)):
+            nd = self.nodes[x]
+            nd.peers.remove(y)
+            nd.drop_peer(y)
+            ln = self.links[x]
+            dq = ln.conns.get(y)                            # emptied, not removed: an entry in service
+            if dq:                                          #   completes and finds it (dropped at arrival)
+                ln.backlog[y] = ln.backlog.get(y, 0) - sum(d + c for _, d, c in dq)
+                dq.clear()
+            if y in ln.rr:
+                ln.rr.remove(y)
+
+    def open_link(self, a, c):
+        key = (min(a, c), max(a, c))
+        self.epoch[key] = self.epoch.get(key, 0) + 1
+        for x, y in ((a, c), (c, a)):
+            bisect.insort(self.nodes[x].peers, y)
+        for x, y in ((a, c), (c, a)):
+            self.nodes[x].on_open(y)                        # each end's JOINs (§4.1 send_join)
+
     def transmit(self, node, p, e):
+        if self.churn:                                     # the connection this entry leaves on
+            if p not in node.peers:
+                return
+            self.entry_epoch[id(e)] = self.epoch.get((min(node.id, p), max(node.id, p)), 0)
         data, ctrl = Wm.entry_wire(e)
         node.tx_data += data
         node.tx_ctrl += ctrl
@@ -315,6 +413,11 @@ class Sim:
         self.after(self.nodes[dst], rx.down_busy - self.now, self._deliver, src, dst, e, data, ctrl)
 
     def _deliver(self, src, dst, e, data, ctrl):
+        if self.churn:
+            ep = self.entry_epoch.pop(id(e), None)
+            if ep is not None and ep != self.epoch.get((min(src, dst), max(src, dst)), 0):
+                self.churn_dropped += 1                    # its connection closed while it travelled
+                return
         nd = self.nodes[dst]
         nd.rx_data += data
         nd.rx_ctrl += ctrl
@@ -352,6 +455,9 @@ class Sim:
     # ---- the source and its payloads
 
     def publish(self, m):
+        if self.churn:                                     # this message's gap gets its replacements
+            for _ in range(self.churn):
+                self.after(None, self.churn_rng.uniform(0, self.cfg["gap"]), self._churn_event)
         if self.custody:
             return self.publish_block(m)
         pub = self.cfg.get("publishers", {}).get(m, 1)     # node 1 unless the harness's dump names one
@@ -414,6 +520,10 @@ class Sim:
         for nd in self.nodes.values():                         # the block root is known everywhere now (the toy's gate)
             for g in groups:
                 nd.ns["known_at"][g] = self.now
+        if c.get("ALARM_WAIT"):                                # --alarm-wait: a custodian's alarm, from known_at
+            for i, nd in self.nodes.items():                   # an honest custodian (node._alarm)
+                if i != 1 and nd.custody and hasattr(nd, "alarm_check"):
+                    self.after(nd, c["ALARM_WAIT"] + nd.alarm_rng.uniform(0, c["ALARM_JITTER"]), nd.alarm_check, root, 0)
         withheld = set(range(COLUMNS - c.get("withhold", 0), COLUMNS))
         for g in groups:                                       # one publish per column, as sidecars go
             if self.gtype[g] != "column":
@@ -427,6 +537,9 @@ class Sim:
                 continue
             ns["publish"](self.blocks[root], hdr, shards)
             self.canonical[g] = dict(ns["chunks"][g])
+        for nd in self.nodes.values():                         # [D12] forwarded asks are limited per peer and slot
+            if "forwarded" in nd.ns:
+                nd.ns["forwarded"].clear()
         for i, nd in self.nodes.items():                       # the samplers declare at block arrival (§4.10)
             if not nd.sampler:
                 continue
@@ -489,24 +602,36 @@ class Sim:
 
     def results(self):
         """Per message: the receivers' completion (custodians, or every node on a payload), and the
-        samplers' apart, since a sample is a different interest."""
+        samplers' apart, since a sample is a different interest. A sampler confirms availability only
+        once every cell it declared arrived: one with a sample given up (`unreachable`, which drops it
+        from the interest, before protocol-v2.md's [D12]) or never delivered never does; the time over
+        the samples that arrived is kept beside."""
         out = []
         for k, ((t0, groups), pub) in enumerate(zip(self.msgs, self.pubs)):
             cols = [g for g in groups if self.gtype.get(g) != "row"]
             rws = [g for g in groups if self.gtype.get(g) == "row"]
-            ts, ss, rs = [], [], []
+            ts, ss, sa, rs = [], [], [], []
             for i, nd in self.nodes.items():
                 if i == pub:
                     continue
                 t = self.completion(i, cols)                   # the payload, or the node's custody columns
-                if t is not None:
-                    (ss if nd.sampler else ts).append(t - t0)
+                if nd.sampler:
+                    ta = max((nd.completed[g] for g in cols if nd.interested(g) and g in nd.completed), default=None)
+                    if ta is not None:                         # the samples that arrived
+                        sa.append(ta - t0)
+                    if any(popcount(nd.unreachable.get(g, Bits())) for g in groups):
+                        ss.append(math.inf)
+                    elif t is not None:
+                        ss.append(t - t0)
+                elif t is not None:
+                    ts.append(t - t0)
                 if rws:
                     t = self.completion(i, rws)                # a row member's row, at K
                     if t is not None:
                         rs.append(t - t0)
             ts.sort()
             ss.sort()
+            sa.sort()
             rs.sort()
             r = {"msg": k + 1, "p50": pct(ts, 50), "p99": pct(ts, 99),
                  "max": ts[-1] if ts else math.nan, "missing": sum(1 for t in ts if t == math.inf),
@@ -518,7 +643,8 @@ class Sim:
                 r["samplers"] = {"p50": pct(ss, 50), "p99": pct(ss, 99), "max": ss[-1],
                                  "missing": sum(1 for t in ss if t == math.inf), "nodes": len(ss),
                                  "unreachable": sum(popcount(nd.unreachable.get(g, Bits())) for nd in self.nodes.values()
-                                                    if nd.sampler for g in groups)}
+                                                    if nd.sampler for g in groups),
+                                 "arrived_p50": pct(sa, 50), "arrived_p99": pct(sa, 99)}
             out.append(r)
         return out
 

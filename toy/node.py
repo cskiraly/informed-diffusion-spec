@@ -13,6 +13,7 @@ import random
 from collections import deque
 
 import bits as B
+import scenario
 import wire as Wm
 from bits import AutoMap, Bits, DefaultMap, HaveEntry, LazyMap, OfferList, PushEntry, all_bits, bitmap, popcount
 from extract import DOC, generate
@@ -86,6 +87,7 @@ class GossipHistory:
 
 class GroupIndex:
     __slots__ = ("group", "index")
+    standing, hops, probe = False, 0, False   # an ask by message id carries no WANT fields (protocol-v2.md §2)
 
     def __init__(self, group, index):
         self.group, self.index = group, index
@@ -114,7 +116,16 @@ class Node:
         self.custody = None             # the custody setting: this node's columns
         self.sampler = self.id in cfg.get("sampler_ids", ())    # interest DECLARED, duty NONE (§4.10)
         self.samples = {}               # a sampler's declared interest: group -> Bits, per block
-        self.unreachable = {}           # samples no link could serve: group -> Bits
+        self.unreachable = {}           # samples no link could serve: group -> Bits (protocol-v2.md before [D12]; now none)
+        self.sample_log = {}            # [D12] a sampler's asks per sample: (group, index) -> [(peer, forwarded, when)]
+        self.sample_from = {}           # [D12] the first arrival of each sample: (group, index) -> (peer, when)
+        self._uprng = None              # --upkeep on: the node's own draws for §3's candidates
+        self.relation_msgs = Counter()  # --upkeep on: JOINs, GRAFTs and PRUNEs handed to the wire
+        self.cover_opened = 0           # --upkeep on: sampling-only links keep_coverage opened at run time
+        self.forwarded_out = 0          # [D12] routed requests this node passed on for a sampler (route_want)
+        self.cover_gaps = 0             # [D12] families keep_coverage found short (the graph's floor missed them)
+        self.cover_added = 0            # [D12] sampling-only links the graph added for this sampler
+        self._cover_checked = False
         self.supernode = self.id in cfg.get("supernode_ids", ())          # every column; rebuilds any row still short (phase 2)
         self.reconstructor = self.supernode or self.id in cfg.get("reconstructor_ids", ())   # rows: 64 columns or more, decodes its row at K
         self.row_subnet = None          # rows: the node's designated row subnet (EIP-8371)
@@ -123,7 +134,14 @@ class Node:
         self.hoard_served = self.hoard_refused = 0      # a hoarder's rebuilt chunks: asks answered (probes), asks refused
         self.member_checks = 0                          # (R5) the member check: verified claims not taken, custody cells missing
         self.repair_verdicts = Counter()                # (R5, option) the repair sample's verdicts
+        self.bias_drawn = self.bias_uncovered = 0       # --repair-bias: cells put first from uncovered columns, and
+                                                        #   the uncovered cells lacked where it drew (option 1)
         self._retry_armed = set()       # asks whose delayed first try is scheduled (deferred offers, [D8])
+        self.held_back = 0              # --ihave-limits: asks held back to the next heartbeat (protocol.md §4.4)
+        self.alarm = Counter()          # --alarm-wait, --fault hoardcol: their counters (run.py reports them)
+        self.alarm_cells = {}           # --alarm-wait: (column group, index) -> the members asked, as a custodian
+        self.alarming = False           # --alarm-wait: an alarm is being sent (not a routed request, forwarded_out)
+        self.alarm_rng = random.Random(cfg["seed"] * 7919 + 7307 + nid)   #   its own draws: the jitter, the member
         ns = self._namespace()
         exec(SPEC, ns)
         self.v2 = cfg.get("doc") == "v2"
@@ -131,6 +149,14 @@ class Node:
             self._v2_names(ns)
             exec(spec2(), ns)
         self._override(ns)
+        if ns["MAX_IHAVE_MESSAGES"] < math.inf or ns["MAX_IHAVE_LENGTH"] < math.inf:
+            spec_over = ns["over_ihave_limits"]
+
+            def over_ihave_limits(p):                   # each candidate ask is checked once: true holds it back
+                over = spec_over(p)
+                self.held_back += over
+                return over
+            ns["over_ihave_limits"] = over_ihave_limits
         if self.v2:
             self._v2(ns)
             if "column" in self._types and (cfg.get("repair_push", "push") == "offer" or self._keepers_to is not None):
@@ -143,7 +169,225 @@ class Node:
                         spec_note_claim(p, g)           #   on a claim; its own subnet's row as any member's
                 ns["note_claim"] = note_claim
             self._member_check(ns, cfg.get("member_check", "on") == "on")
+            if cfg.get("rebuilt_seen", "off") == "on":
+                self._rebuilt_seen(ns)
+            if cfg.get("REPAIR_BIAS", 0) > 0 and "row" in self._types:
+                self._repair_bias(ns, cfg["REPAIR_BIAS"])
+            if cfg.get("hoard_column") and "row" in self._types:
+                self._hoard_column(ns)
+            if cfg.get("ALARM_WAIT") and "row" in self._types and self.id not in cfg.get("faulty", ()):
+                self._alarm(ns)
         self.ns = ns
+
+    def _hidden(self, g, i):
+        """--fault hoardcol: whether index i of group g is the cell its row's hoarders hide (sim.hoard_x)."""
+        sim = self.sim
+        if g in sim.gsub:                               # a row: index i is column i
+            return sim.hoard_x.get(sim.gsub[g]) == i
+        if g not in sim.gcol:
+            return False
+        r = sim.grow.get((sim.ghdr[g].block, i))        # a column: index i is row i
+        return r is not None and sim.hoard_x.get(sim.gsub.get(r)) == sim.gcol[g]
+
+    def _hoard_column(self, ns):
+        """--fault hoardcol (an option, proposed on 2026-10-28): a hoarder that
+        repairs every withheld column of its row but one, the one sim.hoard_x names for the subnet: the highest
+        withheld column no honest member custodies. It runs --fault hoard's code with the document's push_rebuilt
+        for every other cell, and serves nothing of the hidden one to anyone, its hidden cell in the column group
+        included (the probe-shaped answer aside). Meant with --rebuilt-seen on, which run.py requires. An honest
+        node counts its probes at the hidden index: none while the probed index was the lowest lacked; drawn at random
+        (protocol-v2.md §4.6), it can be the hidden one."""
+        node = self
+        if self.hoarder:
+            doc_push_rebuilt, spec_on_want = self._doc_push_rebuilt, ns["on_want"]
+
+            def push_rebuilt(g, new):
+                doc_push_rebuilt(g, [i for i in new if not node._hidden(g, i)])
+            ns["push_rebuilt"] = push_rebuilt
+
+            def on_want(p, asks):
+                keep = []
+                for a in asks:
+                    gi = ns["group_index"](a)
+                    if gi is not None and node._hidden(gi.group, gi.index):
+                        node.alarm["hidden refused"] += 1
+                        node.alarm["alarms refused by a hoarder"] += bool(gi.standing)
+                        continue
+                    keep.append(a)
+                return spec_on_want(p, keep)
+            ns["on_want"] = on_want
+        else:
+            doc_defer_on_claim = ns["defer_on_claim"]
+
+            def defer_on_claim(g):
+                doc_defer_on_claim(g)
+                if node._hidden(g, ns["probe"][g]):
+                    node.alarm["probe at the hidden index"] += 1
+            ns["defer_on_claim"] = defer_on_claim
+
+    def _alarm(self, ns):
+        """--alarm-wait S (an option, proposed on 2026-10-28), an honest node's two
+        parts; faulty nodes neither alarm nor act on one. The custodian (alarm_check, scheduled by sim.publish_block
+        at known_at + S + up to --alarm-jitter): for each row whose cell in its custody columns it still lacks and no
+        peer's holding shows, a standing WANT for the row's group at the column's index, to a linked member of the
+        row's subnet not yet asked for it (its node id's subnet and a row JOIN); again every --alarm-next seconds while
+        the cell is missing, up to --alarm-max members. The member (on_want): a standing ask for an index of its own
+        row that it lacks, from a peer not DECLARED, is kept as the document keeps it (§4.10); if the member
+        deferred on a claim its probe verified, it asks that claimant for the index once, as the probe is asked
+        (exempt from stop-pull, DEFER_WINDOW as the promise); if that promise breaks and the row is still COMPLETE,
+        it penalises the claimant and decodes as reconsider's rebuild does. Nothing new on the wire."""
+        node, sim, c = self, self.sim, self.cfg
+        ROW, Want = self._types["row"], ns["Want"]
+        doc_on_want, Ask = ns["on_want"], ns["Ask"]
+        asked = AutoMap(set)                            # row group -> indices asked of the claimant on an alarm
+        alarms = set()                                  # (row group, index, peer): standing asks kept as alarms
+
+        def alarm_check(root, k):
+            B = sim.cfg["blobs"]
+            for col in sorted(node.custody):
+                g = sim.gcolgroup[(root, col)]
+                if ns["expired"](g):
+                    continue
+                for b in range(B):
+                    if ns["received"][g].has(b) or ns["rebuilt"][g].has(b) or ns["holders"][g][b]:
+                        continue
+                    rg = sim.grow[(root, b)]
+                    tried = node.alarm_cells.setdefault((g, b), [])
+                    if len(tried) >= c["ALARM_MAX"]:
+                        continue                        # every member it may ask was asked
+                    ms = [q for q in node.peers if q not in tried   # a member: its node id's subnet, and a row JOIN
+                          and sim.nodes[q].row_subnet == sim.gsub[rg]]   #   (none for the proposer, a sampler)
+                    if not ms:
+                        node.alarm["no member left"] += 1
+                        continue
+                    q = node.alarm_rng.choice(ms)
+                    tried.append(q)
+                    node.alarm["sent"] += 1
+                    node.alarming = True
+                    ns["send"](q, Want(group=rg, bits=bitmap({col}), standing=True), urgent=False)
+                    node.alarming = False
+            if k + 1 < c["ALARM_MAX"]:
+                sim.after(node, c["ALARM_NEXT"], node.alarm_check, root, k + 1)
+        self.alarm_check = alarm_check
+
+        def on_alarm(g, i):
+            if not (ns["deferred"][g] and ns["received"][g].has(ns["probe"][g])) or i in asked[g]:
+                return                                  # a verified claim only, and once per index
+            asked[g].add(i)
+            T, q, a = ns["type_of_group"](g), ns["probed"][g], Ask(g, i)
+            ns["add_offer"](a, q)                       # a claim is an offer of every index (§4.6's probe)
+            ns["tried"][a][q] = ns["now"]
+            ns["probe_asks"].add(a)                     # past stop-pull, as the probe
+            ns["promises"][(a, q)] = ns["now"]
+            ns["after"](T.params.DEFER_WINDOW, ns["promise_due"], a, q, ns["now"])
+            ns["after"](T.params.DEFER_WINDOW, alarm_due, g, i, q)
+            node.alarm["asks of a claimant"] += 1
+            ns["send"](q, Want(group=g, bits=bitmap({i})), urgent=False)   # as defer_on_claim sends the probe
+
+        def alarm_due(g, i, q):
+            if ns["received"][g].has(i) or ns["rebuilt"][g].has(i) or ns["state"][g] != ns["COMPLETE"]:
+                return                                  # answered, rebuilt, or decoding already
+            node.alarm["broken"] += 1
+            ns["penalise"](q)
+            T = ns["type_of_group"](g)                  # reconsider's rebuild: the late decode claim
+            ns["state"][g] = ns["DECODING"]
+            ns["mine"][g] = all_bits(T.index_count(ns["hdr"][g]))
+            for q2 in ns["suppression_scope"](g):
+                ns["send_have"](q2, g)
+            node.alarm["rebuilds"] += 1
+            ns["start"](ns["decode_group"], g)
+
+        def on_want(p, asks):
+            for a in asks:
+                gi = ns["group_index"](a)
+                if (gi is None or not gi.standing or gi.group not in sim.gsub or sim.gsub[gi.group] != node.row_subnet
+                        or ns["expired"](gi.group) or ns["join_recv"][p][ROW].interest == "DECLARED"
+                        or ns["peer_has"][p][gi.group].has(gi.index)):
+                    continue
+                if ns["resolve"](a) is not None:
+                    node.alarm["held at once"] += 1     # answered now, as any ask for a chunk we hold
+                    continue
+                if (gi.group, gi.index, p) not in alarms:
+                    alarms.add((gi.group, gi.index, p))
+                    node.alarm["kept"] += 1
+                on_alarm(gi.group, gi.index)
+            return doc_on_want(p, asks)
+        ns["on_want"] = on_want
+        doc_serve_standing = ns["serve_standing"]
+
+        def serve_standing(g, i):                       # the document's test for an answer, before it pops them
+            limit = ns["type_of_group"](g).params.SERVE_LIMIT
+            for p in ns["standing"].get(g, {}).get(i, ()):
+                if ((g, i, p) in alarms and not ns["peer_has"][p][g].has(i)
+                        and ns["served"][p][g] < limit):
+                    node.alarm["answered"] += 1
+            doc_serve_standing(g, i)
+        ns["serve_standing"] = serve_standing
+
+    def _rebuilt_seen(self, ns):
+        """--rebuilt-seen on (an option, proposed on 2026-10-26): decode_group marks each cell it
+        rebuilt seen, as publish marks the source's own chunks. A pushed copy of it is then acknowledged (it is
+        stored, so accepted) and neither validated nor forwarded again; a hoarder that relays only what it
+        received (--fault hoardm) no longer relays the copies of what it rebuilt. A rebuilt cell is the source's
+        chunk (rebuild_row), so one id covers every copy of it."""
+        doc_decode_group, rebuilt, chunks = ns["decode_group"], ns["rebuilt"], ns["chunks"]
+
+        def decode_group(g):
+            before = rebuilt[g].copy()
+            doc_decode_group(g)
+            for i in rebuilt[g]:
+                if not before.has(i):
+                    ns["mark_seen"](ns["chunk_id"](chunks[g][i]))
+        ns["decode_group"] = decode_group
+
+    def _repair_bias(self, ns, share):
+        """--repair-bias SHARE (an option, proposed on 2026-10-26): in repair_verdict's extension of the
+        sample, up to SHARE of the step's new cells are put first from the cells we lack in uncovered columns, the
+        rest drawn uniformly as the document draws them all. A column is uncovered when no member of the row's
+        subnet that we are linked to custodies it, a claimant aside; a peer's subnet and custody follow from its
+        node id and its column JOIN, as for link_cover. The document's code runs as written: only its one draw,
+        shuffled(...), is ordered for the call; ask_custodian's choice(...) draws with shuffled too, so it is
+        kept on the plain draw (peers are numbered as columns are; an earlier build ordered it as well), and a second
+        shuffled in one call fails."""
+        sim, node, COL = self.sim, self, self._types["column"]
+        spec_repair_verdict, spec_shuffled = ns["repair_verdict"], ns["shuffled"]
+
+        def covered(g):
+            sub, cols = sim.gsub.get(g), set()
+            for q in node.peers:
+                if q in ns["claims"][g]:
+                    continue
+                qid = ns["node_id"](q)
+                j = ns["join_recv"][q].get(COL)
+                if j is None or sim.row_subnet_of_id(qid) != sub:
+                    continue
+                cols |= sim.custody_of_id(qid, j.custody_count)
+            return cols
+
+        def repair_verdict(g):
+            steps, k = ns["type_of_group"](g).params.REPAIR_SAMPLE, ns["rsample_step"][g]
+            if not steps or k >= len(steps):
+                return spec_repair_verdict(g)          # the last step's judgement draws nothing
+            n = int(share * (steps[k][0] - len(ns["rsample"][g])))
+            draws = []
+
+            def shuffled(xs):                          # index i of a row is column i
+                draws.append(1)                        # the extension's draw only: a second one is a leak
+                assert len(draws) == 1, "--repair-bias: shuffled drawn twice in one repair_verdict"
+                cov = covered(g)
+                unc = [i for i in xs if i not in cov]
+                first = spec_shuffled(unc)[:n]
+                node.bias_drawn += len(first)
+                node.bias_uncovered += len(unc)
+                taken = set(first)
+                return first + spec_shuffled([i for i in xs if i not in taken])
+            spec_choice = ns["choice"]
+            ns["shuffled"], ns["choice"] = shuffled, lambda xs: spec_shuffled(xs)[0]
+            try:
+                return spec_repair_verdict(g)
+            finally:
+                ns["shuffled"], ns["choice"] = spec_shuffled, spec_choice
+        ns["repair_verdict"] = repair_verdict
 
     def _member_check(self, ns, on):
         """(R5) the member check, counted: each verified claim a member did not take because a cell of the row
@@ -271,7 +515,8 @@ class Node:
             "WINDOW_TIMEOUT": c["WINDOW_TIMEOUT"], "HEARTBEAT": c["HEARTBEAT"],
             "D_LAZY": c["D_LAZY"], "GOSSIP_FACTOR": c["GOSSIP_FACTOR"],
             "GOSSIP_RETRANSMISSION": c["GOSSIP_RETRANSMISSION"],
-            "MAX_IHAVE_MESSAGES": math.inf, "MAX_IHAVE_LENGTH": math.inf,   # the client's (§8.2): no limit here
+            "MAX_IHAVE_MESSAGES": c.get("MAX_IHAVE_MESSAGES", math.inf),     # the client's (§8.2): no limit
+            "MAX_IHAVE_LENGTH": c.get("MAX_IHAVE_LENGTH", math.inf),         #   unless --ihave-limits
             "HAVE_TTL": c["HAVE_TTL"], "PUSH_TTL": c["PUSH_TTL"],
             "CANCEL": c["card8"], "RAREST": c["card9"], "PROJECT": c["card12"], "PACED": c["card15"],
             "ANSWERS_FIRST": c.get("answers_first", "off") == "on",
@@ -429,6 +674,8 @@ class Node:
             return []
 
         def enqueue(p, x, urgent=False):    # the queues here have no limit: every entry is admitted
+            if node.sim.churn and p not in node.peers:
+                return True             # --churn: the link is closed; what was for it ends with it (§3)
             e = x if isinstance(x, Wm.Entry) else (
                 Wm.Entry(control=x) if isinstance(x, Wm.Control) else Wm.Entry(chunk=x))
             if e.is_empty():
@@ -813,7 +1060,7 @@ class Node:
         for k in ("Callable", "Dict", "Set", "Header", "GroupId", "FamilyId", "NodeId", "Bitmap",
                   "TypeId", "TypeParams", "ObjectType", "InterestKind", "Duty", "Direction",
                   "AnnounceWidth", "Proof", "boolean", "uint16", "Ask", "PeerId", "GroupState",
-                  "HaveEntry", "PushEntry", "Join", "Have", "Want", "Graft", "Prune", "ChunkMsg"):
+                  "HaveEntry", "PushEntry", "Join", "Have", "Want", "Graft", "Prune", "ChunkMsg", "BlockId"):
             ns.setdefault(k, Wm.uint32)                 # an annotation-only type (wire._Ann)
 
     def _v2(self, ns):
@@ -842,6 +1089,10 @@ class Node:
         P.derived_interest = lambda h, nid, j: Bits(-1)
         prm = Obj()                                     # §6.1: the tier 4 setting
         prm.M, prm.F_LO, prm.F_HI, prm.D_OUT, prm.D_OUT_FAST, prm.D_OUT_MAX = 1, 6, 12, 8, 8, 12
+        prm.SYMMETRIC = bool(c.get("upkeep")) and c.get("symmetric", "on") == "on"   # §6.1: v0.3's mesh, kept as
+        #   §4.1 keeps it under --upkeep on (--symmetric off: one-way); the recorded cells keep the mesh as built,
+        #   where nodes at F_HI would otherwise be pruned at the first heartbeat
+        prm.PRUNE_BACKOFF = c.get("prune_backoff", 0.0)      # §4.1 (--prune-backoff; 0: none)
         prm.ANNOUNCE_EXTRA, prm.START_DELAY, prm.SERVE_LIMIT, prm.EVIDENCE = "SAMPLE", 0.0, math.inf, None
         prm.SAMPLE_RETRY = c.get("SAMPLE_RETRY", 2.0)
         prm.EAGER, prm.DEFER_WINDOW = True, c.get("DEFER_WINDOW", 0.5)
@@ -880,8 +1131,13 @@ class Node:
                                     Bits(-1) if sim.gcol[g] in sim.custody_of_id(nid, j.custody_count) else Bits(0))
             cprm = Obj()
             cprm.M, cprm.F_LO, cprm.F_HI, cprm.D_OUT, cprm.D_OUT_FAST, cprm.D_OUT_MAX = 1, c["F_LO"], 12, 8, 8, 12
-            cprm.ANNOUNCE_EXTRA, cprm.START_DELAY, cprm.SERVE_LIMIT, cprm.EVIDENCE = "ALL_JOINED", 0.0, math.inf, None
+            cprm.SYMMETRIC, cprm.PRUNE_BACKOFF = False, c.get("prune_backoff", 0.0)   # one-way, as measured
+            cprm.ANNOUNCE_EXTRA, cprm.START_DELAY, cprm.SERVE_LIMIT, cprm.EVIDENCE = c.get("COL_ANNOUNCE", "ALL_JOINED"), 0.0, math.inf, None   # [D5]
             cprm.SAMPLE_RETRY = c.get("SAMPLE_RETRY", 2.0)
+            cprm.SAMPLE_RETRY2, cprm.SAMPLE_OUTSTANDING = c.get("SAMPLE_RETRY2", 0.5), c.get("SAMPLE_OUTSTANDING", 4)   # [D12]
+            cprm.SAMPLE_COVER, cprm.FORWARD_LIMIT = c.get("SAMPLE_COVER", 0), c.get("FORWARD_LIMIT", math.inf)   # [D12]
+            cprm.COVER_HIGH = c.get("COVER_HIGH", 1)     # [D12] families a peer of high custody counts for in the floor
+            cprm.ROUTE_HOPS = c.get("ROUTE_HOPS", 1)     # [D12] forwarding steps of a routed sample request
             cprm.EAGER, cprm.DEFER_WINDOW = True, c.get("DEFER_WINDOW", 0.5)
             cprm.REPAIR_SAMPLE, cprm.SAMPLE_WAIT, cprm.REPAIR_REASK = None, 0.0, False
             cprm.DECODE_AT_K, cprm.DECODE_LATER = (lambda g: False), (lambda g: None)   # no code within a column
@@ -918,7 +1174,8 @@ class Node:
                                         Bits(-1) if g in sim.gsub and sim.row_subnet_of_id(nid) == sim.gsub[g] else Bits(0))
                 rprm = Obj()
                 rprm.M, rprm.F_LO, rprm.F_HI, rprm.D_OUT, rprm.D_OUT_FAST, rprm.D_OUT_MAX = 1, c["F_LO"], 12, 8, 8, 12
-                rprm.ANNOUNCE_EXTRA, rprm.START_DELAY, rprm.EVIDENCE = "ALL_JOINED", c["ROW_DELAY"], None
+                rprm.SYMMETRIC, rprm.PRUNE_BACKOFF = False, c.get("prune_backoff", 0.0)
+                rprm.ANNOUNCE_EXTRA, rprm.START_DELAY, rprm.EVIDENCE = c.get("ROW_ANNOUNCE", "ALL_JOINED"), c["ROW_DELAY"], None   # [D5]
                 rprm.SERVE_LIMIT = 64                    # (R6) half a row per peer, EIP-8371
                 rprm.SAMPLE_RETRY = c.get("SAMPLE_RETRY", 2.0)
                 rprm.EAGER, rprm.DEFER_WINDOW = False, c.get("DEFER_WINDOW", 0.5)   # rows: holdings and offers only
@@ -955,10 +1212,16 @@ class Node:
                   join_recv=AutoMap(dict), join_sent=AutoMap(dict),
                   push_out=AutoMap(lambda: AutoMap(lambda: AutoMap(set))),
                   push_in=AutoMap(lambda: AutoMap(lambda: AutoMap(set))),
+                  grafted_out=AutoMap(lambda: AutoMap(lambda: AutoMap(set))),
+                  grafted_in=AutoMap(lambda: AutoMap(lambda: AutoMap(set))), owed_relations=AutoMap(list),
+                  backoff=AutoMap(lambda: AutoMap(lambda: AutoMap(dict))),
                   standing=AutoMap(lambda: AutoMap(set)),
                   claims=AutoMap(set), reconsider_at={}, deferred=DefaultMap(False), waited=DefaultMap(False), probe={}, probed={},
-                  probe_asks=set(), rsample=AutoMap(list), rsample_step=DefaultMap(0),
-                  rsample_asked=AutoMap(lambda: AutoMap(set)), rsample_final=DefaultMap(False))
+                  probe_asks=set(), probe_ok={}, probe_served=AutoMap(lambda: DefaultMap(False)),
+                  probe_answers=AutoMap(lambda: AutoMap(Bits)), rsample=AutoMap(list), rsample_step=DefaultMap(0),
+                  rsample_asked=AutoMap(lambda: AutoMap(set)), rsample_final=DefaultMap(False),
+                  sampled_from=AutoMap(set), samples_in_flight=DefaultMap(0),
+                  held_samples=AutoMap(list), forwarded=DefaultMap(0))   # [D12] §4.10's and §4.5's
         Ask = Wm.WantIndex
         chunk_id = ns["message_id"]
         spec_open_group = ns["open_group"]
@@ -983,13 +1246,18 @@ class Node:
             return types[tid]
 
         def links(T):
-            return node.peers                           # every peer joins every type of the setting
+            if not c.get("upkeep"):
+                return node.peers                       # every peer joins every type of the setting
+            return [q for q in node.peers if T in ns["join_recv"][q] and T in ns["join_sent"][q]   # §4.1, under
+                    and not any(isinstance(m, Join) for m in ns["owed_relations"][q])]           #   --upkeep on
 
         def joined_types():
             return list(types.values())
 
         def joined_peers():
-            return node.peers
+            if not c.get("upkeep"):
+                return node.peers
+            return [q for q in node.peers if ns["join_recv"].get(q) and ns["join_sent"].get(q)]   # --upkeep on
 
         def related(q):
             po, pi = ns["push_out"].get(q), ns["push_in"].get(q)
@@ -1004,8 +1272,20 @@ class Node:
         def out_pushees(T, fam, col):
             return [q for q in node.peers if col in ns["push_out"][q][T][fam]]
 
-        def candidates(T, fam):
-            return []                                   # the toy's topology is static, as for v0.3
+        def candidates(T, fam, col, d):
+            if not c.get("upkeep"):
+                return []                               # the toy's topology is static, as for v0.3
+            ds = ("IN", "OUT") if d == "BOTH" else (d,)        # --upkeep on: §3's candidates, joined peers with
+            now, bo = ns["now"], ns["backoff"]                 #   duty whose interest holds the family, outside
+            qs = [q for q in links(T) if ns["join_recv"][q][T].duty == "FORWARD"   #   the relation, no GRAFT of
+                  and fam in link_cover(q, T).families                           #   ours unanswered, out of
+                  and not any(col in (ns["push_in"] if x == "IN" else ns["push_out"])[q][T][fam]   # its backoff
+                              or col in (ns["grafted_in"] if x == "IN" else ns["grafted_out"])[q][T][fam]
+                              or bo[q][T][fam].get((col, x), 0.0) > now for x in ds)]
+            if node._uprng is None:                     # its own draws: the run's generator is not touched
+                node._uprng = random.Random(c["seed"] * 1000003 + node.id)
+            node._uprng.shuffle(qs)
+            return qs
 
         def least_used_colour(T, fam):
             return 0
@@ -1026,6 +1306,85 @@ class Node:
 
         def duty_for(g):                                # §1.2: duty is per object type, declared at JOIN
             return joins[type_of_group(g)].duty
+
+        def sampled_types():                            # §4.8 [D12]: the toy's links are static, so the coverage floor,
+            if not node.sampler or not types.get("column"):   # built with the graph
+                return []                               #   (scenario.custody_topology), is checked once;
+            if not c.get("upkeep"):                     #   under --upkeep on, at every heartbeat
+                if node._cover_checked:
+                    return []
+                node._cover_checked = True
+            return [types["column"]] if types["column"].params.SAMPLE_COVER > 0 else []
+
+        def families(T):
+            return range(scenario.NUMBER_OF_COLUMNS) if T.id == "column" else families_with_duty(T)
+
+        def high_custody(q, T):                         # §1.3: above the base custody count (the toy's --cgc), or ALL
+            j = ns["join_recv"][q].get(T)
+            return j is not None and (j.interest == "ALL" or j.custody_count > c["cgc"])
+
+        def link_cover(q, T):                           # §4.1: the families q serves, from its JOIN and node id alone
+            r, j = Obj(), ns["join_recv"][q].get(T)
+            r.high = high_custody(q, T)
+            if j is None or j.interest == "DECLARED":
+                r.families = []
+            elif j.interest == "ALL" or T is P:
+                r.families = list(families(T))
+            elif T.id == "row":                         # a row member's derived interest: its row subnet
+                r.families = [node.sim.row_subnet_of_id(node_id(q))]
+            else:
+                r.families = sorted(node.sim.custody_of_id(node_id(q), j.custody_count))
+            return r
+
+        def cover_candidates(T):                        # called only when keep_coverage finds a family short:
+            node.cover_gaps += 1                        #   the graph's floor missed it (the toy opens no links)
+            if not c.get("upkeep"):
+                return []
+            out, linked = [], set(node.peers)           # --upkeep on: §3's candidates, every node not linked,
+            for u in sorted(node.sim.nodes):            #   with its custody from its id and count (the source and
+                if u in linked or u in (node.id, 1) or node.sim.nodes[u].sampler:   # samplers apart, as the
+                    continue                            #   graph's floor does)
+                r = Obj()
+                r.id, r.families = u, sorted(node.sim.custody[u])
+                r.high = node.sim.custody_count.get(u, c["cgc"]) > c["cgc"]
+                out.append(r)
+            return out
+
+        def open_sampling_link(r, T):
+            if not c.get("upkeep"):
+                raise AssertionError("the toy's links are static")
+            node.cover_opened += 1                      # --upkeep on: connect; both ends' JOINs go (node.on_open)
+            node.sim.open_link(node.id, r.id)
+
+        def floor_links(T, fam):                        # §4.1: the peers connected, joined or not, whose custody
+            if T is P:                                  #   holds fam; for columns the toy's custody, its proposer
+                return list(node.peers)                 #   apart, as the graph's floor counts (scenario's)
+            if T.id == "row":
+                return [u for u in node.peers if node.sim.nodes[u].row_subnet == fam]
+            return [u for u in node.peers if u != 1 and fam in node.sim.custody.get(u, ())]
+
+        def floor_candidates(T):                        # §4.1: none unless --keep-floor on, and only for columns, as
+            if not node.sim.keep_floor or T.id != "column" or node.id == 1:   # measured (the proposer keeps none,
+                return []                               #   as the graph's floor gives it none)
+            out, linked = [], set(node.peers)
+            for u in sorted(node.sim.nodes):            # every custodian not linked, in id order: the floor's draw
+                if u in linked or u in (node.id, 1) or not node.sim.custody.get(u):   # is sim.floor_rng's
+                    continue
+                r = Obj()
+                r.id, r.families = u, sorted(node.sim.custody[u])
+                out.append(r)
+            return out
+
+        def open_link(r, T):                            # §4.1: connect; both ends' JOINs go (node.on_open)
+            node.sim.floor_log.append((node.sim.now, node.id, r.id, None))
+            node.sim.open_link(node.id, r.id)
+
+        def route_next(T, fam, qs):                     # [D12] no routing neighbours here: any of them
+            return list(qs) if c.get("route", "on") == "on" else []   #   (--route off: no routed requests)
+
+        def block_of(g):
+            h = node.sim.ghdr.get(g)
+            return h.block if h is not None and hasattr(h, "block") else g
 
         def uplink_class():
             return "FAST" if (c["card17"] and node.cls["up"] >= c["FAST_UPLINK"]) else "HOME"
@@ -1089,12 +1448,6 @@ class Node:
         def wire_size(f):                               # §4.11: the chunk's bytes on the wire, as the links charge them
             return Wm.chunk_wire(f)
 
-        def unreachable(g, bits):                       # §4.10: no link can serve these samples; here: given up
-            node.unreachable[g] = node.unreachable.get(g, Bits()) | bits
-            if g in node.samples:
-                node.samples[g] = node.samples[g] & ~bits
-            ns["interest"][g] = ns["interest"][g] & ~bits
-
         def send(p, msg, urgent=False):                 # the v0.3-wire binding (protocol-v2.md §7); true if the
             if isinstance(msg, Have):                   #   queue admitted it, as v0.5's enqueue
                 hb = Wm.HaveBitmap(msg.group, msg.bits)
@@ -1102,11 +1455,23 @@ class Node:
                     hb.claim_all, hb.complete = msg.claim_all, msg.complete
                 return ns["enqueue"](p, (Wm.IHAVE if msg.offer else Wm.IDONTWANT)(hb), urgent)
             elif isinstance(msg, Want):
-                w = Wm.IWANT([Ask(msg.group, i) for i in msg.bits])
+                st, hp = getattr(msg, "standing", False), getattr(msg, "hops", 0)   # §2's fields [D12]
+                pr = getattr(msg, "probe", False)       # and the probe's mark (R5)
+                w = Wm.IWANT([Wm.FlaggedWant(msg.group, i, st, hp, pr) if st or hp or pr else Ask(msg.group, i)
+                              for i in msg.bits])
                 w.items[0].want = True                  # §4.5: a WANT starts no promise at its write
+                if node.sampler:                        # the reach report: whom each sample was asked of, how
+                    for i in msg.bits:
+                        node.sample_log.setdefault((msg.group, i), []).append((p, hp > 0, ns["now"]))
+                elif st and not node.alarming:          # only route_want sends a standing WANT from a non-sampler,
+                    node.forwarded_out += 1             #   but for --alarm-wait's custodian
                 return ns["enqueue"](p, w, urgent)
             elif isinstance(msg, (Graft, Prune, Join)):
-                return True                             # relations are static here; JOIN is the subscription
+                if not c.get("upkeep"):
+                    return True                         # relations are static here; JOIN is the subscription
+                node.relation_msgs[type(msg).__name__] += 1   # --upkeep on: on the wire, counted
+                ctl = (Wm.JOIN if isinstance(msg, Join) else Wm.GRAFT if isinstance(msg, Graft) else Wm.PRUNE)([msg])
+                return ns["enqueue"](p, ctl, urgent)
             else:
                 return ns["enqueue"](p, msg, urgent)
 
@@ -1117,6 +1482,16 @@ class Node:
                                  "types", "joins", "InterestMap", "spec_open_group")})
         ns["Ask"] = Ask
         ns["chunk_id"] = chunk_id
+        doc_keep_floor = ns["keep_floor"]
+
+        def keep_floor(T):                              # §4.1's, drawing from sim.floor_rng, so that the run's
+            draw = ns["sample_without_replacement"]     #   other draws stay as they were
+            ns["sample_without_replacement"] = lambda xs, k: node.sim.floor_rng.sample(list(xs), k)
+            try:
+                doc_keep_floor(T)
+            finally:
+                ns["sample_without_replacement"] = draw
+        ns["keep_floor"] = keep_floor
         doc_on_rpc = ns["on_rpc"]
 
         def on_rpc(p, rpc):                             # v0.3's RPC read as v2's messages
@@ -1130,8 +1505,11 @@ class Node:
                     full = d is not None and hb.bits.v == all_bits(ns["N"](d)).v
                     haves.append(Have(group=hb.group, bits=hb.bits, offer=False,
                                       claim_all=full or hb.claim_all, complete=full or hb.complete))
+            for j in rpc.join:                          # --upkeep on: a JOIN first, as on the wire (§4.1)
+                ns["on_join"](p, j)
             r = Obj()
-            r.chunks, r.haves, r.asks, r.grafts, r.prunes = rpc.chunks, haves, list(rpc.iwant.ids), [], []
+            r.chunks, r.haves, r.asks = rpc.chunks, haves, list(rpc.iwant.ids)
+            r.grafts, r.prunes = list(rpc.graft), [x for x in rpc.prune if hasattr(x, "family")]
             return doc_on_rpc(p, r)
         ns["on_rpc"] = on_rpc
         doc_check = ns["check_completion"]
@@ -1157,7 +1535,7 @@ class Node:
                 elif ns["served"].get(p, {}).get(g, 0) >= T.params.SERVE_LIMIT:
                     why = "limit"
                 elif (mid := ns["resolve"](a)) is None:
-                    why = None if node.sim.nodes[p].sampler else "not held"
+                    why = None if node.sim.nodes[p].sampler or gi.standing else "not held"
                 elif mid in ns["unwanted"].get(p, ()):
                     why = "unwanted"
                 elif ns["serve_count"].get(p, {}).get(mid, 0) >= ns["GOSSIP_RETRANSMISSION"]:
@@ -1168,6 +1546,16 @@ class Node:
                     node.refused[(T.id, why)] += 1
             return doc_on_want(p, asks)
         ns["on_want"] = on_want
+        if self.sampler:                                # [D12] the reach report: who delivered each sample first
+            doc_fill = ns["fill"]
+
+            def fill(g, i, f, p):
+                k = (g, i)
+                if p is not None and k in node.sample_log and k not in node.sample_from \
+                        and not (ns["received"][g].has(i) or ns["rebuilt"][g].has(i)):
+                    node.sample_from[k] = (p, ns["now"])
+                return doc_fill(g, i, f, p)
+            ns["fill"] = fill
         doc_promise_due = ns["promise_due"]
 
         def promise_due(a, p, at):                      # the same name, so that events hash as before: records a
@@ -1177,6 +1565,24 @@ class Node:
                     node.broken.append((ns["now"], at, p, gi.group, gi.index))
             return doc_promise_due(a, p, at)
         ns["promise_due"] = promise_due
+        prng = random.Random(f"probe-index/{c['seed']}/{node.id}")   # (R5) the probed index's draw on a stream of
+        doc_defer = ns["defer_on_claim"]                #   its own, seeded by the run's seed and the node, so that it
+                                                        #   moves no other draw (as sim.floor_rng for keep_floor)
+        def defer_on_claim(g):                          # the same name; the document draws the index first, then
+            spec_choice, drawn = ns["choice"], []       #   the claimant: only that first choice is this stream's
+
+            def choice(xs):
+                if drawn:
+                    return spec_choice(xs)
+                drawn.append(1)
+                xs = list(xs)
+                return xs[prng.randrange(len(xs))]
+            ns["choice"] = choice
+            try:
+                return doc_defer(g)
+            finally:
+                ns["choice"] = spec_choice
+        ns["defer_on_claim"] = defer_on_claim
         if c.get("promise_mode") == "peer":             # an option against §4.13: the promise follows each peer's
             self._peer_promise(ns)                      #   observed answer times (RTO), floored at v0.3's PROMISE
         elif c.get("promise_mode") == "uplink":         # the form §4.13 rejects: the promise scaled with the window
@@ -1194,6 +1600,7 @@ class Node:
                     doc_send_have(p, g)
             ns["send_have"] = send_have
         if self.hoarder:                                # --fault hoard: decodes and claims as the document says, but its
+            self._doc_push_rebuilt = ns["push_rebuilt"] #   (--fault hoardcol: the document's, but for one column)
             ns["push_rebuilt"] = lambda g, new: None    #   rebuilt chunks go to nobody unasked, a standing WANT is dropped,
             if c.get("hoard_members"):                  # --fault hoardm: a row's rebuilt cells go to its subnet's members
                 def push_rebuilt(g, new):               #   that custody their columns, and to nobody else: each member
@@ -1266,6 +1673,11 @@ class Node:
                 ns["push_out"][q][ROW][sub].add(0)
                 ns["push_in"][q][ROW][sub].add(0)
             union |= set(peers)
+        if self.cfg.get("upkeep") and self.id != 1 and 1 in self.peers:   # --upkeep on: the proposer's fanout
+            for col in self.custody:                    #   holds a relation with every custodian it links to; the
+                ns["push_out"][1][COL][col].add(0)      #   custodian holds it too, so both ends agree (§4.1)
+                ns["push_in"][1][COL][col].add(0)
+            union.add(1)
         ns["mesh"] = union
 
     def _v2_relations(self, mesh, colour_meshes=None):
@@ -1326,8 +1738,41 @@ class Node:
             self.writer_kicked.add(p)
             self.sim.after(self, 0.0, self._write, p)
 
+    def drop_peer(self, q):
+        """--churn: protocol-v2.md §3's lifetimes at a close (sim.close_link). Per-peer entries, the
+        relations, our unanswered GRAFTs and anything owed end; asks and promises to q stay, so their
+        timers treat q as a silent peer (v0.3 §6.1)."""
+        ns = self.ns
+        for name in ("join_recv", "join_sent", "push_out", "push_in", "grafted_out", "grafted_in",
+                     "owed_relations", "backoff", "peer_has", "pushed", "sent_to", "served", "want_p", "forwarded",
+                     "park", "queue"):
+            m = ns.get(name)
+            if m is not None and q in m:
+                del m[q]
+        for name in ("holders", "standing"):
+            for idx in ns[name].values():
+                for s in idx.values():
+                    s.discard(q)
+        if isinstance(ns.get("mesh"), set):
+            ns["mesh"].discard(q)
+        pq = ns.get("pace_queue")                   # paced gossip queued for q goes with the link
+        if pq:
+            kept = [x for x in pq if x[0] != q]
+            pq.clear()
+            pq.extend(kept)
+        self.writer_blocked.discard(q)
+
+    def on_open(self, q):
+        """--churn: a link opened (sim.open_link); each type's JOIN goes, once (§4.1 send_join)."""
+        ns = self.ns
+        for T in ns["joined_types"]():
+            if T not in ns["join_sent"][q]:
+                ns["send_join"](q, ns["our_join"](T))
+
     def _write(self, p):
         self.writer_kicked.discard(p)
+        if self.sim.churn and p not in self.peers:
+            return                                  # --churn: the link closed after the kick
         nts = self.ns["next_to_send"]
         buf, ln = self.sim.send_buffer, self.sim.links[self.id]
         while True:

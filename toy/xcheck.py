@@ -8,6 +8,12 @@ the publish. apply(cfg, topo) makes those the toy's classes, latencies, connecti
 publishers and faulty set, so that what still differs from the harness is the link model and the
 rules, not the topology. Toy ids are the harness's node indices plus one.
 
+A DAS dump (the research harness's column proxy) adds records of its own beside net: network
+(the base graph), shape (the links the harness added, each with its pass), faults, das (custody,
+supernodes, reconstructors, row subnets) and, from a running cell, a block record and a mesh per
+column topic. check(topo) stops on records that disagree, and apply_das(cfg, topo) makes them the
+custody or row setting's network in place of the toy's own draws (sim.py reads cfg["das_dump"]).
+
 Recorder counts what the harness's xcheck line counts (its xcheck_test.go): at the sender's
 transmit, after the writer's filter, as the harness counts at the stream write; at the receiver's
 delivery; and in the document's filter_entry (cancel), acquire_slot and track_in_flight (the
@@ -29,9 +35,11 @@ The invariants, each a count that must be zero:
 """
 import gzip
 import json
+import statistics
 from collections import Counter, defaultdict
 
 import wire as Wm
+from scenario import NUMBER_OF_COLUMNS
 
 KEYS = ("push", "answer", "cancel", "ask", "iwant_ids", "have_ihave", "ihave_ids",
         "have_idontwant", "idontwant_ids", "dup", "rx")
@@ -41,19 +49,82 @@ KEYS = ("push", "answer", "cancel", "ask", "iwant_ids", "have_ihave", "ihave_ids
 
 
 def load(path):
-    """The dump as a dict: net (the first record) and meshes {msg: (pub, [[peer, ...] by node])}."""
+    """The dump as a dict: net (the first record) and meshes {msg: (pub, [[peer, ...] by node])}. A DAS
+    dump also has network (the base graph), shape (the links the harness
+    added, each with its pass), faults, das, blocks {msg: record} and topic_meshes {msg: {topic: (pub,
+    mesh)}}; one resolved without a run has no net, block or mesh. Records of other kinds are ignored."""
     opener = gzip.open if str(path).endswith(".gz") else open
-    net, meshes = None, {}
+    rec = dict.fromkeys(("net", "network", "shape", "faults", "das"))
+    meshes, topic_meshes, blocks = {}, {}, {}
     with opener(path, "rt") as fh:
         for line in fh:
             r = json.loads(line)
-            if r["kind"] == "net":
-                net = r
-            elif r["kind"] == "mesh":
+            k = r["kind"]
+            if k in rec:
+                rec[k] = r
+            elif k == "block":
+                blocks[r["msg"]] = r
+            elif k == "mesh" and "topic" in r:
+                topic_meshes.setdefault(r["msg"], {})[r["topic"]] = (r["pub"], r["mesh"])
+            elif k == "mesh":
                 meshes[r["msg"]] = (r["pub"], r["mesh"])
-    if net is None:
+    if rec["net"] is None and rec["network"] is None:
         raise ValueError(f"{path}: no network record")
-    return {"net": net, "meshes": meshes}
+    if set(meshes) & set(topic_meshes):
+        raise ValueError(f"{path}: mesh records with and without a topic for msgs {sorted(set(meshes) & set(topic_meshes))}")
+    return dict(rec, meshes=meshes, topic_meshes=topic_meshes, blocks=blocks)
+
+
+def _edges(*records):
+    """{(a, b) with a < b: owd_ms} over the records' edges; a pair given twice is an error."""
+    out = {}
+    for r in records:
+        for e in r["edges"]:
+            k = (min(e["a"], e["b"]), max(e["a"], e["b"]))
+            if k in out:
+                raise ValueError(f"the edge {k} is given twice")
+            out[k] = e["owd_ms"]
+    return out
+
+
+FAULT_KEYS = ("faulty", "silent", "mute", "underreport", "noack", "push_degree")
+
+
+def check(topo):
+    """The load-time checks of a DAS dump's records (as the harness writes them); each
+    mismatch stops the load. `net` is authoritative where it is present: its edges must equal network's
+    plus shape's, one-way delays included, its rates network's, and faults must repeat its fault fields.
+    The supernodes must be exactly the nodes custodying every column, and each block's proposer one of
+    them. A payload dump (net and meshes only) passes unchecked, as before."""
+    net, network, shape, faults, das = (topo[k] for k in ("net", "network", "shape", "faults", "das"))
+    if network is not None:
+        given = _edges(network, *([shape] if shape else []))
+        if net is not None:
+            want = _edges(net)
+            if given != want:
+                missing, extra = set(want) - set(given), set(given) - set(want)
+                moved = [k for k in set(want) & set(given) if want[k] != given[k]]
+                raise ValueError(f"net's edges are not network's plus shape's: {len(missing)} missing, {len(extra)} "
+                                 f"extra, {len(moved)} with another delay")
+            for k in ("n", "up_bps", "down_bps"):
+                if net[k] != network[k]:
+                    raise ValueError(f"net's {k} differs from network's")
+    if net is not None and faults is not None:
+        for k in FAULT_KEYS:
+            a, b = net.get(k), faults.get(k)
+            if k == "faulty":
+                a, b = sorted(a or []), sorted(b or [])
+            if a != b:
+                raise ValueError(f"faults' {k} differs from net's")
+    if das is not None:
+        cols = das["columns"]
+        full = {i for i, cs in enumerate(das["custody"]) if len(set(cs)) == cols}
+        if full != set(das["supernodes"]):
+            raise ValueError(f"supernodes {sorted(das['supernodes'])} are not the nodes custodying all {cols} "
+                             f"columns {sorted(full)}")
+        for b in topo["blocks"].values():
+            if b["proposer"] not in full:
+                raise ValueError(f"block {b['msg']}'s proposer {b['proposer']} does not custody every column")
 
 
 def apply(cfg, topo, fallback_latency):
@@ -102,6 +173,146 @@ def apply(cfg, topo, fallback_latency):
             notes.append(f"the harness ran {k} on the faulty set, which the toy does not model")
     cfg["xc_degree"] = net.get("push_degree")
     return notes
+
+
+def apply_das(cfg, topo, fallback_latency):
+    """Make a DAS dump (check()ed) the toy's network for the custody and row settings: the classes and
+    delays, the graph taken whole (network plus shape), the faulty set, and cfg["das_dump"], which sim.py
+    reads in place of its own draws: each node's custody, the supernodes (the proposer aside), the
+    reconstructors, the row subnets and, from a running cell's first block, the mesh per column and row
+    subnet (otherwise sim.py builds them on the graph). The proposer must be node 0 (toy id 1) in every
+    block, and the withheld columns the last ones (the toy's --withhold), the same in every block.
+    Returns the notes worth printing. Raises ValueError where the dump asks what the toy cannot run."""
+    network, shape, das, blocks = topo["network"], topo["shape"], topo["das"], topo["blocks"]
+    net = topo["net"]
+    n, cols = network["n"], das["columns"]
+    if cols != NUMBER_OF_COLUMNS:
+        raise ValueError(f"the dump has {cols} columns, the toy {NUMBER_OF_COLUMNS}")
+    cfg["nodes"] = n
+    up, down = network["up_bps"], network["down_bps"]
+    cfg["classes"] = lambda _n, _rng: {i + 1: {"up": float(up[i]), "down": float(down[i])} for i in range(n)}
+    edges = _edges(network, *([shape] if shape else []))
+    owd = {}
+    conns = {i: set() for i in range(1, n + 1)}
+    for (a, b), ms in edges.items():
+        owd[(a + 1, b + 1)] = owd[(b + 1, a + 1)] = ms / 1000.0
+        conns[a + 1].add(b + 1)
+        conns[b + 1].add(a + 1)
+
+    def latency(nn, rng):
+        geo = fallback_latency(nn, rng)
+        return lambda a, b: owd[(a, b)] if (a, b) in owd else geo(a, b)
+    cfg["latency"] = latency
+    src = net if net is not None else topo["faults"] or {}
+    cfg["fault"] = ""
+    cfg["faulty"] = {i + 1 for i in src.get("faulty", [])}
+    cfg["silent"] = bool(src.get("silent"))
+    notes = [f"the harness ran {k} on the faulty set, which the toy does not model"
+             for k in ("mute", "underreport", "noack") if src.get(k)]
+    cfg["xc_degree"] = src.get("push_degree")
+
+    custody = {i + 1: set(cs) for i, cs in enumerate(das["custody"])}
+    if custody[1] != set(range(cols)):
+        raise ValueError("node 0, the toy's proposer, does not custody every column")
+    if das.get("samplers"):
+        raise ValueError("samplers from a dump: not yet")
+    row_subnet = {i + 1: s for i, s in enumerate(das["row_subnet"])}
+    if row_subnet[1] is not None:
+        raise ValueError("node 0, the proposer, has a row subnet")
+    withheld = None
+    for m, b in sorted(blocks.items()):
+        if b["proposer"] != 0:
+            raise ValueError(f"block {m}'s proposer is node {b['proposer']}: the toy's is node 0 (id 1), per-block proposers not yet")
+        if any((b.get("preseeded") or {}).get(k) for k in ("full", "miss")):
+            raise ValueError(f"block {m} is preseeded, which the toy does not model")
+        w = sorted(b["withheld"])
+        if w != list(range(cols - len(w), cols)):
+            raise ValueError(f"block {m} withholds {w}, not the last columns (the toy's --withhold)")
+        if withheld is not None and w != withheld:
+            raise ValueError(f"block {m} withholds other columns than the first block")
+        withheld = w
+    meshes = row_meshes = None
+    with_meshes = sorted(topo["topic_meshes"])
+    if with_meshes:
+        def resolve(m):
+            by_col, by_row = {}, {}
+            for topic, (pub, mesh) in topo["topic_meshes"][m].items():
+                if pub != 0:
+                    raise ValueError(f"block {m}'s {topic} was published by node {pub}, not node 0")
+                kind, x = topic.split("/")
+                ms = {}
+                for i, peers in enumerate(mesh):
+                    v = i + 1
+                    if v == 1:
+                        continue                                   # the proposer's relation is the toy's (sim.py)
+                    member = int(x) in custody[v] if kind == "col" else row_subnet[v] == int(x)
+                    if peers and not member:
+                        raise ValueError(f"block {m}: node {i} has a mesh on {topic} it is not a member of")
+                    if any(j + 1 not in conns[v] for j in peers):
+                        raise ValueError(f"block {m}: node {i}'s mesh on {topic} has a peer that is no link")
+                    if member:
+                        ms[v] = {j + 1 for j in peers}
+                (by_col if kind == "col" else by_row)[int(x)] = ms
+            return by_col, by_row
+        first = resolve(with_meshes[0])
+        meshes, row_meshes = first[0], first[1] or None
+        for m in with_meshes[1:]:
+            later = resolve(m)
+            moved = sum(1 for k in (0, 1) for x, ms in later[k].items() for v in ms
+                        if ms[v] != first[k].get(x, {}).get(v, set()))
+            if moved:
+                notes.append(f"block {m}'s meshes differ from block {with_meshes[0]}'s at {moved} (node, topic) pairs; "
+                             f"the toy keeps the first block's")
+        if len(meshes) != cols:
+            raise ValueError(f"block {with_meshes[0]} has meshes for {len(meshes)} of {cols} columns")
+    passes = Counter(e["pass"] for e in shape["edges"]) if shape else Counter()
+    cfg["das_dump"] = dict(custody=custody, conns=conns, meshes=meshes, row_meshes=row_meshes, row_subnet=row_subnet,
+                           supernodes={i + 1 for i in das["supernodes"]} - {1},
+                           reconstructors={i + 1 for i in das["reconstructors"]}, passes=passes,
+                           blocks=len(with_meshes), withheld=withheld)
+    # The supernodes setting is a percentage for the toy's own draw (not run here); sim.publish_block and the
+    # node's row type read only whether it is set, so it carries the dumped supernodes' count: their rows exist.
+    cfg["supernodes"] = len(cfg["das_dump"]["supernodes"])
+    cfg["cgc"], cfg["blobs"] = das["cgc"], das["rows"]
+    if das.get("row_subnets"):
+        cfg["ROW_SUBNETS"] = das["row_subnets"]
+    if shape:
+        cfg["REPAIR_FLOOR"], cfg["SOURCE_FLOOR"] = shape["repair_floor"], shape["source_floor"]
+    return notes
+
+
+def graph_line(cfg, shape):
+    """The dumped graph as graphLine() and the toy's floors read it: custodians per column, custodian
+    links per (node, custodied column) and the proposer's per column (min / median / max, the proposer
+    aside), and how far the graph falls short of the floors custody_topology would build at the dump's
+    values: (node, column) pairs below the custody floor (min(floor, custodians - 1) other custodians as
+    links), columns below the proposer's fanout, row members below the subnet floor, and row members'
+    (node, column) pairs below the repair floor."""
+    dd = cfg["das_dump"]
+    conns, custody, rs = dd["conns"], dd["custody"], dd["row_subnet"]
+    floor, sfloor, rfloor = (shape or {}).get("floor", 0), cfg["SOURCE_FLOOR"], cfg["REPAIR_FLOOR"]
+    cust = {c: {v for v in conns if v != 1 and c in custody[v]} for c in range(NUMBER_OF_COLUMNS)}
+    links = [sum(1 for u in conns[v] if u in cust[c]) for v in conns if v != 1 for c in sorted(custody[v])]
+    src = [sum(1 for u in conns[1] if u in cust[c]) for c in range(NUMBER_OF_COLUMNS)]
+    mmm = lambda xs: f"{min(xs)} / {statistics.median(xs):g} / {max(xs)}" if xs else "-"
+    short_c = sum(1 for v in conns if v != 1 for c in custody[v]
+                  if sum(1 for u in conns[v] if u in cust[c]) < min(floor, len(cust[c]) - 1))
+    short_s = sum(1 for c in range(NUMBER_OF_COLUMNS) if src[c] < min(sfloor, len(cust[c])))
+    members = {}
+    for v, s in rs.items():
+        if s is not None:
+            members.setdefault(s, set()).add(v)
+    short_r = sum(1 for s, ms in members.items() for v in ms
+                  if len(conns[v] & ms) < min(floor, len(ms) - 1))
+    short_p = sum(1 for v, s in rs.items() if s is not None and rfloor for c in range(NUMBER_OF_COLUMNS)
+                  if c not in custody[v] and len(conns[v] & cust[c]) < min(rfloor, len(cust[c])))
+    passes = ", ".join(f"{k} {v}" for k, v in sorted(dd["passes"].items())) or "none"
+    return (f"dump graph: {sum(len(s) for s in conns.values()) // 2} links ({passes} added by the harness); "
+            f"custodians per column {mmm([len(cust[c]) for c in range(NUMBER_OF_COLUMNS)])}; custodian links per "
+            f"node-column {mmm(links)}; the proposer's per column {mmm(src)}; short of the toy's floors "
+            f"(floor {floor}, source {sfloor}, repair {rfloor}): {short_c} node-columns, {short_s} columns at the "
+            f"proposer, {short_r} row members of {sum(len(ms) for ms in members.values())}, {short_p} repair node-columns; "
+            f"{len(dd['supernodes'])} supernodes besides the proposer, {len(dd['reconstructors'])} reconstructors")
 
 
 # ---- the counters and invariants

@@ -17,7 +17,7 @@ import statistics as st
 from collections import Counter, defaultdict
 
 import wire as Wm
-from bits import popcount
+from bits import Bits, popcount
 
 
 class Checker:
@@ -71,7 +71,8 @@ class Checker:
         f = e.chunk
         if f is not None:
             g, i = f.group, f.index
-            if not rcv.wants(g, i) and not self.wants_other_axis(rcv, f):
+            if not rcv.wants(g, i) and not self.wants_other_axis(rcv, f) \
+                    and not (e.solicited and (p, g, i) in self.asked):   # [D12] a routed request's own WANT: asked, not pushed
                 self.outside.append((self.sim.now, node.id, p, g, i, e.solicited))
             key = (node.id, g, i)
             if rcv.sampler:
@@ -256,6 +257,11 @@ class Checker:
                              for qs in d.values() if qs)
                 print(f"  repair sample: {asked} cells asked of custodians, {reasks} re-asked of another; verdicts " + ", ".join(
                       f"{v.lower()} after step {k}: {n}" for (v, k), n in sorted(rv.items())), file=out)
+            drawn = sum(nd.bias_drawn for nd in sim.nodes.values())
+            if drawn:
+                unc = sum(nd.bias_uncovered for nd in sim.nodes.values())
+                print(f"  repair bias: {drawn} sample cells put first from uncovered columns, of {unc} uncovered cells "
+                      f"lacked where it drew", file=out)
             hoarders = [nd for nd in sim.nodes.values() if nd.hoarder]
             if hoarders:
                 hrows = sum(1 for nd in hoarders for g in rowset if nd.ns["rebuilt"].get(g))
@@ -265,21 +271,64 @@ class Checker:
                       f"{sum(nd.hoard_refused for nd in hoarders)} refused", file=out)
         samplers = [nd for nd in sim.nodes.values() if nd.sampler]
         if samplers:
-            declared = sum(popcount(b) for nd in samplers for b in nd.samples.values())
+            declared = sum(popcount(nd.samples.get(g, Bits()) | nd.unreachable.get(g, Bits()))   # given up: dropped from samples
+                           for nd in samplers for g in set(nd.samples) | set(nd.unreachable))
             unreach = sum(popcount(b) for nd in samplers for b in nd.unreachable.values())
             loads = sorted(self.to_samplers.get(i, 0) for i, nd in sim.nodes.items() if not nd.sampler and i != 1)
             print(f"  sampling: {len(samplers)} samplers, {declared} samples declared and {unreach} unreachable "
                   f"(no link custodies the column, or every one that does was parked); "
                   f"chunks to samplers per custodian: median {st.median(loads) if loads else 0:.0f}, "
                   f"max {loads[-1] if loads else 0}; from the proposer {self.to_samplers.get(1, 0)}", file=out)
+            self.report_reach(sim, samplers, out)
         self.report_queue(out)
         incomplete = sim.incomplete()
+        unsampled = [(i, g) for i, g in incomplete if sim.nodes[i].sampler]
+        incomplete = [(i, g) for i, g in incomplete if not sim.nodes[i].sampler]
+        if unsampled:                                   # a sample nobody delivered is missing (protocol-v2.md §4.10),
+            print(f"  samples not delivered: {len(unsampled)} (sampler, group) pairs "   # the samples line's verdict
+                  f"over {len({i for i, _ in unsampled})} samplers", file=out)
         if incomplete:
             print(f"  VIOLATION completion: {len(incomplete)} (node, group) pairs never completed; "
                   f"first: node {incomplete[0][0]} group {incomplete[0][1][:4].hex()}", file=out)
         else:
             print("  completion: every node completed its interest", file=out)
         return not (self.outside or bad or incomplete)
+
+    def report_reach(self, sim, samplers, out):
+        """[D12] how the samples reached the samplers (protocol-v2.md §1.3, §4.10): the coverage floor's
+        links, by which ask each sample first arrived, asks per sample, the forwarders' load, and the
+        most samples of one block one peer was asked for by one sampler (I6)."""
+        how, asks, per_peer, declared, missing, of_source = Counter(), [], Counter(), 0, 0, 0
+        pub = {g: q for (_, groups), q in zip(sim.msgs, sim.pubs) for g in groups}   # each group's source
+        for nd in samplers:
+            mine = nd.ns["mine"]
+            for g, b in nd.samples.items():
+                for i in b:
+                    declared += 1
+                    missing += not mine[g].has(i)
+            for (g, i), log in nd.sample_log.items():
+                asks.append(len(log))
+                blk = getattr(sim.ghdr.get(g), "block", g)
+                for q in {q for q, _, _ in log}:
+                    per_peer[(nd.id, blk, q)] += 1
+                    of_source += q == pub.get(g)
+                if (g, i) not in nd.sample_from:
+                    continue
+                p = nd.sample_from[(g, i)][0]
+                j = next((j for j, a in enumerate(log) if a[0] == p), None)
+                how["unasked" if j is None else "routed" if log[j][1] else "first phase" if j == 0 else "second phase"] += 1
+        cover = sorted(nd.cover_added for nd in samplers)
+        fwd = sorted(nd.forwarded_out for nd in sim.nodes.values() if not nd.sampler)
+        print(f"  reach: floor links added per sampler median {st.median(cover):.0f} max {cover[-1]} "
+              f"(families found short {sum(nd.cover_gaps for nd in samplers)}); samples {declared} declared, "
+              f"{declared - missing} arrived (" + ", ".join(f"{k} {how[k]}" for k in
+              ("first phase", "second phase", "routed", "unasked")) + f"), {missing} missing; "
+              f"asks per sample mean {st.mean(asks) if asks else 0:.2f} max {max(asks, default=0)}; "
+              f"routed requests passed on per node median {st.median(fwd) if fwd else 0:.0f} max {fwd[-1] if fwd else 0} "
+              f"(total {sum(fwd)}); most samples of a block asked of one peer by one sampler "
+              f"{max(per_peer.values(), default=0)}, of a peer other than the source "
+              f"{max((n for (_, b, q), n in per_peer.items() if q not in pub.values()), default=0)}; "
+              f"samples asked of the block's source {of_source}", file=out)
 
     def report_queue(self, out):
         """How long each class of entry waits in its peer's queue, and what the asks experience."""

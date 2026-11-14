@@ -90,7 +90,8 @@ class Shard:
 
 class HaveBitmap:
     """One group's bitmap, as a message-id string (§2). Under protocol-v2.md the two claims of a
-    holding ride in the version byte (its §7, last column); v0.3 reads them from a full bitmap."""
+    holding ride beside the bitmap (its §7, last column), charged no bytes here; v0.3 reads them
+    from a full bitmap."""
     __slots__ = ("group", "bits", "claim_all", "complete")
 
     def __init__(self, group, bits):
@@ -105,6 +106,7 @@ class HaveBitmap:
 class WantIndex:
     """An ask by index (§2). Equal asks are one key in the asker's tables."""
     __slots__ = ("group", "index")
+    standing, hops, probe = False, 0, False   # protocol-v2.md §2's WANT fields: a plain ask has none
 
     def __init__(self, group, index):
         self.group, self.index = group, index
@@ -122,12 +124,29 @@ class WantIndex:
         return f"WantIndex({self.group[:3].hex()}, {self.index})"
 
 
+class FlaggedWant(WantIndex):
+    """An ask from a WANT with protocol-v2.md §2's `standing` and `hops` ([D12]) or `probe` (R5), carried
+    beside the index (its §7, last column) and charged no bytes here: the same key as the plain ask, the
+    same bytes on the wire."""
+    __slots__ = ("standing", "hops", "probe")
+
+    def __init__(self, group, index, standing, hops, probe=False):
+        super().__init__(group, index)
+        self.standing, self.hops, self.probe = standing, hops, probe
+
+
 def is_have_bitmap(entry):
     return isinstance(entry, HaveBitmap)
 
 
 def id_len(x):
-    return x.wire_len() if isinstance(x, (HaveBitmap, WantIndex)) else len(x)
+    if isinstance(x, (HaveBitmap, WantIndex)):
+        return x.wire_len()
+    if hasattr(x, "family"):                    # protocol-v2.md §2's GRAFT or PRUNE (--upkeep on)
+        return REL_BYTES
+    if hasattr(x, "interest") and hasattr(x, "colours"):
+        return JOIN_BYTES                       # §2's JOIN (--upkeep on)
+    return len(x)
 
 
 # ---- control messages and queue entries
@@ -174,6 +193,14 @@ class _Prune(_Msg):
     kind = "prune"
 
 
+class _Graft(_Msg):                             # protocol-v2.md §2's GRAFT, sent only under --upkeep on
+    kind = "graft"
+
+
+class _Join(_Msg):                              # §2's JOIN, the same: on v0.3's wire it is the subscription
+    kind = "join"
+
+
 def IHAVE(x):
     return Control([_IHave(x if isinstance(x, list) else [x])])
 
@@ -188,6 +215,14 @@ def IDONTWANT(x):
 
 def PRUNE(prunes):
     return Control([_Prune(prunes)])
+
+
+def GRAFT(grafts):
+    return Control([_Graft(grafts)])
+
+
+def JOIN(joins):
+    return Control([_Join(joins)])
 
 
 class Entry:
@@ -211,15 +246,16 @@ class Entry:
 
 class RPC:
     """What a receiver's on_rpc sees: the entry's chunk and its control, grouped by kind (§4.1)."""
-    __slots__ = ("chunks", "ihave", "iwant", "idontwant", "prune")
+    __slots__ = ("chunks", "ihave", "iwant", "idontwant", "prune", "graft", "join")
 
     def __init__(self, entry):
         self.chunks = [entry.chunk] if entry.chunk is not None else []
-        ih, iw, idw, pr = [], [], [], []
+        ih, iw, idw, pr, gr, jn = [], [], [], [], [], []
         if entry.control:
             for m in entry.control.items:
-                {"ihave": ih, "iwant": iw, "idontwant": idw, "prune": pr}[m.kind].extend(m.ids)
+                {"ihave": ih, "iwant": iw, "idontwant": idw, "prune": pr, "graft": gr, "join": jn}[m.kind].extend(m.ids)
         self.ihave, self.iwant, self.idontwant, self.prune = _IHave(ih), _IWant(iw), idw, pr
+        self.graft, self.join = gr, jn
 
 
 # ---- wire sizes (bytes charged to the links and counted as received)
@@ -227,6 +263,8 @@ class RPC:
 TOPIC_BYTES = 48          # the payload topic's name in an IHAVE
 RPC_OVERHEAD = 6          # stream length prefix and the RPC's own tags
 FIELD = 3                 # tag and length of one repeated field
+REL_BYTES = TOPIC_BYTES + 4    # a GRAFT or PRUNE: the type's topic, then family, colour and direction (§2)
+JOIN_BYTES = TOPIC_BYTES + 12  # a JOIN: the topic, then interest, custody count, duty and M (§2)
 
 
 def chunk_wire(f):
