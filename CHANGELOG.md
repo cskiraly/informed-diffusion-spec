@@ -5,83 +5,118 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
-## v0.10, 2026-11-15
+## v0.10.1, not yet released
 
-`protocol.md`. A chunk that arrives before its block is installed now waits by rules written out as code
-(§4.2, §6.1: `tie_room`, `drop_offer` and the `of=` form of `close_promises`), and four rules are added
-for what waits: a deferred copy of a group beyond its sender's limit of unknown groups is ignored; at
-installation, a tied index the group does not have is dropped; when a group's count becomes known, what
-named an index at or beyond it goes (§4.2, §8.1); and what waits for a root that never installs goes when its
-slot leaves the live window or its group expires (§4.2, §6.4, §8.1). Level 1 rejects a copy whose slot
-is not its block's (§3). An IHAVE entry is a bitmap or a chunk's valid id, anything else ignored without
-penalty, and an IHAVE's bitmap is held to a HAVE's limits: one naming an index at or beyond the group's
-known count is ignored and counts against the sender (§4.4, §8.2). The announcers beyond a chunk's ordered
-list are tried in an order of the node's own, a hash of the chunk and the peer keyed by a secret the node
-draws, which no peer can predict or arrange (§6.1, §8.1). Two weaknesses are named and not addressed in
-this version: an announcer that is never parked holds the last resort off a parked honest provider
-(§6.1), and one IHAVE naming a chunk under two keys gets its sender asked once per key (§4.4). §6.2 says
-when the stop-pull test decides, §4.4 why the lookup of `known_id` is kept, and §9 which announcers the
-measured retry took.
+The text rewritten for readers; the code unchanged, some comments reworded.
 
-The toy's default transport keeps §7.3's rule, one entry at a time per connection (`--send-buffer 1`;
-`--send-buffer 0` is the earlier transport, which takes every write at once). Every recorded cell but
-`rr-stripe` changes in both recordings, at seed 7 by −98 to −3 ms at the median, −99 to −2 ms at the
-tail and −0.72 to −0.03 copies (`push` in `golden.txt`: 464 → 427 ms, 533 → 522 ms, 2.49 → 2.15
-copies), the recordings made again; a cell `push-deep` keeps the earlier transport and gives the earlier
-`push` line exactly. A block can install late at some nodes (`--late-block`), and a recorded cell where
-18 of 60 nodes do runs §4.2's deferral and fails if anything is left waiting; the README says why its
-on-time nodes finish later: the late peers hold slots of the source's sending window (§7.1). Every
-table of `protocol.md` reads without creating an entry, and known-answer scripts (`toy/*_known.py`)
-check the new rules. `toy/check.py` has fifteen cells.
+- `protocol.md`, every section. A rule to a paragraph, with new paragraphs that say what each handler
+  does, written from its code. The reasons move to an unnumbered Rationale at the end of a section,
+  with the alternatives not taken. What this version leaves open is marked **Open:**. §0 says how
+  the document is organized and how to read it, and a glossary after §9 defines its terms.
+- A rule's history is left to this changelog, measured figures to §9 and the companion documents,
+  and review labels are dropped. Three code comments that called the last resort B′ name it, on the
+  same lines.
+- Two sentences that still had the source announce at publish (§5.1, §5.4) follow the code, which
+  announces at the acknowledgement (since v0.9).
+- `README.md` describes the next version's draft, `formal/` and `formal/veil/` without their
+  history, and without the toy's one-seed figures.
+- This changelog's v0.10 and v0.9 entries are lists.
+- The toy, its recorded cells, `protocol-v2.md` and `formal/` are unchanged.
 
-The draft of SEACAST's next version (`protocol-v2.md`) changed since v0.6. Every decision of its §8 is
-taken, those chosen among alternatives with what was not taken: among them a protocol of its own carried
-by §7's three bindings (`[D1]`); a sampler's reach, a coverage floor built for diversity with routed
-sample requests on LiteDAS's two phases (`[D12]`); a column's and a row's offers to every joined peer,
-offers to the relations only permitted for columns (`[D5]`); the row pull delay of 1 s, shorter at a cost
-where nodes lie about their holdings (`[D8]`); the promise's length; and the window in bytes. §6.3 states
-its limits by their bounds, the values the client's. v0.7's, v0.8's and v0.9's rules are carried in,
-v0.9's acknowledgement for every object type (§4.7). The relations' upkeep is written out and runs on the
-toy's wire (§4.1: a GRAFT is answered, JOINs, GRAFTs and PRUNEs are owed at a full queue, a symmetric type
-keeps one relation both ways), and `toy/graft_check.py` checks the JOIN and GRAFT exchanges in every
-interleaving for one link and one relation, in small bounds. A PRUNE names its direction from its sender's
-side (§4.1), and a binding validates a block's cell header no later than it installs the block (§4.2). A
-source publishes at once to the links it has in a family it does not custody (§4.7, `source_pool`,
-`SOURCE_FLOOR`), the payload's too, where `protocol.md`'s source with no mesh peer sends nothing (§6.1),
-and owes a push to them that a full queue refuses, as to a relation peer (`unpush`); a
-source's own chunks go before its offers and answers (§4.12); repair keeps a floor of custodian links, and
-its sample, rebuilt cells marked seen and a custodian's alarm are options (§4.6); the probe of a claim
-judges the claimant by its own copy only, is marked so that the claimant answers it whatever the asker
-holds (`Want.probe`, once per asker and group), is kept in the asker's queue while it waits, and asks for
-a cell drawn at random among those lacked, where it asked for the lowest; the standalone binding carries
-its mark and `standing` in one flags byte; three cases it does not yet handle are named open (§4.6, R5);
-and §7 says how a sampler rides gossipsub's wires and frames the standalone binding as Waggle does. The
-toy gains options for these (among them `--sample-cover`, `--upkeep`, `--churn`, `--col-announce`,
-`--row-announce`, `--alarm-wait` and `--rebuilt-seen`), `--topology` also loads the research harness's
-DAS graphs, and `golden-v2.txt` is recorded again where a carried rule changed its events;
-`toy/sampler_graph.py` and `toy/sampler_match.py` compute `[D12]`'s figures on graphs alone.
-`toy/check.py` gains a cell with stock gossipsub's IHAVE limits (`ihave-limits`), recorded in
-`golden.txt`. Its figures measured before the toy's transport change say so (§0), and its header lists
-what it carries of this version's `protocol.md` changes and what not yet, where it has functions of its own.
+## v0.10, 2026-11-15 (`1643c01`)
+
+`protocol.md`:
+- A chunk that arrives before its block is installed now waits by rules written out as code (§4.2,
+  §6.1: `tie_room`, `drop_offer` and the `of=` form of `close_promises`), and four rules are added
+  for what waits:
+  - a deferred copy of a group beyond its sender's limit of unknown groups is ignored;
+  - at installation, a tied index the group does not have is dropped;
+  - when a group's count becomes known, what named an index at or beyond it goes (§4.2, §8.1);
+  - what waits for a root that never installs goes when its slot leaves the live window or its group
+    expires (§4.2, §6.4, §8.1).
+- Level 1 rejects a copy whose slot is not its block's (§3).
+- An IHAVE entry is a bitmap or a chunk's valid id, anything else ignored without penalty, and an
+  IHAVE's bitmap is held to a HAVE's limits: one naming an index at or beyond the group's known count
+  is ignored and counts against the sender (§4.4, §8.2).
+- The announcers beyond a chunk's ordered list are tried in an order of the node's own, a hash of
+  the chunk and the peer keyed by a secret the node draws, which no peer can predict or arrange
+  (§6.1, §8.1).
+- Two weaknesses are named and not addressed in this version: an announcer that is never parked
+  holds the last resort off a parked honest provider (§6.1), and one IHAVE naming a chunk under two
+  keys gets its sender asked once per key (§4.4).
+- §6.2 says when the stop-pull test decides, §4.4 why the lookup of `known_id` is kept, and §9 which
+  announcers the measured retry took.
+
+The toy:
+- Its default transport keeps §7.3's rule, one entry at a time per connection (`--send-buffer 1`;
+  `--send-buffer 0` is the earlier transport, which takes every write at once). Every recorded cell
+  but `rr-stripe` changes in both recordings, at seed 7 by −98 to −3 ms at the median, −99 to −2 ms
+  at the tail and −0.72 to −0.03 copies (`push` in `golden.txt`: 464 → 427 ms, 533 → 522 ms, 2.49 →
+  2.15 copies), the recordings made again. A cell `push-deep` keeps the earlier transport and gives
+  the earlier `push` line exactly.
+- A block can install late at some nodes (`--late-block`), and a recorded cell where 18 of 60 nodes
+  do runs §4.2's deferral and fails if anything is left waiting. The README says why its on-time
+  nodes finish later: the late peers hold slots of the source's sending window (§7.1).
+- Every table of `protocol.md` reads without creating an entry, and known-answer scripts
+  (`toy/*_known.py`) check the new rules. `toy/check.py` has fifteen cells.
+
+The draft of SEACAST's next version (`protocol-v2.md`), changed since v0.6:
+- Every decision of its §8 is taken, those chosen among alternatives with what was not taken. Among
+  them: a protocol of its own carried by §7's three bindings (`[D1]`); a sampler's reach, a coverage
+  floor built for diversity with routed sample requests on LiteDAS's two phases (`[D12]`); a
+  column's and a row's offers to every joined peer, offers to the relations only permitted for
+  columns (`[D5]`); the row pull delay of 1 s, shorter at a cost where nodes lie about their
+  holdings (`[D8]`); the promise's length; and the window in bytes.
+- §6.3 states its limits by their bounds, the values the client's.
+- v0.7's, v0.8's and v0.9's rules are carried in, v0.9's acknowledgement for every object type
+  (§4.7).
+- The relations' upkeep is written out and runs on the toy's wire (§4.1: a GRAFT is answered,
+  JOINs, GRAFTs and PRUNEs are owed at a full queue, a symmetric type keeps one relation both ways),
+  and `toy/graft_check.py` checks the JOIN and GRAFT exchanges in every interleaving for one link and
+  one relation, in small bounds. A PRUNE names its direction from its sender's side (§4.1), and a
+  binding validates a block's cell header no later than it installs the block (§4.2).
+- A source publishes at once to the links it has in a family it does not custody (§4.7,
+  `source_pool`, `SOURCE_FLOOR`), the payload's too, where `protocol.md`'s source with no mesh peer
+  sends nothing (§6.1), and owes a push to them that a full queue refuses, as to a relation peer
+  (`unpush`). A source's own chunks go before its offers and answers (§4.12).
+- Repair keeps a floor of custodian links, and its sample, rebuilt cells marked seen and a
+  custodian's alarm are options (§4.6).
+- The probe of a claim judges the claimant by its own copy only, is marked so that the claimant
+  answers it whatever the asker holds (`Want.probe`, once per asker and group), is kept in the
+  asker's queue while it waits, and asks for a cell drawn at random among those lacked, where it
+  asked for the lowest. The standalone binding carries its mark and `standing` in one flags byte.
+- Three cases it does not yet handle are named open (§4.6, R5).
+- §7 says how a sampler rides gossipsub's wires, and frames the standalone binding as Waggle does.
+- The toy gains options for these (among them `--sample-cover`, `--upkeep`, `--churn`,
+  `--col-announce`, `--row-announce`, `--alarm-wait` and `--rebuilt-seen`), `--topology` also loads
+  the research harness's DAS graphs, and `golden-v2.txt` is recorded again where a carried rule
+  changed its events. `toy/sampler_graph.py` and `toy/sampler_match.py` compute `[D12]`'s figures
+  on graphs alone.
+- `toy/check.py` gains a cell with stock gossipsub's IHAVE limits (`ihave-limits`), recorded in
+  `golden.txt`. The draft's figures measured before the toy's transport change say so (its §0), and
+  its header lists what it carries of this version's `protocol.md` changes and what not yet, where it
+  has functions of its own.
 
 `formal/` and `formal/veil/` are unchanged: their models are of v0.5's and v0.8's rules.
 
 ## v0.9, 2026-11-10 (`ed5745a`)
 
-The source announces a chunk to the mesh peers it did not push it to, and its HAVE names the chunk, at the
-chunk's acknowledgement: the first HAVE naming it from any peer, or its first copy's window timeout (§5.1,
-§4.3, §7.1), in place of v0.8's announcement at publish and HAVE at the write. Announced at publish, the
-offers raced the pushes wherever the transport takes the batch at once, and the source answered asks for
-chunks whose pushes were still queued. A new §7.3 says what the transport below the writer should hold: a
-writer should hand a chunk to the transport only while the connection has less than one chunk unsent, what
-that bounds and what it does not, how quic-go and TCP keep it, and a note for operators on the access
-link's queue. §9 records that the measured implementation announced at publish over quic-go. The toy's
-events change in every recorded cell of `golden.txt` (at seed 7 by −14 to +1 ms at the median, −47 to
-+12 ms at the tail and −0.11 to +0.06 copies), the recording made again; `golden-v2.txt` was unchanged
-by it, since the next version kept its own source until it took this rule (v0.10). The toy takes
-`--payload BYTES`, the bytes of each payload (default 1 MiB), the compressed size following at the same
-ratio, so that small sizes give hand-counted cases (16384 bytes: K = 1, N = 2); the recorded cells are
-unchanged by it.
+- The source announces a chunk to the mesh peers it did not push it to, and its HAVE names the
+  chunk, at the chunk's acknowledgement: the first HAVE naming it from any peer, or its first copy's
+  window timeout (§5.1, §4.3, §7.1). This replaces v0.8's announcement at publish and HAVE at the
+  write. Announced at publish, the offers raced the pushes wherever the transport takes the batch at
+  once, and the source answered asks for chunks whose pushes were still queued.
+- A new §7.3 says what the transport below the writer should hold: a writer should hand a chunk to
+  the transport only while the connection has less than one chunk unsent; what that bounds and what
+  it does not; how quic-go and TCP keep it; and a note for operators on the access link's queue.
+- §9 records that the measured implementation announced at publish over quic-go.
+- The toy's events change in every recorded cell of `golden.txt` (at seed 7 by −14 to +1 ms at the
+  median, −47 to +12 ms at the tail and −0.11 to +0.06 copies), the recording made again.
+  `golden-v2.txt` was unchanged by it, since the next version kept its own source until it took this
+  rule (v0.10).
+- The toy takes `--payload BYTES`, the bytes of each payload (default 1 MiB), the compressed size
+  following at the same ratio, so that small sizes give hand-counted cases (16384 bytes: K = 1,
+  N = 2). The recorded cells are unchanged by it.
 
 ## v0.8, 2026-10-28 (`bc7a0a6`)
 
