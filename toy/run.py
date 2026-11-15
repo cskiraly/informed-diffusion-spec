@@ -104,6 +104,10 @@ def run(cfg, out=sys.stdout):
                 + sum(nd.reserved.values()) + len(nd.blocks_waiting) for nd in sim.nodes.values()]
         print(f"  late blocks: left at the end (copies waiting, their ids, ties, reservations, blocks not installed): "
               f"{sum(left)}{'' if not sum(left) else '  <-- something still waits'}", file=out)
+        missing = sum(r["missing"] for r in rows)      # the cell's two claims, checked: nothing waits at the end,
+        if sum(left) or missing:                        #   and every node completes every payload
+            cfg["failed"] = (f"--late-block: {sum(left)} entries still wait at the end, "
+                             f"{missing} payloads missing at their nodes")
     if cfg.get("upkeep"):                       # --upkeep on: protocol-v2.md §4.1's messages on the wire
         tot = sum((nd.relation_msgs for nd in sim.nodes.values()), Counter())
         print(f"  upkeep: {tot['Join']} JOINs, {tot['Graft']} GRAFTs, {tot['Prune']} PRUNEs sent; the coverage floor "
@@ -469,6 +473,8 @@ def main(argv):
     for note in notes:
         print(f"note: {note}")
     run(cfg)
+    if cfg.get("failed"):                       # after the digest line, so that check.py shows this one
+        sys.exit(f"run.py: FAILED: {cfg['failed']}")
 
 
 if __name__ == "__main__":

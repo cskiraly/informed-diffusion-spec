@@ -61,8 +61,9 @@ publish, and each keeps at most two deferred copies per peer.
   `protocol.md` §4.2's deferral: `defer`, `tie`, `on_block_installed`, and the ties' release into
   offers.
 - In `protocol.md`'s run, 491 deferred copies are kept and 347 refused, 923 ties are released, and
-  at the end nothing waits: no copy, tie, reservation or block (the run prints the count; the
-  check does not read it). Every node completes. The warm median goes from the `push` cell's 427 ms
+  at the end nothing waits: no copy, tie, reservation or block. Every node completes. Under
+  `--late-block` run.py checks both, and fails if either does not hold (`late_drain_known.py`), since
+  a leak of state changes no event and so no digest. The warm median goes from the `push` cell's 427 ms
   to 635 ms, and not only through the 18: the 41 nodes that install on time are slower too, at
   628, 616 and 645 ms at their median for the three payloads, against 426, 423 and 420 ms for the
   same nodes without late blocks. Why is not looked into yet.
@@ -78,12 +79,13 @@ which takes every write at once (`--send-buffer 0`, the default until that day):
 met, a case the document allows and the check keeps. Its line is the `push` cell's line before the
 default changed, in both recordings.
 
-Four scripts hold known answers for what a digest cannot show: `own_order_known.py` (§6.1's
+Five scripts hold known answers for what a digest cannot show: `own_order_known.py` (§6.1's
 reference order; its control, the rank read big-endian, must differ), `ihave_id_known.py` (§4.4: an
 IHAVE id that is not a chunk's id; a valid id beside it must leave an offer), `tie_read_known.py`
 (a peer that was only asked about has no tie; the tied peer beside it must lose its park) and
 `tie_helpers_known.py` (`tie_room`, `drop_offer`, and `close_promises` with `of`, by the values
-they must leave).
+they must leave) and `late_drain_known.py` (the `late-block` cell with a leak put in by hand must
+fail; as it is, it must pass).
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then
