@@ -3,9 +3,12 @@
 The pseudocode treats per-group and per-peer state as maps whose missing entries read as empty
 "and reading it allocates nothing". Some also carry meaning in whether an entry exists at
 all: card 16's guard asks whether a peer sent any HAVE for a group (`g not in peer_has[p]`),
-note_push starts a clock at the first push, and an installation releases the ties it finds (`tied`). LazyMap gives both: a missing key reads as a fresh,
-detached entry, which inserts itself into the map the first time it is written to.
+note_push starts a clock at the first push, an installation releases the ties it finds (`tied`),
+and the writer takes an owed answer for each group it finds (`owed_answers`). LazyMap and LazyDict
+give both: a missing key reads as a fresh, detached entry, which inserts itself into the map the
+first time it is written to.
 """
+import weakref
 
 
 def _v(x):
@@ -306,3 +309,159 @@ class DefaultMap(dict):
 
     def __missing__(self, k):
         return self._default
+
+
+# ---- §8.1's rule for the rest of the tables: a read creates nothing, at any level, and a write through a read
+# creates what it writes. A missing key reads as a detached entry (or a constant), which joins its map at its
+# first write; the map, if it is itself such an entry of another, joins that one then, and so on up. Two reads
+# of one missing key give the same detached entry while anyone holds it (a weak cache, which no `in`, `len`
+# or iteration sees), so that a caller holding one sees what another writes through the other. A detached
+# entry written after another value was set under its key would lose a write: that fails (`_adopt`).
+
+def _join(e):
+    home = e._home
+    if home is not None:
+        e._home = None
+        home._adopt(e._key, e)
+
+
+class LazyDict(dict):
+    """A map whose missing keys read as `make(self, key)`, inserting nothing (with `make` None a missing key
+    raises, as a dict's does). A dict for every other use: `in`, `get`, iteration, `pop` and `del` read and
+    change only what is there."""
+    __slots__ = ("_make", "_home", "_key", "_detached", "__weakref__")
+
+    def __init__(self, make=None, home=None, key=None):
+        super().__init__()
+        self._make, self._home, self._key, self._detached = make, home, key, None
+
+    def __missing__(self, k):
+        if self._make is None:
+            raise KeyError(k)
+        d = self._detached
+        if d is not None:
+            e = d.get(k)
+            if e is not None:
+                return e
+        e = self._make(self, k)
+        if hasattr(e, "_home"):                     # an entry that can join (a count reads as a plain 0)
+            if d is None:
+                d = self._detached = weakref.WeakValueDictionary()
+            d[k] = e
+        return e
+
+    def _adopt(self, k, v):
+        cur = dict.get(self, k)
+        if cur is not None and cur is not v:
+            raise AssertionError(f"a lazy map: a detached entry of the key {k!r} written after another value was "
+                                 f"set under it; one write would be lost")
+        dict.__setitem__(self, k, v)
+        if self._detached is not None:
+            self._detached.pop(k, None)
+        _join(self)
+
+    def __setitem__(self, k, v):
+        dict.__setitem__(self, k, v)
+        if self._detached is not None:
+            self._detached.pop(k, None)
+        _join(self)
+
+    def setdefault(self, k, default=None):
+        if k not in self:
+            self[k] = default
+        return dict.__getitem__(self, k)
+
+    def update(self, *args, **kw):
+        dict.update(self, *args, **kw)
+        if self:
+            _join(self)
+
+
+class LazyBits(Bits):
+    """A bitmap entry of a LazyDict; it joins at its first set."""
+    __slots__ = ("_home", "_key", "__weakref__")
+
+    def __init__(self, home=None, key=None):
+        super().__init__(0)
+        self._home, self._key = home, key
+
+    def set(self, i):
+        super().set(i)
+        _join(self)
+
+    def __ior__(self, o):
+        super().__ior__(o)
+        _join(self)
+        return self
+
+
+class LazySet(set):
+    """A set entry of a LazyDict; it joins at its first addition."""
+    __slots__ = ("_home", "_key")
+
+    def __init__(self, home=None, key=None):
+        super().__init__()
+        self._home, self._key = home, key
+
+    def add(self, x):
+        super().add(x)
+        _join(self)
+
+    def update(self, *others):
+        super().update(*others)
+        if self:
+            _join(self)
+
+    def __ior__(self, o):
+        super().__ior__(o)
+        if self:
+            _join(self)
+        return self
+
+
+class LazyList(list):
+    """A list entry of a LazyDict; it joins at its first addition."""
+    __slots__ = ("_home", "_key", "__weakref__")
+
+    def __init__(self, home=None, key=None):
+        super().__init__()
+        self._home, self._key = home, key
+
+    def append(self, x):
+        super().append(x)
+        _join(self)
+
+    def extend(self, xs):
+        super().extend(xs)
+        if self:
+            _join(self)
+
+    def insert(self, i, x):
+        super().insert(i, x)
+        _join(self)
+
+    def __iadd__(self, xs):
+        super().__iadd__(xs)
+        if self:
+            _join(self)
+        return self
+
+
+def lazy(leaf):
+    """key -> leaf(home, key): a one-level table."""
+    return LazyDict(leaf)
+
+
+def lazy2(leaf):
+    """key -> key -> leaf(home, key): a two-level table."""
+    return LazyDict(lambda home, k: LazyDict(leaf, home, k))
+
+
+def lazy_dict(home, k):
+    """A dict leaf: a missing key of it raises, as a dict's does."""
+    return LazyDict(None, home, k)
+
+
+def zero(home, k):
+    """A count leaf: reads as 0; `+= 1` writes it through the map."""
+    return 0

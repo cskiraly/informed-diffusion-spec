@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Known answers for §8.1's rule in the toy's tables: "reading it allocates nothing".
+
+    python3 table_read_known.py
+
+The document reads its per-peer and per-group tables as maps whose missing entries are empty, and some of its
+decisions go by whether an entry is there at all (the writer's `if owed_answers[p]`, for one). Each table
+here is read on one node of a small network, built and not run, the way the document reads it, for a peer and a
+group it holds nothing for; then nothing may be in the table that was not there. Then one write through the
+same reads (the control) must leave exactly the entry it wrote.
+
+And the case that made the rule matter for the writer, found in review: reading
+`owed_answers[p][G].empty()` used to leave an empty group under p, and `next_to_send(p)` then took it for an
+answer owed and failed on `min` of an empty bitmap. Here `next_to_send(p)` must return nothing to send.
+"""
+import sys
+from pathlib import Path
+
+SEED, NODE, P = 7, 2, 1
+G = bytes([0x55]) * 32                                      # a group the node knows nothing of
+
+
+def shape(t):
+    """What a table holds, level by level: keys and the entries' contents, as plain values."""
+    if isinstance(t, dict):
+        return {k: shape(v) for k, v in dict.items(t)}
+    if hasattr(t, "urgent") and hasattr(t, "normal"):
+        return (list(t.urgent), list(t.normal))
+    if hasattr(t, "v"):
+        return sorted(t)
+    return t
+
+
+def main():
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import run
+    import sim as S
+    import wire as Wm
+    got = {}
+    run.run = lambda cfg, out=sys.stdout: got.setdefault("sim", S.Sim(cfg))
+    run.main(["--nodes", "5", "--degree", "4", "--msgs", "1", "--payload", "16384", "--seed", str(SEED)])
+    ns = got["sim"].nodes[NODE].ns
+    bad = 0
+
+    def line(what, got_, want):
+        nonlocal bad
+        bad += got_ != want
+        print(f"{what}: {got_}{'' if got_ == want else f'  <-- must be {want}'}")
+
+    entry = Wm.Entry(control=Wm.IWANT([Wm.WantIndex(G, 0)]))
+    cases = [                       # table, the reads (as the document makes them), one write through them
+        ("owed", lambda t: (bool(t[P]), t[P][G].empty(), list(t[P])), lambda t: t[P][G].__ior__({3})),
+        ("owed_answers", lambda t: (bool(t[P]), t[P][G].empty(), t[P][G].has(3)), lambda t: t[P][G].set(3)),
+        ("queue", lambda t: (bool(t[P].urgent), bool(t[P].normal), t[P].has_chunks(), [e for e in t[P].normal]),
+         lambda t: t[P].normal.append(entry)),
+    ]
+    for name, read, write in cases:
+        t = ns[name]
+        before = shape(t)
+        read(t)
+        line(f"{name}: read for a peer and a group it holds nothing for; the table as it was", shape(t) == before, True)
+        write(t)
+        after = shape(t)
+        new = {k: v for k, v in after.items() if before.get(k) != v}
+        line(f"{name}: one write through the same reads (the control); what is new", list(new), [P])
+
+    for name in ("owed", "owed_answers", "queue"):          # the writer's case, from a clean state for P
+        ns[name].pop(P, None)
+    ns["owed_answers"][P][G].empty()
+    try:
+        out = ns["next_to_send"](P)
+    except ValueError as err:
+        out = f"failed: {err}"
+    line("the writer, after a read of owed_answers[p][G].empty(): next_to_send(p)", out, None)
+    print("ok" if not bad else "FAIL")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

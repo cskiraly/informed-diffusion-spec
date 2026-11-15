@@ -17,7 +17,8 @@ from collections import deque
 import bits as B
 import scenario
 import wire as Wm
-from bits import AutoMap, Bits, DefaultMap, HaveEntry, LazyMap, OfferMap, PushEntry, all_bits, bitmap, popcount, tie_table
+from bits import (AutoMap, Bits, DefaultMap, HaveEntry, LazyBits, LazyMap, OfferMap, PushEntry, _join, all_bits,
+                  bitmap, lazy, lazy2, popcount, tie_table)
 from extract import DOC, generate
 
 SPEC_SRC = generate()
@@ -49,12 +50,53 @@ class _Wait:
 WAIT = _Wait()
 
 
-class PeerQueue:
-    """queue[p]: the two lanes of one peer's bounded queue (§7)."""
-    __slots__ = ("urgent", "normal")
+class _Lane(list):
+    """A lane of a PeerQueue: an entry added to it makes the queue join its map (bits.LazyDict)."""
+    __slots__ = ("_q",)
 
-    def __init__(self):
+    def __init__(self, q, items=()):
+        super().__init__(items)
+        self._q = q
+
+    def append(self, x):
+        super().append(x)
+        _join(self._q)
+
+    def extend(self, xs):
+        super().extend(xs)
+        if self:
+            _join(self._q)
+
+    def insert(self, i, x):
+        super().insert(i, x)
+        _join(self._q)
+
+    def __iadd__(self, xs):
+        super().__iadd__(xs)
+        if self:
+            _join(self._q)
+        return self
+
+
+class PeerQueue:
+    """queue[p]: the two lanes of one peer's bounded queue (§7). Read for a peer it does not hold, the queue
+    table gives a detached, empty one, which joins the table when an entry goes into a lane (§8.1: reading
+    allocates nothing)."""
+    __slots__ = ("urgent", "normal", "_home", "_key", "__weakref__")
+
+    def __init__(self, home=None, key=None):
+        object.__setattr__(self, "_home", home)
+        object.__setattr__(self, "_key", key)
         self.urgent, self.normal = [], []
+
+    def __setattr__(self, k, v):
+        if k in ("urgent", "normal"):
+            v = _Lane(self, v)
+            object.__setattr__(self, k, v)
+            if v:
+                _join(self)
+        else:
+            object.__setattr__(self, k, v)
 
     def has_chunks(self):
         for e in self.normal:
@@ -534,13 +576,13 @@ class Node:
             "peer_has": AutoMap(lambda: LazyMap(HaveEntry)),
             "pushed": AutoMap(lambda: LazyMap(PushEntry)),
             "holders": AutoMap(lambda: AutoMap(set)), "sent_to": AutoMap(lambda: AutoMap(Bits)),
-            "queue": AutoMap(PeerQueue), "slot_held": DefaultMap(False),
+            "queue": lazy(PeerQueue), "slot_held": DefaultMap(False),
             "unwanted": AutoMap(set), "serve_count": AutoMap(lambda: AutoMap(int)),
             "asked_at": {}, "tried": AutoMap(dict), "offers": OfferMap(), "promises": {},
             "offered": AutoMap(lambda: AutoMap(Bits)), "asked_parked": AutoMap(set),
             "last_resort_armed": set(),
             "ihave_rpcs": DefaultMap(0), "ihave_asked": DefaultMap(0), "held_back": {},
-            "owed": AutoMap(lambda: AutoMap(Bits)), "owed_answers": AutoMap(lambda: AutoMap(Bits)),
+            "owed": lazy2(LazyBits), "owed_answers": lazy2(LazyBits),
             "park": AutoMap(dict), "gossip_history": GossipHistory(), "pace_queue": [],
             "pending": AutoMap(list), "pending_ids": set(),
             "tied": tie_table(),                                          # root -> peer -> group -> indices
