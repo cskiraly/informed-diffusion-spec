@@ -517,6 +517,8 @@ def on_ihave(p, ih):                                                  # returns 
     if ih.ids: ihave_rpcs[p] += 1                                     # IHAVE-bearing RPCs (§8.2)
     candidates = []
     for entry in ih.ids:
+        if is_have_bitmap(entry) and not valid_have(entry):           # a bitmap is held to a HAVE's
+            penalise(p); continue                                     #   limits: ignored, and counted (§8.2)
         for a in expand(entry):                                       # [c7]
             if held(a) or expired(group(a)): continue
             add_offer(a, p)                                           # [c5] offer table (§6.1)
@@ -556,12 +558,13 @@ never gives an id as this document stands. An id is recorded only for a chunk th
 stored chunk is in `mine`, and neither asks for a chunk in `mine`. The lookup is kept for a node that
 knows a chunk's id without holding the chunk, which nothing here brings about.
 
-An entry that is not a bitmap is a chunk's structured id (§2), or it is ignored (`valid_id`). An id
-is valid if it has the id's 56 bytes and names an index its group can have: below
-`MAX_PLAIN_CHUNKS`, and below the group's count where its descriptor is known, as a bitmap's
-indices are held to (§4.3, §8.2). Any other entry leaves no offer, no ask and no penalty. Its RPC
-still counts as one that bears an IHAVE (§8.2). The id's last 20 bytes, the content id, cannot be
-checked before the chunk is held.
+An IHAVE's bitmap is held to a HAVE's limits (`valid_have`, §4.3, §8.2): one with an index at or
+beyond the group's count, once its descriptor is known, is ignored and counts against the sender, as
+a HAVE is. An entry that is not a bitmap is a chunk's structured id (§2), or it is ignored
+(`valid_id`). An id is valid if it has the id's 56 bytes and names an index its group can have:
+below `MAX_PLAIN_CHUNKS`, and below the group's count where its descriptor is known. Any other id
+leaves no offer, no ask and no penalty. Either way the RPC still counts as one that bears an IHAVE
+(§8.2). The id's last 20 bytes, the content id, cannot be checked before the chunk is held.
 
 One IHAVE can name a chunk under two keys: a valid id and a bitmap's index, or two valid ids of one
 group and index that differ in their content id. Its sender is then asked once per key, each ask
@@ -1543,7 +1546,7 @@ A node checks a message's shape before it allocates state for it.
 
 | what | limit | at the limit |
 |---|---|---|
-| a HAVE bitmap | `MAX_HAVE_BYTES` (8192 indices); no index at or beyond N once the descriptor is known | the HAVE is ignored and counts against the sender |
+| a HAVE bitmap, and an IHAVE's (§4.4) | `MAX_HAVE_BYTES` (8192 indices); no index at or beyond N once the descriptor is known | the HAVE, or the IHAVE's bitmap, is ignored and counts against the sender |
 | a descriptor | `valid_descriptor` (§1) | the chunk is rejected |
 | groups not yet bound to an installed block, named in a peer's HAVEs, IHAVEs or deferred chunks | `MAX_PENDING_GROUPS` per peer | the peer's further unknown groups are ignored until one resolves or expires |
 | deferred chunks | a bounded store with per-peer reservations | the peer's further deferred chunks are dropped, neither claimed nor forwarded; each ties the peer to the root it names, as a kept one does (§4.2) |

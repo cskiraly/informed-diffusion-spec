@@ -12,6 +12,10 @@ no ask and no penalty, and its RPC still counts as one that bears an IHAVE.
 The check, on one node of a small network that is built and not run, with one IHAVE from a peer per case: ids
 that are not a chunk's, each for one reason; and beside them two that are, which must each leave an offer (the
 control: the rule does not ignore everything).
+
+And a bitmap entry, which §4.4 holds to a HAVE's limits (`valid_have`): one naming an index at or beyond a
+group's known count is ignored and counts against the sender; one within it, and one of a group whose count is
+not known, each leave an offer (the controls).
 """
 import sys
 from pathlib import Path
@@ -67,6 +71,22 @@ def main():
         print(f"{what}: valid_id {ns['valid_id'](entry)}; asks {asks}; IHAVE RPCs counted {before[0]} -> {after[0]}, "
               f"lists {before[1]} -> {after[1]}, offers kept {before[2]} -> {after[2]}, penalties {before[3]} -> {after[3]}: "
               f"{('an offer, as a chunk id leaves' if valid else 'ignored, and counted') if ok else 'NOT as §4.4 says  <-- FAIL'}")
+
+    # a bitmap entry is held to a HAVE's limits: an index at or beyond a known count is ignored and penalised
+    from bits import bitmap
+    bitmaps = [(f"a bitmap of index {n2} of the group known to have {n2} chunks", Wm.HaveBitmap(group=G2, bits=bitmap({n2})), False),
+               (f"the control: a bitmap of index {n2 - 2} of that group", Wm.HaveBitmap(group=G2, bits=bitmap({n2 - 2})), True),
+               ("the control: a bitmap of index 6 of a group whose count is not known", Wm.HaveBitmap(group=G, bits=bitmap({6})), True)]
+    for what, entry, valid in bitmaps:
+        before = state()
+        asks = ns["on_ihave"](PEER, Wm._IHave([entry]))
+        after = state()
+        want = (before[0] + 1, before[1] + valid, before[2] + valid, before[3] + (not valid))
+        ok = asks == [] and after == want
+        bad += not ok
+        print(f"{what}: asks {asks}; IHAVE RPCs counted {before[0]} -> {after[0]}, lists {before[1]} -> {after[1]}, "
+              f"offers kept {before[2]} -> {after[2]}, penalties {before[3]} -> {after[3]}: "
+              f"{('an offer' if valid else 'ignored, counted and penalised') if ok else 'NOT as §4.4 says  <-- FAIL'}")
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0
 
