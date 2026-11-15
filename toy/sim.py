@@ -185,7 +185,8 @@ class Sim:
             c["hoard_members"] = kind == "hoardm"              # repairs only the row's members' custody cells
             c["hoard_column"] = kind == "hoardcol"             # repairs every withheld column but one per subnet
         if c.get("late_block"):                                # pct % of the non-publishers, by another seeded draw
-            c["late_nodes"] = scenario_fail_select(c["seed"], n, c["late_block"][0], domain=0x1A7EB10C1A7EB10C)
+            pubs = {c.get("publishers", {}).get(m, 1) for m in range(1, c["msgs"] + 1)}    # as publish() picks them
+            c["late_nodes"] = scenario.late_select(c["seed"], n, c["late_block"][0], pubs)
         das = c.get("doc") == "v2" and c.get("setting") in ("custody", "rows")
         dump = c.get("das_dump") if das else None              # a harness dump's network (run.py --topology,
         if das and c.get("samplers"):                          #   xcheck.apply_das): no draw below runs

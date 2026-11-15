@@ -284,6 +284,15 @@ def fail_select(seed, n, pct, domain=0xF1F1F1F1F1F1F1F1):
     return {i + 1 for i in idxs[:count]}
 
 
+def late_select(seed, n, pct, spare, domain=0x1A7EB10C1A7EB10C):
+    """--late-block's nodes: pct % of the nodes not in `spare` (the publishers), ranked by fail_select's seeded hash
+    under its own domain; none at 0 %. Where `spare` is {1}, the nodes fail_select gives under that domain."""
+    s = geo_mix(seed ^ domain)
+    ids = [i for i in range(1, n + 1) if i not in spare]
+    count = (pct * len(ids) + 50) // 100
+    return set(sorted(ids, key=lambda i: geo_mix(s ^ (i - 1)), reverse=True)[:count])
+
+
 HOME = {"up": 50e6, "down": 100e6}
 DC = {"up": 1e9, "down": 1e9}
 

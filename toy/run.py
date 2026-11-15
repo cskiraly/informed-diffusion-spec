@@ -365,16 +365,24 @@ def main(argv):
                          "§4.3): offer-bearing RPCs per peer and heartbeat, and asks in reply to them; the asks over either "
                          "wait for the next heartbeat's retry (stock gossipsub: 10,5000). Empty: no limit")
     ap.add_argument("--late-block", default="",
-                    help="PCT,MS[,STORE]: PCT percent of the nodes (never node 1, the publisher unless a topology names another) install each block MS milliseconds "
+                    help="PCT,MS[,STORE]: PCT percent of the nodes that publish nothing (0 to 100; 0: none) install each block MS milliseconds "
                          "after its publish, so that the chunks ahead of it take protocol.md §4.2's deferral: each such node "
                          "keeps at most STORE deferred copies per peer (default 2) and refuses the rest. The payload only")
     a = ap.parse_args(argv)
     send_buffer_default = 1 if a.uplink == "ps" else 0      # §7.3's rule where the toy's link can keep it
     if a.send_buffer is None:
         a.send_buffer = send_buffer_default
-    late = [float(x) for x in a.late_block.split(",")] if a.late_block else None
-    if late and (len(late) not in (2, 3) or a.setting in ("custody", "rows")):
-        ap.error("--late-block PCT,MS[,STORE], and not with --setting custody or rows")
+    late = None
+    if a.late_block:
+        try:
+            parts = a.late_block.split(",")
+            late = [int(parts[0]), float(parts[1])] + [int(x) for x in parts[2:]]
+        except (ValueError, IndexError):
+            late = []
+        if (len(late) not in (2, 3) or not 0 <= late[0] <= 100 or not late[1] >= 0 or min(late[2:] or [0]) < 0
+                or a.setting in ("custody", "rows")):
+            ap.error("--late-block PCT,MS[,STORE]: PCT a whole number from 0 to 100, MS and STORE not negative "
+                     "(STORE a whole number); and not with --setting custody or rows")
     limits = [float(x) for x in a.ihave_limits.split(",")] if a.ihave_limits else [math.inf, math.inf]
     cfg = dict(CFG, seed=a.seed, nodes=a.nodes, msgs=a.msgs, degree=a.degree, CHECK_TIME=a.check_ms / 1000,
                digest=a.digest, doc=a.doc, setting=a.setting, blobs=a.blobs, cgc=a.cgc, F_LO=a.floor, upkeep=a.upkeep == "on",

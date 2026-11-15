@@ -71,21 +71,21 @@ publish, and each keeps at most two deferred copies per peer.
   group, nor §8.2's limit on ties, which the toy does not set. A late node asks nothing of a group
   before its block installs, so the cell also cannot show what a tie does to a promise, a park,
   B′'s count or the retry's choice: those need a node that has one block and waits for another.
-- `--late-block` is not meant with `--churn` (a closed connection's ties are not dropped), and it
-  keeps node 1 on time, which is the publisher unless a topology names another.
+- `--late-block` is not meant with `--churn` (a closed connection's ties are not dropped). It never
+  draws a node that publishes, and at 0 % it draws none (`late_draw_known.py`).
 
 The fifteenth cell, `push-deep` (2026-11-15), is the `push` cell with the earlier transport,
 which takes every write at once (`--send-buffer 0`, the default until that day): §7.3's rule not
 met, a case the document allows and the check keeps. Its line is the `push` cell's line before the
 default changed, in both recordings.
 
-Five scripts hold known answers for what a digest cannot show: `own_order_known.py` (§6.1's
+Six scripts hold known answers for what a digest cannot show: `own_order_known.py` (§6.1's
 reference order; its control, the rank read big-endian, must differ), `ihave_id_known.py` (§4.4: an
 IHAVE id that is not a chunk's id; a valid id beside it must leave an offer), `tie_read_known.py`
 (a peer that was only asked about has no tie; the tied peer beside it must lose its park) and
 `tie_helpers_known.py` (`tie_room`, `drop_offer`, and `close_promises` with `of`, by the values
-they must leave) and `late_drain_known.py` (the `late-block` cell with a leak put in by hand must
-fail; as it is, it must pass).
+they must leave), `late_drain_known.py` (the `late-block` cell with a leak put in by hand must
+fail; as it is, it must pass) and `late_draw_known.py` (`--late-block`'s draw and its argument).
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then
