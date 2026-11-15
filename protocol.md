@@ -505,8 +505,13 @@ def on_ihave(p, ih):                                                  # returns 
 def over_ihave_limits(p):                                             # §8.2, per peer and heartbeat
     return ihave_rpcs[p] > MAX_IHAVE_MESSAGES or ihave_asked[p] >= MAX_IHAVE_LENGTH
 
+def valid_id(a):                                                      # a chunk's structured id (§2): its
+    if len(a) != 56: return False                                     #   56 bytes, and an index its group
+    g, i = group(a), index(a)                                         #   can have (§8.2)
+    return i < MAX_PLAIN_CHUNKS and (g not in desc or i < N(desc[g]))
+
 def expand(entry):                                                    # [c7]
-    if not is_have_bitmap(entry): return [entry]
+    if not is_have_bitmap(entry): return [entry] if valid_id(entry) else []   # an id, or nothing (below)
     g = entry.group
     return [known_id[g].get(i) or WantIndex(group=g, index=i) for i in entry.bits if not mine[g].has(i)]
 ```
@@ -514,6 +519,13 @@ def expand(entry):                                                    # [c7]
 An IHAVE bitmap tells us who can serve, not who holds. It feeds the offer table only: never
 `peer_has`, `holders`, cancel or the window. Nothing is asked for a group no installed block's bid
 commits: the offer table keeps the announcement, and the installation asks for it (§4.2).
+
+An entry that is not a bitmap is a chunk's structured id (§2), or it is ignored (`valid_id`). An id
+is valid if it has the id's 56 bytes and names an index its group can have: below
+`MAX_PLAIN_CHUNKS`, and below the group's count where its descriptor is known, as a bitmap's
+indices are held to (§4.3, §8.2). Any other entry leaves no offer, no ask and no penalty. Its RPC
+still counts as one that bears an IHAVE (§8.2). The id's last 20 bytes, the content id, cannot be
+checked before the chunk is held.
 
 **Gossipsub's two IHAVE limits** delay asks here and lose no offer. Beyond `MAX_IHAVE_MESSAGES`
 IHAVE-bearing RPCs from a peer within a heartbeat, or once the peer has been asked `MAX_IHAVE_LENGTH`
