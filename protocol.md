@@ -1164,6 +1164,12 @@ def ask_parked(a):
   spend it, and an honest provider parked later for one slow answer would get none. It is kept per
   chunk, by group and index, as is the one timer armed for it, so a parked peer that announces one
   index under many ids gets one last resort for it. `asked_parked` lives as `tried` does.
+- **An announcer that is never parked holds the last resort off.** It is armed only when every
+  untied announcer is parked. An announcer whose connection closes before its promise falls due is
+  not parked (above), nor is one that leaves the ask unwritten by not reading, so that its promise
+  never starts. While such an announcer stays a candidate, a parked honest provider of the chunk is
+  not asked again, for as long as its park lasts and the group is live. This version does not
+  address it; a fix is open.
 - **An answer can still wait for a block** at a node that asks only once its block is installed
   (§3), when it names another root: a forgery, or, when the proposer signed two blocks for the
   slot, the builder's block at a node that installed the other one, whose bid may commit the same
