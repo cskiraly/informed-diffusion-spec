@@ -1681,8 +1681,9 @@ rerun does as this document does, the entry says so.
   400 ms and parked the asked peers for the completed group only, which changed no later decision.
   This document closes them.
 - *The offer-table retry* picked untried announcers in peer-id order; this document takes the
-  earliest to have announced among a chunk's first 16 announcers, and the others after them in the
-  node's own order (§6.1). A retry that found every announcer parked stopped, and the chunk
+  earliest to have announced among the announcers admitted to a chunk's ordered list (at most 16,
+  and an announcer in at most 256 lists, §8.2), and the others after them in the node's own order
+  (§6.1). A retry that found every announcer parked stopped, and the chunk
   waited for a fresh announcement; this document asks each parked announcer once more, later, and
   keeps every offer (§6.1). The rerun of Figures 4 and 5 does as this document does, but for the
   order beyond the list, which is newer than the rerun.
