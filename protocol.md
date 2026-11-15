@@ -367,7 +367,9 @@ def on_validated(p, f, result):
     mark_seen(message_id(f))                         # accepted or rejected: never validated again
     if result == REJECT: return penalise(p)          # level 1 failures are the sender's (§3)
     g, i = f.group, f.index
-    if g not in desc: open_group(g, f)               # desc[g] from the bid; state[g] = COLLECTING
+    if g not in desc:
+        open_group(g, f)                             # desc[g] from the bid; state[g] = COLLECTING
+        drop_beyond(g)                               # what named an index it has not goes (§8.2)
     if state[g] == INVALID: return                   # a dropped group (§4.6)
     if received[g].has(i): return send_have(p, g)    # a second copy of a chunk we received: acknowledge
     store(g, i, f); received[g].set(i)               # also records known_id[g][i] = message_id(f)
@@ -454,6 +456,20 @@ def drop_stale_waits():                              # at each heartbeat (§6.4)
             tied[root].pop(p, None); tie_slot.pop((root, p), None)
             if not tied[root]: tied.pop(root, None)
 
+def drop_beyond(g):                                  # g's count is known now: what named an index it
+    n = N(desc[g])                                   #   has not, while the count was unknown, goes (§8.2)
+    idx = {i for q in list(offered) for i in offered[q][g] if i >= n}
+    idx |= {index(a) for t in (offers, tried, asked_at) for a in list(t) if group(a) == g and index(a) >= n}
+    for i in sorted(idx):                            # an offer of it, an ask of it still queued, a
+        for q in list(queue): drop_offer(g, i, q)    #   promise, a try, a count of B′, under every key
+        close_promises(g, i)
+    for root, peers in list(tied.items()):           # and a tie of it: a copy that names it can only
+        for q, groups in list(peers.items()):        #   be rejected when its block installs
+            bits = groups.get(g)
+            if bits is None: continue
+            for i in [i for i in bits if i >= n]: bits.clear(i)
+            if not bits: groups.pop(g)
+
 def send_have(p, g):                                 # [c7] always the whole bitmap, as it is now
     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=have_bits(g))), urgent=True)
 
@@ -475,9 +491,11 @@ cannot be checked yet, and it is not asked for the index again until that root i
 (`tied_to_root`: §4.4, §6.1, §7.2). The installation releases the root's ties for the group its bid
 commits: each sender's park for the group lifts, B′'s count for it and the index clears, and it
 becomes an offer of the index, asked for with the rest of the ledger if still wanted; an index the
-group does not have, known by then, is dropped (§8.2). Without ties, a push the store refuses is lost
-(its sender counts it as pushed and offers it to nobody, so a node whose only peer pushed it that
-chunk never completes), and a node on
+group does not have, known by then, is dropped (§8.2). The count becomes known at the group's first
+valid chunk; then every offer, ask and tie of an index beyond it, made while it was unknown, goes
+(`drop_beyond`), so the node never asks for a chunk that cannot exist. Without ties, a push the store
+refuses is lost (its sender counts it as pushed and offers it to nobody, so a node whose only peer
+pushed it that chunk never completes), and a node on
 the proposer's other block (§3), whose copies all wait for the builder's block, spends its providers'
 parks, B′'s asks once more and their answers on copies that cannot validate, and can stall once it
 switches to that block. The group and root a copy names are its sender's claim, unchecked until the
@@ -1425,7 +1443,7 @@ This document decides at the moment of sending, so it needs the backlog to be in
 | `peer_has` (and `holders`, `sent_to` for that peer) | connection and group | `HAVE_TTL` after the peer's last HAVE for the group | at expiry, or when the connection closes; the peer leaves `holders` |
 | `pushed` (with `first_push`) | connection and group | `PUSH_TTL` after the last push | at expiry, or when the connection closes |
 | `unwanted`, `serve_count` | connection | stock | stock, or when the connection closes |
-| offers (`offers`, and `offered` per connection and group) | ask and announcer | 30 s after the announcer's last offer of the group | when the chunk arrives, at expiry or with a dropped tie (`drop_offer`, the announcer's asks of the chunk with them, §6.1), or when the announcer's connection closes |
+| offers (`offers`, and `offered` per connection and group) | ask and announcer | 30 s after the announcer's last offer of the group | when the chunk arrives, at expiry or with a dropped tie (`drop_offer`, the announcer's asks of the chunk with them, §6.1), when the group's count, once known, has not the index (`drop_beyond`, §4.2), or when the announcer's connection closes |
 | `tried` | ask and announcer | 30 s | when the chunk arrives, at expiry, or when the announcer's connection closes |
 | `asked_parked` | chunk (group and index) and announcer | 30 s, as `tried` | as `tried` |
 | `last_resort_armed` | chunk | one timer, until it fires | — |
@@ -1436,7 +1454,7 @@ This document decides at the moment of sending, so it needs the backlog to be in
 | `owed`, `owed_answers` | connection and group | until they leave | when the peer claims the chunk, when the group is dropped or expires, or when the connection closes |
 | `park` | peer id and group | `PARK_TTL` | at expiry; kept across reconnections, as scores are |
 | deferred chunks | block root | until the block installs | when their slot leaves the live window or their group expires, at the next heartbeat (`drop_stale_waits`); reservations are released |
-| `tied`, with `tie_slot` (the slot a connection's first copy named, per root and connection) | block root, connection and group | until the root installs | released at its installation; dropped when that slot leaves the live window or its group expires, at the next heartbeat (`drop_stale_waits`), or where the root's bid commits another group (`drop_tie`); when the connection closes |
+| `tied`, with `tie_slot` (the slot a connection's first copy named, per root and connection) | block root, connection and group | until the root installs | released at its installation; dropped when that slot leaves the live window or its group expires, at the next heartbeat (`drop_stale_waits`), or where the root's bid commits another group (`drop_tie`); an index the group's count, once known, has not (`drop_beyond`); when the connection closes |
 | window slots | node | until a covering HAVE | `WINDOW_TIMEOUT`, or when the peer's queue closes |
 
 - **Per-connection state** is reset when the connection closes. A restarted peer usually keeps its

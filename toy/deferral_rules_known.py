@@ -14,7 +14,7 @@ On one node after a small run (one payload, its group of N = 2 complete there), 
   (§8.2: no index at or beyond N once the descriptor is known). Peer 1's copies of indices 1 and N tie it
   while the group's descriptor is not known yet (as when every copy was refused); the descriptor is then known
   (as when a kept copy opens the group), and the block installs. Index 1, which the node lacks, is an offer of
-  peer 1's again (the control); index N is not, so the node never asks for a chunk that cannot exist.
+  peer 1's again (the control); index N is not.
 - **What waits for a root that never installs goes when its slot leaves the live window or its group expires**
   (§8.1; `drop_stale_waits`, at each heartbeat). For a root that never installs: peer 1's kept copy names a
   slot that then leaves the window, and peer 1 also offers its index; peer 3's kept copy names the run's slot
@@ -22,6 +22,11 @@ On one node after a small run (one payload, its group of N = 2 complete there), 
   window and its groups never expire, so here `live` and `expired` are replaced.) After the sweep, peer 1's
   copy, its id, its reservation, its tie and its slot are gone, and so is its offer of the index (`drop_tie`);
   peer 4's tie and slot are gone; peer 3's copy, tie and slot stay.
+- **When the group's count becomes known, what named an index beyond it goes** (`drop_beyond`, called by
+  `on_validated` when the group's first valid chunk opens it). With the count not known, peer 3 offers index N
+  (by an IHAVE id and by index), an ask of it is made and one queued to peer 3 with its promise, and peer 5 is
+  tied for it under a root that never installs. Then a valid chunk of the group arrives: none of these names
+  index N any more, and peer 3's offer of index 1 stays (the control).
 - **Level 1 rejects a copy whose slot is not its block's** (§1: a group's slot is the slot of every block whose
   bid commits it, which every chunk names and level 1 checks). A chunk the node accepted passes again (the
   control); the same chunk naming an older slot is rejected, so that a node neither forwards it nor takes its
@@ -119,6 +124,32 @@ def main():
          (held(Q, ROOT3), ns["tie_slot"].get((ROOT3, Q))), (([1], 1, [1]), block.slot))
     line("rule 3, after: peer 4's tie to the expired group gone, and its slot",
          (R in ns["tied"][ROOT3], (ROOT3, R) in ns["tie_slot"]), (False, False))
+
+    # when the group's count becomes known, what named an index beyond it goes (drop_beyond, from on_validated)
+    ROOT4, U = bytes([0x88]) * 32, 5                        # a root that never installs; peer 5
+    d = ns["desc"].pop(g)                                   # the group's count not known yet
+    beyond, inside = Wm.WantIndex(g, n), Wm.WantIndex(g, 1)
+    ns["on_ihave"](Q, Wm._IHave([g + n.to_bytes(4, "little") + bytes([0x44]) * 20]))   # an id of index N: an offer
+    ns["tried"][beyond][Q] = ns["now"]; ns["asked_at"][beyond] = ns["now"]  # an ask of it made (the group is past
+                                                                            #   its stop-pull here, so by hand)
+    ns["add_offer"](beyond, Q); ns["add_offer"](inside, Q)  # Q offers index N, and index 1 (the control)
+    ns["queue"][Q].normal.append(Wm.Entry(control=Wm.IWANT([beyond])))      # an ask of index N queued to Q,
+    ns["promises"][(beyond, Q)] = ns["now"] + 1                             #   and its promise
+    ns["tie"](U, type("Copy", (), {"group": g, "index": n, "beacon_block_root": ROOT4, "slot": block.slot})())
+    named = lambda: {"offered": ns["offered"][Q][g].has(n),
+                     "listed": any(Q in o and ns["group"](a) == g and ns["index"](a) == n for a, o in ns["offers"].items()),
+                     "tried or asked": any(ns["index"](a) == n and ns["group"](a) == g
+                                           for t_ in ("tried", "asked_at") for a in ns[t_]),
+                     "queued": any(ns["index"](b) == n for e in ns["queue"][Q].normal for c in e.iwants() for b in c.ids),
+                     "promised": any(ns["index"](a) == n and ns["group"](a) == g for (a, q) in ns["promises"]),
+                     "tied": n in set(ns["tied"][ROOT4][U][g])}
+    line(f"the count unknown: index {n} offered, listed, tried or asked, queued, promised and tied",
+         sorted(k for k, v in named().items() if v), sorted(named()))
+    first = C.copy(ns["chunks"][g][0])                      # the group's first valid chunk at this node, again
+    ns["mark_seen"] = lambda mid: None
+    ns["on_validated"](P, first, "ACCEPT")                  # opens the group: its count is known now
+    line(f"the count known ({ns['N'](ns['desc'][g])}): what still names index {n}", sorted(k for k, v in named().items() if v), [])
+    line("the control: Q's offer of index 1 kept", (ns["offered"][Q][g].has(1), Q in ns["offers"][inside]), (True, True))
 
     # level 1: a copy whose slot is not its block's is rejected
     good = ns["chunks"][g][0]                               # a chunk the node accepted, of the installed block
