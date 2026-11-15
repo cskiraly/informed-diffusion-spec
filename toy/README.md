@@ -33,9 +33,16 @@ bytes each node received, in copies of the compressed payload, chunks and contro
 
 A 500-node cell takes about five minutes on one core and about 250 MB.
 
+**The transport** (since 2026-11-15): a connection's transport takes one entry at a time
+(`--send-buffer 1`), so a writer hands a chunk over only when the previous one has left, as
+`protocol.md` §7.3 asks and as the harness's stream writes block. `--send-buffer 0` is the earlier
+default, a transport that takes every write at once (§7.3's rule not met); `--uplink rr` has no send
+buffer and always runs that way. Figures and comparisons in this README measured before that change
+ran with that earlier transport unless they say otherwise.
+
 ## Checking a change
 
-`check.py` runs fourteen small cells (60 nodes, three payloads) in parallel and compares each with
+`check.py` runs fifteen small cells (60 nodes, three payloads) in parallel and compares each with
 `golden.txt`. Each cell's digest hashes every event the simulator processes, in order: its time,
 its node, the function it runs, and its int and bytes arguments. A change in what any node does, at
 any moment, changes the digest, even when the printed numbers stay the same.
@@ -44,8 +51,8 @@ The thirteenth cell, `ihave-limits` (2026-10-27), sets stock gossipsub's two IHA
 (`--ihave-limits 10,5000`).
 - The others set none, so it is the one cell where asks are held back to the next heartbeat
   (`protocol.md` §4.4).
-- In `protocol.md`'s run, 24 538 asks are held back. The warm median goes from the `push` cell's
-  464 ms to 544 ms, and every node completes.
+- In `protocol.md`'s run, 26 799 asks are held back. The warm median goes from the `push` cell's
+  427 ms to 512 ms, and every node completes.
 
 The fourteenth cell, `late-block` (2026-11-15), is the one cell where a block installs after its
 chunks arrive (`--late-block 30,400`): 18 of the 60 nodes install each block 400 ms after its
@@ -53,17 +60,23 @@ publish, and each keeps at most two deferred copies per peer.
 - Everywhere else a block installs at its publish at every node, so it is the one cell that runs
   `protocol.md` §4.2's deferral: `defer`, `tie`, `on_block_installed`, and the ties' release into
   offers.
-- In `protocol.md`'s run, 288 deferred copies are kept and 275 refused, 611 ties are released, and
+- In `protocol.md`'s run, 491 deferred copies are kept and 347 refused, 923 ties are released, and
   at the end nothing waits: no copy, tie, reservation or block (the run prints the count; the
-  check does not read it). Every node completes. The warm median goes from the `push` cell's 464 ms
-  to 816 ms, and not only through the 18: the 41 nodes that install on time are slower too, at
-  571, 916 and 714 ms at their median for the three payloads. Why is not looked into yet.
+  check does not read it). Every node completes. The warm median goes from the `push` cell's 427 ms
+  to 635 ms, and not only through the 18: the 41 nodes that install on time are slower too, at
+  628, 616 and 645 ms at their median for the three payloads, against 426, 423 and 420 ms for the
+  same nodes without late blocks. Why is not looked into yet.
 - It does not reach `drop_tie`, which needs a copy that names a root whose bid commits another
   group, nor §8.2's limit on ties, which the toy does not set. A late node asks nothing of a group
   before its block installs, so the cell also cannot show what a tie does to a promise, a park,
   B′'s count or the retry's choice: those need a node that has one block and waits for another.
 - `--late-block` is not meant with `--churn` (a closed connection's ties are not dropped), and it
   keeps node 1 on time, which is the publisher unless a topology names another.
+
+The fifteenth cell, `push-deep` (2026-11-15), is the `push` cell with the earlier transport,
+which takes every write at once (`--send-buffer 0`, the default until that day): §7.3's rule not
+met, a case the document allows and the check keeps. Its line is the `push` cell's line before the
+default changed, in both recordings.
 
 Four scripts hold known answers for what a digest cannot show: `own_order_known.py` (§6.1's
 reference order; its control, the rank read big-endian, must differ), `ihave_id_known.py` (§4.4: an
@@ -92,7 +105,7 @@ its custody and row settings their digests at seed 7, with and without supernode
 withheld columns.
 
 Ties and no second ask of a peer at once (2026-10-26, §4.2, §6.1) re-recorded both recordings. No
-copy waits for its block in the toy, so nothing is tied; the rule against a second ask changes
+copy waited for its block in the toy then, so nothing was tied; the rule against a second ask changes
 the events of all twelve cells of `golden.txt` and eleven of `golden-v2.txt`, at seed 7 by −7 to +3 ms at the median and −15 to +13 ms at the tail in
 `golden.txt`, and by −6 to +3 ms and −10 to +19 ms in `golden-v2.txt`. Over seeds 7 to 9 of the
 twelve cells it moved them by −8 to +6 ms at p50, −15 to +34 ms at p99 and −0.04 to +0.03 copies,
@@ -100,11 +113,11 @@ where `--check-ms 5.01`, a change that alters no rule, moved them by −1 to +5 
 and −0.05 to +0.01. Its digests at seed 7 are those of the run that measured it.
 
 Asks that go with their announcer's dropped offers (2026-10-28, §6.1) change no event in either
-recording: nothing is tied in the toy, and its offers expire only after their group has completed.
+recording: nothing was tied in the toy then, and its offers expire only after their group has completed.
 
 The source's announcement and HAVE at the acknowledgement (2026-11-10, §5.1) re-recorded
 `golden.txt`: every cell, at seed 7 by −14 to +1 ms at the median, −47 to +12 ms at the tail and
-−0.11 to +0.06 copies. The toy's transport takes a write at once (`--send-buffer 0`), so at publish
+−0.11 to +0.06 copies. The toy's transport then took a write at once (`--send-buffer 0`, its default until 2026-11-15), so at publish
 the source's offers used to leave with its pushes still queued and drew asks for them; at 60 nodes
 and degree 30 the asks the publisher receives fall to about a third and its upload by about one
 payload. One cost appears with it: the publisher's HAVE names a chunk about a round trip later than
@@ -173,7 +186,8 @@ What the toy adds to the document, and nothing else:
 - **Not modelled:** QUIC's congestion control and CoDel's drops, so a fast sender is never slowed
   by a slow receiver's link; processing time (the harness runs on a virtual clock, where processing
   is free too).
-- **The transport's buffer:** unbounded unless `--send-buffer` bounds it (below).
+- **The transport's buffer:** one entry at a time per connection (`--send-buffer 1`, the default
+  since 2026-11-15); `--send-buffer 0` takes every write at once, as `--uplink rr` always does (below).
 
 ## Side by side with the harness
 
@@ -241,14 +255,14 @@ subnet floor.
 - **Repair.** A decoded node pushes the chunks it rebuilt (§4.6, `push_rebuilt`), and so does the
   toy by default. The toy's repair costs more extra bytes than the harness's, on a clean network
   too, and why is not known yet: its repair bytes are not the protocol's.
-- **The transport.** By default a write completes at once, as if a connection's transport took any
-  amount ahead of the link. A writer woken first can then hand its whole queue over while window
-  slots remain, and the entries behind it go straight after: at publish the source's mesh peers get
-  their few pushes and every announcement at once, and ask the source for most chunks. The
-  harness's stream writes block, so its writers interleave and its queues hold their backlog, where
-  cancel acts. `--send-buffer 1`, one entry at a time per connection, matches the harness on the
-  source's asks, answers and cancels and on the forwarding nodes' cancels (n = 100); use it to set the two side
-  by side.
+- **The transport.** Since 2026-11-15 a connection's transport takes one entry at a time
+  (`--send-buffer 1`), which matches the harness on the source's asks, answers and cancels and on
+  the forwarding nodes' cancels (n = 100): the harness's stream writes block, so its writers
+  interleave and its queues hold their backlog, where cancel acts. The earlier default,
+  `--send-buffer 0`, completes a write at once, as if a connection's transport took any amount
+  ahead of the link: a writer woken first can then hand its whole queue over while window slots
+  remain, and the entries behind it go straight after. At publish the source's mesh peers then get
+  their few pushes and every announcement at once, and ask the source for most chunks.
 - **The graph.** The latencies are the harness's for the same seed; the connection graph and the
   mesh are the toy's own, unless `--topology` loads the harness's.
 
@@ -315,7 +329,7 @@ with its parameters, the join tables, the push relation behind the mesh, and the
 messages onto v0.3's wire (its §7, last column): a holding is an IDONTWANT bitmap, an offer an
 IHAVE bitmap, an ask a `WantIndex`. Relations are static, as the mesh is for v0.3.
 
-`check.py --doc v2` runs the fourteen cells against the next version's own recording,
+`check.py --doc v2` runs the fifteen cells against the next version's own recording,
 `golden-v2.txt` (`--update` records it, as for v0.3). `check.py --doc v2 --golden golden.txt`
 compares the next version against `protocol.md`'s cells instead (v0.3's until 2026-10-13, v0.4's
 until 2026-10-21, v0.5's until 2026-10-25, v0.7's until 2026-10-26, v0.8's until 2026-11-12, v0.9's

@@ -221,9 +221,11 @@ def main(argv):
                     help="rule: STRIPE_UPLINK as §5.1 sets it; on: every source stripes, as the harness's tier-4 cells did")
     ap.add_argument("--uplink", default="ps", choices=("ps", "rr"),
                     help="ps: processor sharing over busy connections (FQ-CoDel's fluid limit); rr: whole entries in turn")
-    ap.add_argument("--send-buffer", type=int, default=0,
+    ap.add_argument("--send-buffer", type=int, default=None,
                     help="bytes a connection's transport accepts ahead of the link; a writer waits while its backlog "
-                         "is at it, as a QUIC stream write blocks (0: writes complete at once)")
+                         "is at it, as a QUIC stream write blocks. Default 1, one entry at a time per connection: "
+                         "protocol.md §7.3's rule, as the harness's stream writes block. 0: writes complete at once "
+                         "(§7.3 not met). With --uplink rr, which has no send buffer, the default is 0 and only 0 is taken")
     ap.add_argument("--rebuilt", default="push", choices=("push", "hold", "announce", "none"),
                     help="what a decoded node does with the chunks it rebuilt: push (the document, §4.6), hold or "
                          "announce (the decoding note's variants); none: it rebuilds nothing (the harness's tier-4 cells)")
@@ -363,6 +365,9 @@ def main(argv):
                          "after its publish, so that the chunks ahead of it take protocol.md §4.2's deferral: each such node "
                          "keeps at most STORE deferred copies per peer (default 2) and refuses the rest. The payload only")
     a = ap.parse_args(argv)
+    send_buffer_default = 1 if a.uplink == "ps" else 0      # §7.3's rule where the toy's link can keep it
+    if a.send_buffer is None:
+        a.send_buffer = send_buffer_default
     late = [float(x) for x in a.late_block.split(",")] if a.late_block else None
     if late and (len(late) not in (2, 3) or a.setting in ("custody", "rows")):
         ap.error("--late-block PCT,MS[,STORE], and not with --setting custody or rows")
@@ -454,7 +459,7 @@ def main(argv):
           f"{' repair-push=' + a.repair_push if a.repair_push != 'push' else ''}{f' promise={a.promise:g}s' if a.promise != 0.4 else ''}{f' ask-uplink={a.ask_uplink:g}' if a.ask_uplink != 50 else ''}{' promise-mode=' + a.promise_mode if a.promise_mode != 'fixed' else ''}"
           f"{' loss=%d%%' % a.loss_data if a.loss_data else ''}{' up=%g' % a.up if a.up else ''}{' down=%g' % a.down if a.down else ''}"
           f"{' dc=%g' % a.dc_mbps if a.dc_mbps else ''}{' builder=%g' % a.builder_mbps if a.builder_mbps else ''}"
-          f"{' merge-holdings=on' if a.merge_holdings == 'on' else ''}{' send-buffer=%d' % a.send_buffer if a.send_buffer else ''}"
+          f"{' merge-holdings=on' if a.merge_holdings == 'on' else ''}{' send-buffer=%d' % a.send_buffer if a.send_buffer != send_buffer_default else ''}"
           f"{' ihave-limits=' + a.ihave_limits if a.ihave_limits else ''}"
           f"{' late-block=' + a.late_block if a.late_block else ''}"
           f"{' payload=%d' % a.payload if a.payload else ''}"

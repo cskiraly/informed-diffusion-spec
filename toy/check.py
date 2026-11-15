@@ -38,6 +38,7 @@ CELLS = {                               # name -> run.py's arguments on top of B
     "loss-thin": ["--loss-data", "10", "--up", "20"],
     "ihave-limits": ["--ihave-limits", "10,5000"],   # stock gossipsub's: asks held back to the heartbeat (§4.4)
     "late-block": ["--late-block", "30,400"],        # 18 nodes install each block 400 ms late: §4.2's deferral and ties
+    "push-deep": ["--send-buffer", "0"],             # the transport takes every write at once: §7.3's rule not met
 }
 WARM = re.compile(r"^warm median: (p50 \S+ p99 \S+ copies \S+)", re.M)
 DIGEST = re.compile(r"^digest ([0-9a-f]{64})$", re.M)

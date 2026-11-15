@@ -49,7 +49,8 @@ them; §5 lists what carries over.*
 that tier 4 measured carries over unchanged where §5 says so. Every design decision is marked
 `[D1]` … `[D12]`, and §8 lists where each bites and what was decided. The toy runs this document on top of v0.3's
 (`toy/run.py --doc v2`): v0.3's blocks are loaded first, this document's after them, and the tier
-4 setting is checked against `protocol.md`'s recorded cells (v0.9's since 2026-11-12). Draft 0
+4 setting is checked against `protocol.md`'s recorded cells (v0.9's rules since 2026-11-12,
+re-recorded on 2026-11-15 with the toy's transport keeping §7.3's rule). Draft 0
 (2026-10-06) was written without running; draft 1 is what executing it changed.*
 
 ## 0. How to read this
@@ -134,7 +135,11 @@ since v0.9, the chunks known to have arrived, §4.7).
 | X8 | the source is a role, not a node |
 
 **Numbers.** Every figure in this draft comes from the toy (`toy/`, 60 nodes unless stated)
-unless it says otherwise. A
+unless it says otherwise. Since the toy took `protocol.md` §7.3's rule as its default (2026-11-15:
+one entry at a time per connection, `--send-buffer 1`; with `--uplink rr`, which has no send
+buffer, writes still go at once), figures and comparisons measured before that change ran with its
+earlier transport, which takes every write at once (`--send-buffer 0`), unless they name
+`--send-buffer 1`. A
 figure from fewer than ten seeds, a single seed unless stated, is a toy check of a mechanism, not a
 measurement; ranges over ten or more seeds say so.
 
@@ -1915,9 +1920,10 @@ Batch order (card 2), striping (card 13), the window (card 14) and the concurren
 messages are v0.3 §5.1 and §7.1 unchanged, and so is v0.7's single offer (since 2026-11-04): a
 chunk is offered only to the relation peers not chosen to be pushed it, and one whose push its
 queue refuses is owed it instead, so no peer is offered a chunk twice. Of the toy's thirteen
-recorded cells only the thin lossy one (`loss-thin`), whose queues refuse a tenth of the chunks at
-admission, met the second offer: it now sends 91 fewer offers of 82 938 over its three payloads,
-and its warm medians, of completion and of copies, stay as they were. The generalisation is that
+recorded cells then (2026-11-04, with the earlier transport) only the thin lossy one (`loss-thin`),
+whose queues refuse a tenth of the chunks at admission, met the second offer: it now sends 91 fewer
+offers of 82 938 over its three payloads, and its warm medians, of completion and of copies, stay as
+they were. The generalisation is that
 the candidates are
 the links that want the chunk, which for a pre-seeded peer (a node with the blobs from its
 mempool, I8) is decided by the holding it sent before any data, so a source holding *part* of a
@@ -2557,7 +2563,7 @@ pushes to its mesh only, so with an empty mesh it sends nothing. This document k
 for every object type, since a source never waits for links (§4.7). No recorded cell has a source
 with an empty mesh, so the setting contains `protocol.md` but for this case.
 
-The toy's thirteen cells are the regression for this setting, recorded for this document in
+The toy's fifteen cells are the regression for this setting, recorded for this document in
 `toy/golden-v2.txt` (`toy/check.py --doc v2`) and compared against v0.3's own recording with
 `toy/check.py --doc v2 --golden golden.txt`. Checked on 2026-10-07: with v0.3's window (slots of
 one payload chunk) eleven of the twelve cells reproduced v0.3's completion times and bytes exactly
@@ -2587,18 +2593,30 @@ medians and copies, so these distances stand. With ties and no second ask of a p
 median, 30 ms at the tail and 0.03 copies (`silent` p50 641 → 649 ms, `without-a` p99 598 → 568
 ms), and `loss-thin` is 8 ms later at the median and 0.12 copies lighter (1.81 copies). Asks
 that go with their announcer's dropped offers (2026-10-28, `protocol.md` §6.1) change no event in
-any cell of either recording: nothing is tied in the toy, and its offers expire only after
+any cell of either recording: nothing was tied in the toy then, and its offers expire only after
 their group has completed. With v0.9's rules (2026-11-10, §4.7: the source's holding and its
 offers at the acknowledgement; every cell of both recordings moves), eleven cells are
 within 13 ms at the median, 18 ms at the tail and 0.06 copies of v0.9's own recording (`cap-wait`
 630 → 643 ms, `without-a` p99 551 → 533 ms), and `loss-thin` is 6 ms later at the median and 0.14
-copies lighter (1.80 copies).
+copies lighter (1.80 copies). With the toy's transport keeping `protocol.md` §7.3's rule
+(2026-11-15, one entry at a time per connection; every cell of both recordings moves but
+`rr-stripe`, whose uplink has no send buffer), eleven cells are within 8 ms at the median, 16 ms at
+the tail and 0.02 copies of `protocol.md`'s recording (`cap-wait` 544 → 552 ms, p99 710 → 726 ms),
+and `loss-thin` is 18 ms later at the median and 0.07 copies lighter (1.64 copies).
 Since 2026-10-27 a thirteenth cell, `ihave-limits`, sets stock gossipsub's two IHAVE limits
 (10 RPCs and 5000 asks; §4.3). The other cells set none.
-- Under v0.9's rules, this document holds back 24 248 asks to the next heartbeat, where
-  `protocol.md` holds back 24 538. It is 3 ms sooner at the median and 7 ms sooner at the tail, with
-  0.01 copies more (p50 541 against 544 ms, p99 621 against 628 ms, 2.41 against 2.40 copies).
+- Under v0.9's rules and the toy's transport since 2026-11-15, this document holds back 26 667 asks
+  to the next heartbeat, where `protocol.md` holds back 26 799. It is 2 ms sooner at the median and
+  1 ms later at the tail, with 0.02 copies more (p50 510 against 512 ms, p99 593 against 592 ms,
+  2.07 against 2.05 copies). With the earlier transport (`--send-buffer 0`) it held back 24 248
+  against 24 538, 3 ms sooner at the median and 7 ms sooner at the tail (p50 541 against 544 ms,
+  p99 621 against 628 ms, 2.41 against 2.40 copies).
 - Before §4.3 carried the limits, it held back none and ran as without them (p50 470 ms).
+
+Since 2026-11-15 two more: `late-block`, where 18 of the 60 nodes install each block 400 ms after
+its publish (`protocol.md` §4.2's deferral and ties; this document runs its own `defer`), and
+`push-deep`, the `push` cell with the earlier transport (`--send-buffer 0`), whose line is the
+`push` cell's before the transport changed.
 Draft 0 did not reproduce the cells at all: it filtered a forwarding node's push candidates by
 what it had already pushed, which v0.3 does not, and it shuffled the
 relation peers for repair in a different order than v0.3's mesh set, so its random draws diverged;
