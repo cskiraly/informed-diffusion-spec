@@ -13,8 +13,8 @@ pseudocode, in the style of the consensus specs. The pseudocode is the specifica
 what each rule does, and why.
 
 **How it is organized.**
-- §1 to §3 define what both ends must agree on: the payload's commitment and its code (§1), the
-  messages on the wire (§2), and how a chunk and a group are validated (§3).
+- §1 to §3 define the payload's commitment and its code (§1), the messages on the wire (§2), and
+  how a chunk and a group are validated (§3).
 - §4 to §7 define what a node does: with each message it receives (§4), when it publishes and
   forwards (§5), when it asks for a chunk (§6), and how it sends, through a queue per peer and a
   window (§7).

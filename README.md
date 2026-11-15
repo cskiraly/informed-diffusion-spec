@@ -23,8 +23,8 @@ design was published under that name.
   `toy/check.py --doc v2` against its own `golden-v2.txt`), with the invariants of every setting
   checked on each run (`toy/invariants.py`), cross-fill and the claim's deferral included. Its §6.1
   says how far its tier 4 setting is from `protocol.md` (`toy/check.py --doc v2 --golden
-  golden.txt` compares the two). Running the settings found rules that are now in the texts: a
-  stall in v0.3's window (fixed in `protocol.md` §7.1), that card 12's projection assumes a code
+  golden.txt` compares the two). Running the settings found what the texts now address: a stall
+  in v0.3's window (fixed in `protocol.md` §7.1), that card 12's projection assumes a code
   (its §4.9), that the window's slot unit throttles small chunks (its §4.11: the window in bytes),
   that a proposer of many groups must send its own chunks before its offers and answers (its
   §4.12), that a row member needs a custodian link for every column, to gather its row and to
