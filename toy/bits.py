@@ -215,6 +215,43 @@ class LazyMap:
         return len(self._d)
 
 
+class TieMap(LazyMap):
+    """A level of `tied` (block root -> connection -> group -> indices, §4.2). A missing key reads as a detached
+    entry, and a level joins its own map when an entry of it does: a read creates nothing at any level, and what
+    is in the map is what a copy tied. `on_block_installed` goes by the entries it finds, so here existence
+    carries meaning."""
+    __slots__ = ("_home", "_key")
+
+    def __init__(self, make, home=None, key=None):
+        super().__init__(make)
+        self._home, self._key = home, key
+
+    def _adopt(self, k, v):
+        self._d[k] = v
+        if self._home is not None:
+            self._home._adopt(self._key, self)
+            self._home = None
+
+
+class TieBits(Bits):
+    """tied[root][p][g]: the indices of p's copies of g that wait for the root; it joins its map at its first set."""
+    __slots__ = ("_home", "_key")
+
+    def __init__(self, home=None, key=None):
+        super().__init__(0)
+        self._home, self._key = home, key
+
+    def set(self, i):
+        super().set(i)
+        if self._home is not None:
+            self._home._adopt(self._key, self)
+            self._home = None
+
+
+def tie_table():
+    return TieMap(lambda roots, root: TieMap(lambda peers, p: TieMap(TieBits, peers, p), roots, root))
+
+
 class AutoMap(dict):
     """A map whose missing keys are created on read by `make()` (state where existence carries no meaning)."""
     __slots__ = ("_make",)
