@@ -520,6 +520,11 @@ An IHAVE bitmap tells us who can serve, not who holds. It feeds the offer table 
 `peer_has`, `holders`, cancel or the window. Nothing is asked for a group no installed block's bid
 commits: the offer table keeps the announcement, and the installation asks for it (§4.2).
 
+For a bitmap, `expand` asks by index, and so does `ledger` (§6.1): the lookup of `known_id` in both
+never gives an id as this document stands. An id is recorded only for a chunk the node stored, every
+stored chunk is in `mine`, and neither asks for a chunk in `mine`. The lookup is kept for a node that
+knows a chunk's id without holding the chunk, which nothing here brings about.
+
 An entry that is not a bitmap is a chunk's structured id (§2), or it is ignored (`valid_id`). An id
 is valid if it has the id's 56 bytes and names an index its group can have: below
 `MAX_PLAIN_CHUNKS`, and below the group's count where its descriptor is known, as a bitmap's
