@@ -385,6 +385,8 @@ def on_validated(p, f, result):
 def defer(p, f):                                     # on the router's event loop, like installation
     if installed_block(f.slot, f.beacon_block_root):           # installed in the meantime
         return on_validated(p, f, validate_chunk(f))
+    if not admitted(p, f): return                    # a group beyond the peer's unknown groups (§8.2):
+                                                     #   ignored, neither kept nor tied
     tie(p, f)                                        # kept or refused, its sender is tied to the root
     if reserve(p, f):                                # a per-peer reservation in a bounded store (§8.2)
         pending[f.beacon_block_root].append((p, f))
@@ -446,9 +448,10 @@ may keep pushing it, and their window slots stay held (§7.1). Announcing such a
 id on arrival, which is safe because an id covers only those bytes, is a variant not evaluated yet.
 
 **A copy that waits ties its sender** to the root it names, for its index, whether the deferred
-store keeps the copy or refuses it, within §8.2's limits on the group. The sender's promise for the
-index closes, since it answered, with a copy that cannot be checked yet, and it is not asked for the
-index again until that root installs (`tied_to_root`: §4.4, §6.1, §7.2). The installation releases
+store keeps the copy or refuses it, within §8.2's limits on the group. A copy of a group beyond the
+sender's limit of unknown groups is ignored, as its HAVEs and offers of that group are: neither kept
+nor tied (`defer`). The sender's promise for the index closes, since it answered, with a copy that
+cannot be checked yet, and it is not asked for the index again until that root installs (`tied_to_root`: §4.4, §6.1, §7.2). The installation releases
 the root's ties for the group its bid commits: each sender's park for the group lifts, B′'s count for
 it and the index clears, and it becomes an offer of the index, asked for with the rest of the ledger
 if still wanted. Without ties, a push the store refuses is lost (its sender counts it as pushed and
