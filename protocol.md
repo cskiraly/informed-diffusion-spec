@@ -7,9 +7,38 @@
 
 ## 0. How to read this
 
-This document defines what a node does, one event at a time, in Python-like pseudocode in the
-style of the consensus specs. It covers every tier, because the tiers are nested, and a tier is the
-set of cards it enables:
+This document defines what a node does to diffuse an execution payload, one event at a time: what it
+sends, what it checks, and what it does with each message it receives. It is written in Python-like
+pseudocode, in the style of the consensus specs. The pseudocode is the specification; the prose says
+what each rule does, and why.
+
+**How it is organized.**
+- §1 to §3 define what both ends must agree on: the payload's commitment and its code (§1), the
+  messages on the wire (§2), and how a chunk and a group are validated (§3).
+- §4 to §7 define what a node does: with each message it receives (§4), when it publishes and
+  forwards (§5), when it asks for a chunk (§6), and how it sends, through a queue per peer and a
+  window (§7).
+- §8 lists the state a node keeps and for how long, its limits and its constants.
+- §9 lists where the research implementation, on which the measurements ran, differs from this
+  document.
+
+**What is normative.** Sections 1 to 3 are the consensus-side and wire definitions that both ends
+must agree on. Sections 4 to 7 combine each node's local scheduling with the meaning of the messages
+it exchanges: what a HAVE, an ask, a decode claim and an acknowledgement promise. A client may
+schedule differently without breaking interoperability, provided those meanings hold. The
+measurements are of the scheduling written here.
+
+**Reading it.** An implementer can read §1 to §7 in order, with §8 at hand for the state, limits and
+constants each section uses. Where a section has code, its prose says what the code does, a rule to
+a paragraph. A section with reasoning to give ends with an unnumbered *Rationale*: why its rules are
+as they are, and the alternatives that were not taken, with the reason for each. A paragraph that
+opens with **Open:** names a question this version leaves open. A name in capitals (`PROMISE`) is a
+constant, listed in §8.3 with its value and the reason for it. The glossary at the end defines the
+document's terms. Measurements are reported in the documents below, and §9 says which code they
+ran.
+
+**Tiers and cards.** The document covers every tier, because the tiers are nested. A tier is the set
+of cards it enables:
 
 | tier | cards | in one line |
 |---|---|---|
@@ -21,26 +50,9 @@ set of cards it enables:
 One rule carries the tag [P4] instead of a card: it is there for the source's privacy, not for
 speed or bytes (§5.1).
 
-The code runs as written: [`toy/`](toy/) executes every block of this document, once per node, on
-a simulated network.
-
-Related documents, with the short names used below:
-- [Wen fast payload broadcast? Segment, code, push, pull, and everything in between](https://ethresear.ch/t/wen-fast-payload-broadcast-segment-code-push-pull-and-everything-in-between/25913)
-  (*Segment, code, push-pull*, 2026): the design space, the commitment and the forwarding rules;
-- [EIP-8411: what segmented payload diffusion is made of](https://ethresear.ch/t/eip-8411-what-segmented-payload-diffusion-is-made-of/26025)
-  (*What segmented payload diffusion is made of*, 2026): tiers 1 to 3, cards 0 to 6;
-- [*Informed Diffusion: making home builders publish fast*](https://ethresear.ch/t/informed-diffusion-making-home-builders-publish-fast/26151) (*Informed Diffusion*, 2026):
-  tier 4 and the design as a whole;
-- [Segmented payload diffusion, card by card](https://notes.ethereum.org/@cskiraly/segmented-stack-cards)
-  (2026): each card in prose, with what it costs and when it matters;
-- [Who decides that a payload is revealed?](https://notes.ethereum.org/@cskiraly/eip-8411-envelope-signature)
-  (2026): how the envelope's signature travels.
-- [*What a forwarding node checks, and when it decodes*](https://notes.ethereum.org/@cskiraly/informed-diffusion-decoding) (2026): the validation levels, when the
-  decode claim goes out, and what a node does with the chunks it rebuilds.
-
-**Card tags.** A comment such as `# [c8]` marks the line or block that implements card 8. Tags say
-which mechanism is responsible; they are not deletion instructions, and deleting a tagged line does
-not always leave a working protocol. What a node does without a card:
+**Card tags.** A comment such as `# [c8]` marks the line or block that implements card 8. A tag
+says which mechanism is responsible; it is not a deletion instruction, and deleting a tagged line
+does not always leave a working protocol. What a node does without a card:
 
 | card | without it |
 |---|---|
@@ -60,11 +72,29 @@ not always leave a working protocol. What a node does without a card:
 | 16 | push targets in the order of the tie-break alone, a rank that differs per chunk |
 | 17 | `R_NODE = R` for every node |
 
+**The code runs as written.** [`toy/`](toy/) executes every block of this document, once per node,
+on a simulated network. It shows that the document is complete enough to run; its numbers are not
+measurements.
+
+**Related documents**, with the short names used below:
+- [Wen fast payload broadcast? Segment, code, push, pull, and everything in between](https://ethresear.ch/t/wen-fast-payload-broadcast-segment-code-push-pull-and-everything-in-between/25913)
+  (*Segment, code, push-pull*, 2026): the design space, the commitment and the forwarding rules;
+- [EIP-8411: what segmented payload diffusion is made of](https://ethresear.ch/t/eip-8411-what-segmented-payload-diffusion-is-made-of/26025)
+  (*What segmented payload diffusion is made of*, 2026): tiers 1 to 3, cards 0 to 6;
+- [*Informed Diffusion: making home builders publish fast*](https://ethresear.ch/t/informed-diffusion-making-home-builders-publish-fast/26151) (*Informed Diffusion*, 2026):
+  tier 4 and the design as a whole;
+- [Segmented payload diffusion, card by card](https://notes.ethereum.org/@cskiraly/segmented-stack-cards)
+  (2026): each card in prose, with what it costs and when it matters;
+- [Who decides that a payload is revealed?](https://notes.ethereum.org/@cskiraly/eip-8411-envelope-signature)
+  (2026): how the envelope's signature travels;
+- [*What a forwarding node checks, and when it decodes*](https://notes.ethereum.org/@cskiraly/informed-diffusion-decoding) (2026): the validation levels, when the
+  decode claim goes out, and what a node does with the chunks it rebuilds.
+
 **What is assumed and not restated.** Gossipsub v1.2 as specified: the mesh and its maintenance
 (D = 8, Dlo = 6, Dhi = 12), GRAFT and PRUNE, the heartbeat (700 ms, as Prysm sets it), the message
 cache (6 heartbeats, gossip from the newest 3), IHAVE, IWANT and IDONTWANT, the seen cache, and peer
-scoring. Only what changes is written out, including what a node does at gossipsub's two IHAVE
-limits: an IHAVE over either is recorded and its asks wait for the next heartbeat, whereas stock
+scoring. Only what changes is written out. That includes what a node does at gossipsub's two IHAVE
+limits: an IHAVE over either is recorded, and its asks wait for the next heartbeat, where stock
 gossipsub ignores it (§4.4, §8.2). Messages are unsigned and carry no author, as Prysm publishes
 them.
 
@@ -72,20 +102,16 @@ them.
 misread the bitmaps (§2), so a network in which only some nodes support segmentation needs more
 than is written here, and is left out.
 
-**What is normative.** Sections 1–3 are the consensus-side and wire definitions that both ends must
-agree on. Sections 4–7 combine each node's local scheduling with the meaning of the messages it
-exchanges: what a HAVE, an ask, a decode claim and an acknowledgement promise. A client may schedule
-differently without breaking interoperability, provided those meanings hold; the measurements are of
-the scheduling written here. Section 8 lists the state, its limits and the constants, and section 9
-the known differences from the measured implementation.
-
 ## 1. The payload, the code and the commitment [c1, c6]
 
 What is segmented is the SSZ container of what the builder holds at bid time,
 `ExecutionPayloadSegmentBody{payload, execution_requests}`, as *Segment, code, push-pull* (2026)
-specifies. The unsigned envelope is rebuilt from it and the block. Its signature cannot be rebuilt,
-and travels on its own with the roots needed to check it, as *Who decides that a payload is
+specifies. The unsigned envelope is rebuilt from it and the block. The envelope's signature cannot be
+rebuilt: it travels on its own, with the roots needed to check it, as *Who decides that a payload is
 revealed?* (2026) recommends (its option A).
+
+The builder cuts the body into chunks, which form a *group*, and describes the group in a
+descriptor that its bid commits to:
 
 ```python
 UNIT = 16 * 1024                # target segment size, uncompressed               [c1]
@@ -129,16 +155,14 @@ itself, `execution_payload_segment_descriptor` (design B). Neither exists in the
 Every chunk is then authenticated through the block that carries the bid: installed block → bid →
 descriptor → Merkle proof → chunk.
 
-**The group's key.** In diffusion a group is a descriptor committed at a slot, and is named by its
-key, `group_key(group_id(d), slot)`: chunks, their ids, HAVEs and asks all carry the key (§2), and
-every node derives it from an installed block, from the group id its bid commits and the block's
-slot. A bid of a later slot that commits the same descriptor therefore names another group, and a
-group's slot is fixed by its name (§8.1). An honest builder never commits one descriptor at two
-slots, since the payload carries its slot's timestamp; the key keeps a dishonest one from making an
-expired group live again. Two blocks of one slot whose bids commit the same descriptor share the
-key, and their chunks are one group.
+**The group's key.** In diffusion, a group is a descriptor committed at a slot, and it is named by
+its key, `group_key(group_id(d), slot)`. Chunks, their ids, HAVEs and asks all carry the key (§2).
+Every node derives the key from an installed block: from the group id its bid commits, and the
+block's slot. So a bid of a later slot that commits the same descriptor names another group, and a
+group's slot is fixed by its name (§8.1). Two blocks of one slot whose bids commit the same
+descriptor share the key, and their chunks are one group.
 
-**Getting the descriptor (open).** A receiver needs the descriptor itself to check a chunk's proof;
+**Open: getting the descriptor.** A receiver needs the descriptor itself to check a chunk's proof;
 the group id is only its hash. Two designs work, and the choice is not made:
 - **A, descriptor in the chunk:** every chunk carries the descriptor, and the receiver checks its
   hash against the bid's group id (the measured implementation does this).
@@ -146,6 +170,8 @@ the group id is only its hash. Two designs work, and the choice is not made:
   chunks carry only the key.
 
 At these chunk sizes the bytes do not decide it. Section 3 is written for either.
+
+The builder makes the group at bid time:
 
 ```python
 class Shard(Container):                  # a chunk's content, before it has a block to name
@@ -168,13 +194,19 @@ def build_group(body: bytes) -> Tuple[SegmentDescriptor, List[Shard]]:     # at 
                for i in range(len(leaves))]
 ```
 
-- **The code** [c6]: systematic Reed–Solomon over GF(2⁸) (polynomial 0x11d), evaluation points
+- **The code** [c6]: systematic Reed–Solomon over GF(2⁸) (polynomial 0x11d), with evaluation points
   0..N−1. Chunks 0..K−1 are the compressed bytes themselves and K..N−1 are parity, so any K distinct
   chunks rebuild the payload. At 1 MiB this gives K = 64 and N = 128, chunks of about 12 KB.
 - **The tree** [c1]: leaves `sha256(0x00 ‖ chunk data)`, nodes `sha256(0x01 ‖ left ‖ right)`,
-  padded to a power of two with zero digests. A proof is log₂ of that width, 7 digests at N = 128.
+  padded to a power of two with zero digests. A proof is log₂ of that width: 7 digests at N = 128.
 - **Decoding** is the second level of validation (§3): take any K chunks, recover the data chunks,
   re-encode the parity, rebuild the tree, and require the committed root.
+
+### Rationale
+
+**The slot in the group's key.** An honest builder never commits one descriptor at two slots, since
+the payload carries its slot's timestamp. A dishonest one could. With the slot in the key, its
+commitment at a later slot names a new group, so it cannot make a group that has expired live again.
 
 ## 2. The wire [c1, c7]
 
@@ -195,14 +227,12 @@ def message_id(f: Chunk) -> bytes:                          # structured id     
     return f.group + uint32_le(f.index) + content_id(f)     # 32 + 4 + 20 bytes
 ```
 
-The structured id lets a receiver match an announcement to a group and an index before it holds the
-chunk, and match both to a bid once its block is installed. `content_id` is the 20-byte message id
-of the Altair networking rules, computed over the topic and the decompressed chunk, so different
-snappy encodings of one chunk share an id, and different contents claiming one index do not. A
-chunk that decodes gets the 56-byte structured id, itself a change to that rule for this topic. If
-bounded decompression or the chunk's decoding fails, the message gets the inherited Altair id, with
-no prefix, and is rejected before any group state is created. The topic's name and type mapping
-are left to the byte-exact phase.
+**The message id** of a chunk is structured (`message_id`): the group's key, the chunk's index, and
+its content id. The content id is the 20-byte message id of the Altair networking rules, computed
+over the topic and the decompressed chunk. A chunk that decodes gets the 56-byte structured id,
+which is itself a change to the Altair rule for this topic. If bounded decompression or the chunk's
+decoding fails, the message gets the inherited Altair id, with no prefix, and is rejected before
+any group state is created. The topic's name and type mapping are left to the byte-exact phase.
 
 **HAVE bitmaps** [c7]. One bitmap per group replaces per-id control messages. Its meaning is set by
 the control field that carries it:
@@ -235,13 +265,20 @@ type, not passed. Their `group` is the group's key, as a chunk's is (§1).
 A bitmap that names an index at or beyond its group's N, once the descriptor is known, is a
 protocol violation.
 
-**What a stock peer would see.** The protobuf schema is unchanged, but the meaning is not. A stock
-peer takes a bitmap in an IDONTWANT for an id that matches nothing, which is harmless; a bitmap in
-an IHAVE it takes for an ordinary id, asks for it, and counts the unanswered ask as a broken
-promise. Hence the scope of §0.
-
 Without card 7, the same information travels as ordinary per-id IDONTWANT and IHAVE, and asks use
 the full message id.
+
+### Rationale
+
+**A structured id.** It lets a receiver match an announcement to a group and an index before it
+holds the chunk, and match both to a bid once its block is installed. The content id is computed
+over the decompressed chunk, so different snappy encodings of one chunk share an id, and different
+contents claiming one index do not.
+
+**What a stock peer would see.** The protobuf schema is unchanged, but the meaning is not. A stock
+peer takes a bitmap in an IDONTWANT for an id that matches nothing, which is harmless. A bitmap in an
+IHAVE it takes for an ordinary id: it asks for it, and counts the unanswered ask as a broken
+promise. Hence the scope of §0: every peer on the topic runs this protocol.
 
 ## 3. Validation: three levels, and what each gates [c1, c6, c10]
 
@@ -271,13 +308,14 @@ def committed_descriptor(block, f: Chunk) -> Optional[SegmentDescriptor]:
     return bid.execution_payload_segment_descriptor                 # design B
 ```
 
-It costs a Merkle proof, so every node runs it before it claims, forwards or serves a chunk. A chunk
-that fails it is therefore the fault of the peer that sent it, and counts against that peer.
+Level 1 costs a Merkle proof, so every node runs it before it claims, forwards or serves a chunk. A
+chunk that fails it is the fault of the peer that sent it, and counts against that peer. A chunk
+whose block is not installed yet is neither accepted nor rejected: it waits for the block (§4.2).
 
 **Level 2, per group, after any K chunks: the code's consistency.** Decode, re-encode the parity,
 rebuild the tree, and require the root (§4.6). Only the builder can fail it, and then it fails at
-every node. A node pushes or serves chunks it rebuilt, and delivers the payload, only after this
-check passes; it claims them at K, before the check (§4.6).
+every node. A node pushes or serves the chunks it rebuilt, and delivers the payload, only after this
+check passes. It claims them at K, before the check (§4.6).
 
 **Level 3, per message: the application's checks** on the reassembled payload and its envelope: the
 builder's signature (which arrives on its own and can be checked as soon as the block is installed),
@@ -288,36 +326,47 @@ compression before coding, a chunk is not even a parseable fragment.
 - Level 1 gates everything a node does with a chunk: holding it, claiming it, forwarding it, serving
   it, counting it toward K.
 - Level 2 gates delivery and every chunk the node rebuilt. The decode claim goes out at K, before
-  it: a group that fails level 2 fails it at every node, so the claim can only be wrong about a
-  group every node drops (§4.6).
+  it (§4.6).
 - Level 3 gates what consensus consumes: fork choice, the payload timeliness vote, import. It gates
   nothing in diffusion: forwarding never waits for it.
 - When level 2 or 3 fails, the node drops the group (§4.6): it stops forwarding, answering and
-  pushing it, and retracts nothing, because what it claimed were authentic pieces.
+  pushing it, and retracts nothing. A payload that fails level 2 or 3 never counts against the
+  nodes that forwarded its chunks.
 
-**What bounds the damage: the builder's cost.** A chunk authenticates only against the bid an
-installed beacon block carries, so at most one payload per winning bid crosses the network: one
-per block. Chunks committed to a losing bid never validate. Under Gloas, a bid's pending payment
-that reaches the same-slot attestation quorum is queued for withdrawal whether or not its payload
-ever arrives: if it is not settled earlier, at the end of the epoch after the bid's. A builder that
-commits to an invalid payload therefore pays for the slot and gets nothing for it. One case moves
-the cost: a proposer that signs a second block for the slot is slashed, and the slashing clears
-that slot's pending payment. The nodes that forwarded it could not have known, so a payload that fails level 2
-or 3 never counts against them.
-
-**Gated forwarding.** These rules are from *Segment, code, push-pull* (2026), which calls the
-first one non-relay. None of them ran in the measured cells (section 9).
+**Gated forwarding.** These rules are from *Segment, code, push-pull* (2026), which calls the first
+one non-relay.
 - **Do not forward a chunk whose block is not installed.** Deferred chunks wait in a bounded store
   with per-peer reservations, and are validated when the block installs, or dropped when their slot
   leaves the live window (§4.2, §8.1). A copy that waits, kept or refused, ties its sender to the
   root it names, and that root's installation makes the sender an offer of the index (§4.2).
 - **A receiver does not ask for what it cannot yet authenticate** (§4.4). The announcements it
   receives meanwhile stay in the offer table, its ledger, and are asked for when the block installs
-  (§4.2). An answer could not be checked before then anyway: asked for early, it would wait in the
-  deferred store, a provider's answer spent on a copy that cannot be checked yet.
-- **Push only with evidence the peer holds the block.** Mesh membership is not such evidence. How a
-  node gets it, for its mesh and for the wider set striped publishing reaches (card 13), is open,
-  and the push selectors of section 5 do not apply this rule: they are the measured policy.
+  (§4.2).
+- **Push only with evidence the peer holds the block.** Mesh membership is not such evidence.
+
+**Open: the evidence for a push.** How a node gets evidence that a peer holds the block, for its
+mesh and for the wider set striped publishing reaches (card 13), is open. The push selectors of
+section 5 do not apply this rule: they are the measured policy.
+
+### Rationale
+
+**The decode claim before level 2.** Only the builder can fail level 2, and then it fails at every
+node, so a claim made at K can only be wrong about a group that every node drops. What a node
+claimed of such a group were authentic pieces, which passed level 1, so it has nothing to retract.
+
+**What bounds the damage: the builder's cost.** A chunk authenticates only against the bid an
+installed beacon block carries, so at most one payload per winning bid crosses the network: one per
+block. Chunks committed to a losing bid never validate. Under Gloas, a bid's pending payment that
+reaches the same-slot attestation quorum is queued for withdrawal whether or not its payload ever
+arrives: if it is not settled earlier, at the end of the epoch after the bid's. A builder that
+commits to an invalid payload therefore pays for the slot and gets nothing for it. One case moves
+the cost: a proposer that signs a second block for the slot is slashed, and the slashing clears that
+slot's pending payment. The nodes that forwarded the payload could not have known it was invalid,
+which is why it never counts against them.
+
+**No ask before the block.** An answer could not be checked before the block is installed anyway:
+asked for early, it would wait in the deferred store, a provider's answer spent on a copy that
+cannot be checked yet.
 
 ## 4. Receiving
 
