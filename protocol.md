@@ -1485,15 +1485,16 @@ index under many ids gets one last resort for it.
 def gated(a): return stop_pull[group(a)]      # from the decode claim on, no further asks for the group
 ```
 
-Pushes already on their way still land. Before completion, each newly accepted distinct index
-counts toward K; duplicates do not.
+From the decode claim on (§4.6), a node asks for no chunk of the group (`gated`). Pushes already on
+their way still land. Before completion, each newly accepted distinct index counts toward K;
+duplicates do not.
 
-With card 10 the gate never decides alone for an ask of an index the group has: wherever
-`stop_pull[g]` is set, every index of the group is already in `mine[g]` (`claim_group` sets both, and
-`drop_group` follows a claim), so `held` answers first wherever the two are tested (`on_ihave`,
-`retry_offer`, `ask_parked` and `filter_entry`). An ask of an index at or beyond the group's count
-is stopped by the gate alone. It decides for every ask at a node without card 10, which claims only
-the chunks it received (§4.6).
+**When the gate decides.** With card 10 the gate never decides alone for an ask of an index the
+group has: wherever `stop_pull[g]` is set, every index of the group is already in `mine[g]`
+(`claim_group` sets both, and `drop_group` follows a claim), so `held` answers first wherever the two
+are tested (`on_ihave`, `retry_offer`, `ask_parked` and `filter_entry`). An ask of an index at or
+beyond the group's count is stopped by the gate alone. The gate decides for every ask at a node
+without card 10, which claims only the chunks it received (§4.6).
 
 ### 6.3 Receiving an answer
 
@@ -1526,13 +1527,29 @@ def send_gossip(q, ids):                                       # [c7]
         announce(q, g, bits)                                   # minus pushed[q], minus peer_has[q] (§5.2)
 ```
 
+**At each heartbeat** (`on_heartbeat`) a node starts the counts of §4.4's IHAVE limits again, and runs
+the retry of §6.1 for each chunk they held back; these retries do not count against the limits. It
+drops what has waited for its block past its group's lifetime or its slot's live window (§4.2).
+Then it sends heartbeat gossip as stock gossipsub does: the ids of the last three heartbeats'
+chunks, to a sample of the topic peers outside the mesh that stock scoring admits. It announces them
+as IHAVE bitmaps, one per group, minus what it pushed each peer and what the peer claimed
+(`send_gossip`, §5.2).
+
+**Paced gossip** [c15] (`on_pace_tick`) releases the heartbeat's announcements one peer per tick,
+every heartbeat/16, instead of all at once. A job still queued a heartbeat later, or for a peer that
+has left, is dropped.
+
 The gossip history holds the chunks the source published and the chunks a node received and
-forwarded; it does not hold the chunks a decoded node rebuilt, which are pushed instead of
-announced (§4.6). Paced gossip releases the heartbeat's announcements one peer per tick instead of
-all at once. Before its gossip, the heartbeat starts the IHAVE limits' counts again and runs the
-retry of §6.1 for each chunk they held back (§4.4), which the limits do not count. A full bitmap
-held back can mean a retry per chunk where one IWANT would have carried the asks; the retries to
-one peer may go in one IWANT.
+forwarded. It does not hold the chunks a decoded node rebuilt, which are pushed instead of announced
+(§4.6). A full bitmap held back can mean a retry per chunk where one IWANT would have carried the
+asks; the retries to one peer may go in one IWANT.
+
+#### Rationale
+
+**Paced gossip.** Stock gossipsub announces new messages to its sample of peers outside the mesh all
+at once, at the heartbeat. Those peers then ask the source for what they lack while the source's
+uplink is still busy with its first copies (*Segmented payload diffusion, card by card*, 2026, card
+15).
 
 ## 7. Sending: the per-peer queue and the window
 
@@ -1583,17 +1600,26 @@ def free_slot():
     if waiters: wake(waiters[0])                  # the first writer in line tries again (§7.2)
 ```
 
+**The window** bounds how many chunks a node has sent that their receivers are not yet known to
+hold. It has `W` slots, shared by all of the node's peers, sized from the node's configured uplink:
+what the uplink sends in `RTT_REF` + `TARGET`, in chunks of `CHUNK_BYTES`. A peer's writer takes a
+slot before it sends a chunk (`acquire_slot`, §7.2); when none is free it waits in line, first come
+first served over the peers, and keeps its place while it waits. The slot then travels with the
+chunk until the peer is known to hold it.
+
 - **What takes a slot:** a chunk sent on the normal lane, push or answer.
 - **What gives it back:** a HAVE from that peer that newly covers the chunk's index (§4.3), or
-  `WINDOW_TIMEOUT` (500 ms) after sending, or the peer's queue closing.
+  `WINDOW_TIMEOUT` (500 ms) after sending, or the peer's queue closing. A writer that holds a slot
+  and finds no chunk to send gives it back too (`release_unused_slot`).
 - **What bypasses it:** urgent control (HAVEs, acknowledgements, decode claims) never waits.
 - **At the source,** a slot's return or timeout also releases the chunk's announcements and its
   place in the source's HAVE (§5.1).
-- **A second copy** of a chunk still in flight to the same peer waits for a slot like any chunk but
+- **A second copy** of a chunk still in flight to the same peer waits for a slot like any chunk, but
   returns it at once: the window counts chunks a peer is not yet known to hold, not bytes on the
   wire.
-- **Sizing:** the node sizes the window from its configured uplink. It does not need to be exact:
-  a window sized for twice the real uplink costs about a tenth in the tail.
+- **Sizing:** the node sizes the window from its configured uplink. It does not need to be exact.
+  *Segmented payload diffusion, card by card* (2026, card 14) gives what a window sized for twice
+  the real uplink costs.
 
 ### 7.2 Choosing what to send, at the moment of sending [c8, c9, c12, c14]
 
@@ -1666,11 +1692,22 @@ def projected(p, g):                                           # [c12]
     return popcount(has) + FAN_IN * popcount(sent & ~has) >= K(desc[g])
 ```
 
+**What the writer sends** (`next_to_send`). It first queues an answer it owes, if the queue has room
+(§4.1). Urgent entries go first: HAVEs, acknowledgements, decode claims. With nothing on the normal
+lane, it sends what it owes the peer on its own, or nothing, and gives back a slot it held. When the
+normal lane holds a chunk, the writer takes a slot of the window first (§7.1), or waits in line for
+one. It then takes an entry, the rarest chunk first (card 9), and filters it (`filter_entry`):
+cancel and projection may drop its chunk, and the asks it carries lose those for chunks the node
+holds, no longer pulls, or has let expire, and those to a peer whose copy of the chunk waits (§4.2).
+The promise of each ask that leaves starts here (§6.1). If no chunk is left, the slot goes back. What
+remains is written, with what is owed to the peer riding along (`with_owed`); if nothing remains, the
+writer starts again from the urgent lane.
+
 - **Cancel** [c8] drops a queued chunk if the peer has said it holds it. Answers are cancelled too:
   an ask for a chunk the asker had claimed is never answered (§4.5), so only a HAVE sent after the
   ask cancels the answer.
 - **Projection** [c12] skips a push to a peer that will reach K without it. It counts what the peer
-  holds, plus twice what we have sent it and it has not yet confirmed (FAN_IN = 2 assumes one other
+  holds, plus twice what we have sent it and it has not yet confirmed (`FAN_IN` = 2 assumes one other
   pusher as fast as us). Answers are never projected away. A skipped push is offered instead
   (§5.2).
 - **What is owed** leaves with the next write to the peer. An owed offer (§5.2) skips the queue, so
