@@ -158,18 +158,27 @@ class PushEntry(Bits):
 
 class OfferList(list):
     """offers[a]: an ask's announcers, in announcement order (§6.1). A missing one reads as an empty,
-    detached list, which joins its map at its first append."""
-    __slots__ = ("_home", "_key")
+    detached list, which joins its map at its first append. It keeps its map's count of the lists
+    each announcer is in (§8.2's `listed`), so that the count follows whoever changes a list."""
+    __slots__ = ("_home", "_key", "_listed")
 
     def __init__(self, home=None, key=None):
         super().__init__()
         self._home, self._key = home, key
+        self._listed = home.listed if home is not None else None
 
     def append(self, x):
         super().append(x)
+        if self._listed is not None:
+            self._listed[x] = self._listed.get(x, 0) + 1
         if self._home is not None:
             self._home._d[self._key] = self
             self._home = None
+
+    def remove(self, x):
+        super().remove(x)
+        if self._listed is not None:
+            self._listed[x] -= 1
 
 
 class LazyMap:
@@ -213,6 +222,28 @@ class LazyMap:
 
     def __len__(self):
         return len(self._d)
+
+
+class OfferMap(LazyMap):
+    """`offers`: ask -> its OfferList. `listed[p]` is the number of lists p is in, kept as lists gain and lose
+    announcers and as a whole list goes."""
+    __slots__ = ("listed",)
+
+    def __init__(self):
+        super().__init__(OfferList)
+        self.listed = {}
+
+    def _gone(self, lst):
+        for x in lst or ():
+            self.listed[x] -= 1
+
+    def __delitem__(self, k):
+        self._gone(self._d[k])
+        del self._d[k]
+
+    def pop(self, k, *default):
+        self._gone(self._d.get(k))
+        return self._d.pop(k, *default)
 
 
 class TieMap(LazyMap):

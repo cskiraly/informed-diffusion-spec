@@ -17,7 +17,7 @@ from collections import deque
 import bits as B
 import scenario
 import wire as Wm
-from bits import AutoMap, Bits, DefaultMap, HaveEntry, LazyMap, OfferList, PushEntry, all_bits, bitmap, popcount, tie_table
+from bits import AutoMap, Bits, DefaultMap, HaveEntry, LazyMap, OfferMap, PushEntry, all_bits, bitmap, popcount, tie_table
 from extract import DOC, generate
 
 SPEC_SRC = generate()
@@ -517,6 +517,7 @@ class Node:
             "WINDOW_TIMEOUT": c["WINDOW_TIMEOUT"], "HEARTBEAT": c["HEARTBEAT"],
             "D_LAZY": c["D_LAZY"], "GOSSIP_FACTOR": c["GOSSIP_FACTOR"],
             "GOSSIP_RETRANSMISSION": c["GOSSIP_RETRANSMISSION"],
+            "MAX_PENDING_GROUPS": c.get("MAX_PENDING_GROUPS", math.inf),     # the client's (§8.2): no limit
             "MAX_IHAVE_MESSAGES": c.get("MAX_IHAVE_MESSAGES", math.inf),     # the client's (§8.2): no limit
             "MAX_IHAVE_LENGTH": c.get("MAX_IHAVE_LENGTH", math.inf),         #   unless --ihave-limits
             "HAVE_TTL": c["HAVE_TTL"], "PUSH_TTL": c["PUSH_TTL"],
@@ -532,7 +533,7 @@ class Node:
             "holders": AutoMap(lambda: AutoMap(set)), "sent_to": AutoMap(lambda: AutoMap(Bits)),
             "queue": AutoMap(PeerQueue), "slot_held": DefaultMap(False),
             "unwanted": AutoMap(set), "serve_count": AutoMap(lambda: AutoMap(int)),
-            "asked_at": {}, "tried": AutoMap(dict), "offers": LazyMap(OfferList), "promises": {},
+            "asked_at": {}, "tried": AutoMap(dict), "offers": OfferMap(), "promises": {},
             "offered": AutoMap(lambda: AutoMap(Bits)), "asked_parked": AutoMap(set),
             "last_resort_armed": set(),
             "ihave_rpcs": DefaultMap(0), "ihave_asked": DefaultMap(0), "held_back": {},
@@ -544,7 +545,6 @@ class Node:
         }
         self._seen = set()
         self._by_index = {}             # (group, index) -> set of ask keys, for closing promises
-        self._listed = {}               # announcer -> how many ordered offer lists it is in (§8.2)
         self._offer_at = {}             # (announcer, group) -> its last offer, for the 30 s of §8.1
 
         # ---- chunks and groups (§8.1)
@@ -617,19 +617,6 @@ class Node:
         def deliver(g, payload):
             node.delivered[g] = node.sim.now
 
-        def close_promises(g, i):       # the chunk arrived: its promises, offers and tries go (§8.1)
-            for a in self._by_index.pop((g, i), ()):
-                for p in list(ns["tried"].get(a, {})):
-                    ns["promises"].pop((a, p), None)
-                for p in ns["offers"].pop(a, ()):
-                    self._listed[p] -= 1
-                ns["asked_at"].pop(a, None)
-                ns["tried"].pop(a, None)
-            ns["asked_parked"].pop((g, i), None)         # B′'s count is per chunk (§6.1)
-            for q, groups in ns["offered"].items():
-                if g in groups:
-                    groups[g].clear(i)
-
         def close_promises_of_group(g):
             for (gg, i) in [k for k in self._by_index if k[0] == g]:
                 for a in self._by_index[(gg, i)]:
@@ -661,7 +648,7 @@ class Node:
             return True                 # no group limits here (MAX_PENDING_GROUPS)
 
         def listed(p):
-            return self._listed.get(p, 0)
+            return ns["offers"].listed.get(p, 0)
 
         def reserve(p, f):
             return False
@@ -822,18 +809,17 @@ class Node:
             return m
         ns["message_id"] = message_id
         spec_add_offer, spec_may_ask, group_index = ns["add_offer"], ns["may_ask"], ns["group_index"]
-        offers, listed = ns["offers"], self._listed
+        offers, spec_close = ns["offers"], ns["close_promises"]
 
         def index_ask(a):               # the ask keys of an index, in either form, for close_promises
             gi = group_index(a)
             if gi is not None:
                 self._by_index.setdefault((gi.group, gi.index), set()).add(a)
 
-        def add_offer(a, p):            # and the lists each announcer is in, for `listed`
+        def add_offer(a, p):            # and when the announcer last offered the group, for the 30 s
             was = a in offers and p in offers[a]
             spec_add_offer(a, p)
             if not was and a in offers and p in offers[a]:
-                listed[p] = listed.get(p, 0) + 1
                 index_ask(a)            # a listed key; one only in `offered` has nothing to close
             self._offer_at[(p, ns["group"](a))] = ns["now"]
 
@@ -842,7 +828,11 @@ class Node:
             if ok:
                 index_ask(a)
             return ok
-        ns["add_offer"], ns["may_ask"] = add_offer, may_ask
+        def close_promises(g, i, of=None):      # the document's (§6.1); the toy's index of a chunk's ask
+            spec_close(g, i, of=of)             #   keys, which close_promises_of_group reads, goes with them
+            if of is None:
+                self._by_index.pop((g, i), None)
+        ns["add_offer"], ns["may_ask"], ns["close_promises"] = add_offer, may_ask, close_promises
         spec_claim_group, node, c = ns["claim_group"], self, self.cfg
 
         def claim_group(g):             # the measurement point: completion at the K-th chunk
@@ -1047,9 +1037,9 @@ class Node:
             finally:
                 sender[0] = None
 
-        def close_promises(g, i):
+        def close_promises(g, i, of=None):
             q = sender[0]
-            if q is not None:
+            if q is not None and of is None:
                 for a in self._by_index.get((g, i), ()):
                     at = ns["promises"].get((a, q))
                     if at is not None:                  # q answered our ask: one sample of its answer time
@@ -1059,7 +1049,7 @@ class Node:
                         else:
                             var[q] = 0.75 * var[q] + 0.25 * abs(srtt[q] - x)
                             srtt[q] = 0.875 * srtt[q] + 0.125 * x
-            return doc_close(g, i)
+            return doc_close(g, i, of=of)
 
         def filter_entry(p, entry):                     # v0.5 starts the promise at the write (§7.2)
             scaled = ns["PROMISE"]
@@ -1733,7 +1723,6 @@ class Node:
                 if p in lst and ns["group"](a) == g:
                     lst.remove(p)
                     idx.add(ns["index"](a))
-                    self._listed[p] -= 1
                     if not lst:
                         empty.append(a)
             for a in empty:

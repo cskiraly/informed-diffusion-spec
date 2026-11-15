@@ -398,6 +398,12 @@ def tie(p, f):                                       # a copy that cannot be che
     tied[f.beacon_block_root][p][f.group].set(f.index)
     close_promises(f.group, f.index, of=p)           # p answered: its promise for the index closes
 
+def tie_room(p, f):                                  # §8.2's limits on ties, per connection:
+    if f.index >= MAX_PLAIN_CHUNKS: return False     #   an index no group has,
+    if f.group in desc and f.index >= N(desc[f.group]): return False   # or this group has not;
+    if f.group in tied[f.beacon_block_root][p]: return True            # a root and group tied for p already,
+    return sum(len(t[p]) for t in tied.values()) < MAX_PENDING_GROUPS  #   or room for another
+
 def tied_to_root(p, a):                              # p is not asked for a while its copy waits
     return any(t[p][group(a)].has(index(a)) for t in tied.values())
 
@@ -991,6 +997,29 @@ def promise_due(a, p, at):
                                                            # for this group only, 30 s
 def parked(p, a): return now < park[p].get(group(a), -inf)
 
+def close_promises(g, i, of=None):                        # chunk i of g arrived, from anyone: what was
+    k = (g, i)                                            #   kept to ask for it goes, under every key
+    for (a, q) in list(promises):                         #   that names it (§8.1). With `of`, that peer
+        if (group(a), index(a)) == k and of in (None, q): #   alone answered, with a copy that waits
+            del promises[(a, q)]                          #   (§4.2): its promise closes, nothing else
+    if of is not None: return
+    for a in [a for t in (offers, tried, asked_at) for a in list(t) if (group(a), index(a)) == k]:
+        offers.pop(a, None); tried.pop(a, None); asked_at.pop(a, None)
+    asked_parked.pop(k, None)                             # B′'s count is per chunk
+    for q in list(offered):
+        if g in offered[q]: offered[q][g].clear(i)
+
+def drop_offer(g, i, p):                                  # p's offers of chunk i of g go, under every
+    k = (g, i)                                            #   key that names it, and its asks of the
+    if g in offered[p]: offered[p][g].clear(i)            #   chunk with them (§4.2's drop_tie; the
+    for a in [a for a in list(offers) if (group(a), index(a)) == k and p in offers[a]]:   # offers' expiry)
+        offers[a].remove(p)
+        if not offers[a]: del offers[a]
+    for e in queue[p].normal:                             # an ask of it still queued to p is removed,
+        for c in e.iwants(): c.ids = [b for b in c.ids if (group(b), index(b)) != k]
+    queue[p].normal = [e for e in queue[p].normal if not e.is_empty()]
+    close_promises(g, i, of=p)                            #   and p's promise for it closes
+
 def last_resort(a):                                       # every announcer of a is parked: each is
     k = (group(a), index(a))                              #   asked once more, later; counted per
     done = asked_parked[k]                                #   chunk, whichever form names it
@@ -1437,17 +1466,12 @@ This document decides at the moment of sending, so it needs the backlog to be in
   `decode_and_reencode` (§1's decoding: every chunk of the group by index, as the source built it,
   proof included, each naming the block the decode's chunks name, or one of them where they name
   several (§4.6); None if the root differs) and `payload_of` (the decompressed body),
-  `close_promises` and `close_promises_of_group` (§6.1's promises for an index, in either form, with
-  `of` one peer's alone, or for the whole group), `discard_queued` (removes a group's chunks, IHAVEs and IWANTs from every
+  `close_promises_of_group` (§6.1's promises for a whole group), `discard_queued` (removes a group's chunks, IHAVEs and IWANTs from every
   queue, and what is owed of it, keeping HAVEs), `gossip_history.remove_group` and `discard_paced`
   (drop a group from the gossip history and from paced jobs), `deliver` (hands the body to the
   application for level 3), and the codec functions of §1.
 - *Peers and messages:* `seen` and `mark_seen` (the stock seen cache), `pending_ids` (the ids of
-  deferred chunks), `drop_offer` (a peer's offers of an index, in either form, and its asks of the
-  index with them: an ask still queued to it is removed and its promise for the index closes;
-  §4.2's `drop_tie`, and the offers' expiry, §6.1),
-  `tie_room` (§8.2's limits on ties: the copy's root and group already tied for the peer, or room for
-  another; its index in range),
+  deferred chunks),
   `valid_have`, `reserve`, `release`, `admitted` and `listed` (the checks and
   reservations of §8.2; `admitted`: a chunk's group within the peer's limits; `listed`: how many
   ordered offer lists an announcer is in), `Entry` (a queue entry: at most
