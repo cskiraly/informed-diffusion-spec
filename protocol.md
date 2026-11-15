@@ -9,8 +9,10 @@
 
 This document defines what a node does to diffuse an execution payload, one event at a time: what it
 sends, what it checks, and what it does with each message it receives. It is written in Python-like
-pseudocode, in the style of the consensus specs. The pseudocode is the specification; the prose says
-what each rule does, and why.
+pseudocode, in the style of the consensus specs. Where a rule has code, the code is the
+specification, and the prose says what it does and why. A rule that has no code is stated in the
+prose and its tables: among them §2's table of what each bitmap means, §5.4's "When it runs", §7.3,
+and §8's state, limits and helpers.
 
 **How it is organized.**
 - §1 to §3 define the payload's commitment and its code (§1), the messages on the wire (§2), and
@@ -32,10 +34,12 @@ measurements are of the scheduling written here.
 constants each section uses. Where a section has code, its prose says what the code does, a rule to
 a paragraph. A section with reasoning to give ends with an unnumbered *Rationale*: why its rules are
 as they are, and the alternatives that were not taken, with the reason for each. A paragraph that
-opens with **Open:** names a question this version leaves open. A name in capitals (`PROMISE`) is a
-constant, listed in §8.3 with its value and the reason for it. The glossary at the end defines the
-document's terms. Measurements are reported in the documents below, and §9 says which code they
-ran.
+opens with **Open:** names a question this version leaves open. The constants (`PROMISE`) are listed
+in §8.3, with their values and the reasons for them, and the limits a client sets in §8.2. `R_NODE`
+(§5.2) and `W` (§7.1) are defined where they are used, `UPLINK` is the node's configured uplink
+(§5.1), and `CANCEL`, `RAREST`, `PROJECT` and `PACED` switch cards 8, 9, 12 and 15 on, and
+`DESCRIPTOR_IN_CHUNK` design A (§1). The glossary at the end defines the document's terms.
+Measurements are reported in the documents below, and §9 says which code they ran.
 
 **Tiers and cards.** The document covers every tier, because the tiers are nested. A tier is the set
 of cards it enables:
@@ -352,7 +356,7 @@ section 5 do not apply this rule: they are the measured policy.
 
 **The decode claim before level 2.** Only the builder can fail level 2, and then it fails at every
 node, so a claim made at K can only be wrong about a group that every node drops. What a node
-claimed of such a group were authentic pieces, which passed level 1, so it has nothing to retract.
+claimed of such a group were authentic pieces, so it has nothing to retract.
 
 **What bounds the damage: the builder's cost.** A chunk authenticates only against the bid an
 installed beacon block carries, so at most one payload per winning bid crosses the network: one per
@@ -529,9 +533,11 @@ def have_bits(g):                                    # what our HAVE says of g: 
     return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what is known to have arrived [P4]
 ```
 
-**The path of a chunk** (`on_chunk`, `on_validated`). A copy of a chunk the node accepted before is
-acknowledged, a copy of one it rejected is ignored, and another copy of one that waits for its block
-ties its sender too (below); none of them goes further. A chunk of an expired group, or whose slot is
+**The path of a chunk** (`on_chunk`, `on_validated`). A copy of a chunk the node stored before is
+acknowledged. A copy of any other chunk it has seen is ignored: one it rejected, or one that passed
+level 1 and was not stored (a second copy of an index under another id, or a chunk of a dropped
+group). Another copy of one that waits for its block ties its sender too (below). None of them goes
+further. A chunk of an expired group, or whose slot is
 outside the live window, is ignored (§8.1). Any other chunk goes through level 1 (§3), and is ignored
 if, meanwhile, its group expired or its slot left the live window. A chunk that waits for its block
 is deferred (`defer`, below). Otherwise the chunk is marked seen, accepted or rejected, and is never
@@ -543,9 +549,9 @@ has claimed every chunk), sends its HAVE to the mesh if it claimed the chunk, an
 any case, as the acknowledgement (§7.1), and forwards the chunk (§5.2). At the K-th chunk received
 it claims the group and starts decoding (§4.6).
 
-**A node announces a chunk once its proof checks**, not on arrival as stock IDONTWANT does. A chunk
-that arrives ahead of its block is announced only when the block installs. Until then its senders
-may keep pushing it, and their window slots stay held (§7.1).
+**A node claims a chunk once its proof checks**: its HAVE names the chunk only then, not on arrival
+as stock IDONTWANT does. A chunk that arrives ahead of its block is claimed only when the block
+installs. Until then its senders may keep pushing it, and their window slots stay held (§7.1).
 
 **A copy that waits ties its sender** (`tie`) to the root it names, for its index, whether the
 deferred store keeps the copy or refuses it, within §8.2's limits on ties (`tie_room`). A copy of a
@@ -576,9 +582,9 @@ back to the sender.
 
 #### Rationale
 
-**A held index, not a held id.** A node announces a chunk once its proof checks because a held index
-is stronger evidence than a held id: it covers any chunk claiming that index. Not evaluated yet:
-announcing a chunk that arrives ahead of its block by its exact id, on arrival. That is safe, because
+**A held index, not a held id.** A node claims a chunk once its proof checks because a held index is
+stronger evidence than a held id: it covers any chunk claiming that index. Not evaluated yet:
+claiming a chunk that arrives ahead of its block by its exact id, on arrival. That is safe, because
 an id covers only those bytes.
 
 **Why ties.** Without them, a push the store refuses is lost: its sender counts it as pushed and
@@ -739,9 +745,10 @@ def on_iwant(p, iw):                                  # returns the answers (§4
 An ask for a chunk of an expired group is ignored, without penalty. An ask for a chunk the asker has
 claimed counts against the asker, and is dropped (below). Otherwise the node answers with its copy
 of the chunk at that index, received or rebuilt (`resolve`), unless it holds none, the asker said
-it does not want that id (stock IDONTWANT), or the node has already answered the asker
-`GOSSIP_RETRANSMISSION` (3) times for that id. One RPC draws at most one answer per id. `resolve`
-returns nothing for a group the node dropped (§4.6).
+it does not want that id (stock IDONTWANT), or the asker has already made `GOSSIP_RETRANSMISSION`
+(3) asks for that id that the node could answer (`serve_count`, which counts a repeat within one RPC
+too). One RPC draws at most one answer per id. `resolve` returns nothing for a group the node
+dropped (§4.6).
 
 **An ask for a chunk the asker claimed is dropped: the claim wins.** On a live connection an honest
 ask always arrives before the claim it would contradict (Rationale), so an ask after the claim is a
@@ -976,7 +983,8 @@ def candidates_for_source(f):
 
 **Publishing** (`publish`). Unless the group has expired or its slot is outside the live window, the
 source stores every chunk, marks it seen, and puts it in the message cache for heartbeat gossip
-(§6.4). It claims the whole group and stops pulling it. It then plans the pushes: for each chunk, in
+(§6.4). It holds the whole group from the start and stops pulling it; its HAVE names none of the
+group yet (below). It then plans the pushes: for each chunk, in
 index order, R targets that §5.3 chooses among its candidates (`candidates_for_source`), each chunk's
 choice seeing the plans made before it. It sends the first copy of every chunk before any second
 copy. A peer's first chunk from the source follows a HAVE that names it (below). A push that a full
@@ -1059,7 +1067,8 @@ def note_push(p, g, i):
     e.set(i); e.ttl = PUSH_TTL                                          # heartbeats
 ```
 
-**Forwarding** (`forward`). A node forwards each chunk it accepts (§4.2). It pushes the chunk to at
+**Forwarding** (`forward`). A node forwards each chunk it stores at an index it had not received
+(§4.2). It pushes the chunk to at
 most `budget` of the mesh peers that do not hold it, chosen by §5.3, announces it to the other mesh
 peers that do not hold it, and puts it in the message cache for heartbeat gossip (§6.4). The peer it
 came from is neither pushed nor announced the chunk.
@@ -1144,11 +1153,11 @@ least likely to be a duplicate, and the ones that would otherwise have to ask.
 
 **A draw, not the single furthest behind.** The count trusts what each peer says about itself. Taking
 the single peer furthest behind, an under-reporter would always look furthest behind and win every
-contested push; a withholding node that tells each pusher it holds only what that pusher sent it
-would draw most of its neighbours' pushes and pass none on. Drawn within the lower half, it no
+contested push; a node that tells each pusher it holds only what that pusher sent it would draw
+most of its neighbours' pushes and pass none on. Drawn within the lower half, it no
 longer wins every contested push.
 
-**The guard** is for a peer that takes pushes and never reports at all, which no count can rank.
+**The guard** is for a peer that takes pushes and never reports at all.
 `GUARD_GRACE` is about one round trip, so that honest peers are not demoted (§8.3). At the source the
 plain ranking is what spreads card 13's stripes evenly over its connections (§5.1).
 *Segmented payload diffusion, card by card* (2026, card 16) gives what each form costs against
@@ -1203,8 +1212,9 @@ announcement of every chunk at once would tell more peers who published.
 ### 6.1 One ask per chunk at a time, move on, park [c5]
 
 A node asks for a chunk it lacks from one announcer at a time. Each ask has a window,
-`IWANT_WINDOW`: if the chunk has not arrived when the window closes, the node asks another
-announcer (*the retry*). An ask written to a peer opens a *promise*. If nothing closes the promise
+`IWANT_WINDOW`: if the chunk has not arrived when the window closes, the node asks an announcer it
+has not asked yet, or else the one it asked longest ago (*the retry*). An ask written to a peer
+opens a *promise*. If nothing closes the promise
 within `PROMISE`, the peer is *parked* for the chunk's group for `PARK_TTL`: the node stops asking
 it for that group's chunks. When every announcer of a chunk is parked, the node asks each of them
 once more, after waits that double (*the last resort*).
@@ -1331,8 +1341,9 @@ closes, or 30 s after the announcer's last offer of the group (`drop_offer`). Un
 installed, the offers are also the ledger of what to ask for when it installs (`ledger`, §4.2).
 
 **The retry** (`retry_offer`) runs `IWANT_WINDOW` + `RETRY_SLACK` after each ask, armed by
-`may_ask`. It also makes the asks at the block's installation (§4.2), and, at the next heartbeat,
-those held back over gossipsub's IHAVE limits (§6.4). It does nothing if the chunk is held, if the
+`may_ask`. It also makes the asks at the block's installation (§4.2), those for the indices of a tie
+that is dropped (`drop_tie`, §4.2), and, at the next heartbeat, those held back over gossipsub's
+IHAVE limits (§6.4). It does nothing if the chunk is held, if the
 group's pull has stopped (§6.2) or the group has expired, or if another ask of the chunk is still
 within its window. Otherwise it takes the chunk's announcers in order (`announcers`): first the
 list, in announcement order, then every other connected peer on the topic that offered the chunk,
@@ -1383,7 +1394,7 @@ outstanding. When every candidate has one, the retry and the last resort look ag
 **An ask goes with its announcer's offers.** When an announcer's offers of a chunk are dropped,
 with its tie (§4.2's `drop_tie`) or 30 s after its last offer of the group, an ask of the chunk
 still queued to it is removed, and its promise for the chunk closes (`drop_offer`). Its next offer
-of the chunk is then asked for, by the retry, as any offer is. The chunk's arrival and a closed
+of the chunk is then asked for, with the retry, as any offer is. The chunk's arrival and a closed
 connection need nothing more: the writer drops an ask for a chunk the node holds (§7.2), the
 arrival closes the chunk's promises (§4.2), and a close takes the queue and the promises with the
 connection.
@@ -1600,12 +1611,13 @@ def free_slot():
     if waiters: wake(waiters[0])                  # the first writer in line tries again (§7.2)
 ```
 
-**The window** bounds how many chunks a node has sent that their receivers are not yet known to
-hold. It has `W` slots, shared by all of the node's peers, sized from the node's configured uplink:
+**The window** bounds the chunks a node has in flight, to all its peers together. It has `W` slots,
+shared by all of the node's peers, sized from the node's configured uplink:
 what the uplink sends in `RTT_REF` + `TARGET`, in chunks of `CHUNK_BYTES`. A peer's writer takes a
 slot before it sends a chunk (`acquire_slot`, §7.2); when none is free it waits in line, first come
 first served over the peers, and keeps its place while it waits. The slot then travels with the
-chunk until the peer is known to hold it.
+chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue's closing frees it
+(below).
 
 - **What takes a slot:** a chunk sent on the normal lane, push or answer.
 - **What gives it back:** a HAVE from that peer that newly covers the chunk's index (§4.3), or
@@ -2147,26 +2159,30 @@ The document's terms, each with the section that defines it.
   window slot of that copy (§7.1). At the source, a chunk's acknowledgement is the first HAVE naming
   it from any peer, or its first copy's window timeout (§5.1).
 - **announce**: to send an IHAVE bitmap naming chunks a node can send (§2, §5.2); the peer that
-  announced a chunk is its **announcer**, and the announcement its **offer** (§6.1).
+  announced a chunk is its **announcer**, and the announcement its **offer** (§6.1). Where §9 says a
+  node *announced* a chunk it held, as stock IDONTWANT does, it means its HAVE: a claim (below),
+  not an announcement in this sense.
 - **ask**: an IWANT for one chunk, by its id or by group and index (`WantIndex`) (§2, §6.1). An ask
   is **outstanding** while it is queued to the peer or its promise is open (§6.1).
-- **budget**: how many mesh peers a node pushes a chunk to: `R_NODE`, less the mesh peers known to
-  hold it (§5.2).
+- **budget**: the most mesh peers a forwarding node pushes a chunk to: `R_NODE` less the mesh peers
+  known to hold it, and never below zero (§5.2).
 - **card**: one mechanism of the design, numbered; a **tier** is the set of cards it enables, and
   the tiers are nested (§0). A comment `# [c8]` tags the code of card 8.
 - **chunk**: one piece of the payload, coded from tier 3 on, with its Merkle proof: the unit on the
   wire (§1, §2).
-- **claim**: a node's statement, in its HAVE, that it holds a chunk, made only for chunks that
-  passed level 1 (§4.2). The **decode claim** names all N chunks of a group, at the K-th chunk
-  (§4.6).
+- **claim**: a node's statement, in its HAVE, that it holds a chunk. A chunk it receives is claimed
+  only once it passes level 1 (§4.2); the **decode claim** names all N chunks of a group at the K-th
+  chunk received, before decoding (§4.6). A source's HAVE names only the chunks known to have
+  arrived somewhere (§5.1).
 - **deferred**: a copy of a chunk whose block is not installed yet; it waits in a bounded store, or
   is refused, and within §8.2's limits ties its sender either way (§4.2).
 - **descriptor**: the `SegmentDescriptor` a bid commits to, which says how the payload was cut and
   coded (§1).
-- **expired**: a group past its active lifetime; only its tombstone is left, and the group never
-  comes back (§8.1).
-- **forward**: to pass on a chunk a node accepted: push it to some mesh peers and announce it to the
-  others (§5.2).
+- **expired**: a group past its active lifetime. Its tombstone keeps it out until its slot leaves
+  the live window, and the window from then on, so it never comes back (§8.1). Groups without a
+  slot, which this document does not have, keep a tombstone for `TOMBSTONE_TTL` instead.
+- **forward**: to pass on a chunk a node has stored at an index it had not received: push it to some
+  mesh peers and announce it to the others (§5.2).
 - **group**: the N chunks of one payload, named in diffusion by its **key**, the group id at the
   block's slot (§1).
 - **HAVE**: a bitmap of the chunks of one group a node holds, carried in an IDONTWANT (§2, §4.3).
@@ -2179,21 +2195,25 @@ The document's terms, each with the section that defines it.
 - **level 1, 2, 3**: the three levels of validation: a chunk's authenticity, the code's
   consistency, the application's checks (§3).
 - **live window**: the slots a node works on; a group whose slot has left it is out for good (§8.1).
-- **owed**: an offer or answer that a full queue refused, which the next write to the peer carries
-  (§5.2, §7.2).
+- **owed**: an offer that a full queue refused, or one that takes the place of a push that was
+  skipped or refused, which the next write to the peer carries; or an answer that a full queue
+  refused, which is queued once the queue has room (§4.1, §5.2, §7.2).
 - **park**: a peer whose promise broke is not asked for the group's chunks for `PARK_TTL`, except by
   the last resort (§6.1).
 - **promise**: what an ask written to a peer opens; if nothing closes it within `PROMISE`, the peer
   is parked (§6.1).
 - **push**: to send a chunk unasked (§5.2). **Repair** is a decoded node's push of the chunks it
   rebuilt (§4.6).
-- **retry**: the ask of another announcer once an ask's window has closed (§6.1).
+- **retry**: the next ask of a chunk once an ask's window has closed: of an announcer not asked yet,
+  or else of the one asked longest ago (§6.1).
 - **source**: the node that publishes a group (§5.1).
 - **stop-pull**: no further asks for a group from its decode claim on (§6.2).
 - **tie**: what a copy that waits for its block does to its sender: the sender is not asked for that
   index until the root the copy names installs (§4.2).
 - **window**: two different things. An ask's window, `IWANT_WINDOW`, is how long one ask of a chunk
   is in flight before the retry (§6.1). The node's sending window, §7.1's, bounds the chunks it has
-  sent that their receivers are not yet known to hold; its **slots** are not consensus slots.
-- **withholding node**: one that keeps forwarding but never answers an ask; a **silent node** sends
-  nothing at all (§4.6).
+  in flight: a slot travels with a chunk until its receiver is known to hold it, or a timeout frees
+  it. Its **slots** are not consensus slots.
+- **withholding node**: one that keeps forwarding but never answers an ask; a **silent node**
+  announces what it holds but forwards and answers nothing (*What a forwarding node checks, and when
+  it decodes*, 2026; used in §4.6).

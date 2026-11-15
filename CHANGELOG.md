@@ -84,8 +84,8 @@ The draft of SEACAST's next version (`protocol-v2.md`), changed since v0.6:
 - The probe of a claim judges the claimant by its own copy only, is marked so that the claimant
   answers it whatever the asker holds (`Want.probe`, once per asker and group), is kept in the
   asker's queue while it waits, and asks for a cell drawn at random among those lacked, where it
-  asked for the lowest. The standalone binding carries its mark and `standing` in one flags byte.
-- Three cases it does not yet handle are named open (§4.6, R5).
+  asked for the lowest. The standalone binding carries its mark and `standing` in one flags byte,
+  and three cases it does not yet handle are named open (§4.6, R5).
 - §7 says how a sampler rides gossipsub's wires, and frames the standalone binding as Waggle does.
 - The toy gains options for these (among them `--sample-cover`, `--upkeep`, `--churn`,
   `--col-announce`, `--row-announce`, `--alarm-wait` and `--rebuilt-seen`), `--topology` also loads

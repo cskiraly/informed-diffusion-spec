@@ -2,10 +2,10 @@
 
 **SEACAST** (Segmented, Encoded, Availability-sampled broadCAST) is a broadcast protocol for
 Ethereum's large objects, written as Python-like pseudocode in the style of the consensus specs,
-with a toy simulator that runs it. It is a design of segmented payload diffusion, studied for
-[EIP-8411](https://eips.ethereum.org/EIPS/eip-8411) (Fast Execution Payload Broadcast). *Informed
-Diffusion*, the title of `protocol.md`, names how SEACAST diffuses a payload; up to v0.5 the whole
-design was published under that name.
+with a toy simulator that runs it. Up to v0.5 it was published as *Informed Diffusion*, a design of
+segmented payload diffusion studied for [EIP-8411](https://eips.ethereum.org/EIPS/eip-8411) (Fast
+Execution Payload Broadcast). *Informed Diffusion*, the title of `protocol.md`, now names how
+SEACAST diffuses.
 
 - [`protocol.md`](protocol.md): what a node does, one event at a time. The builder cuts the payload
   into chunks that its bid commits to (from tier 3 it compresses the payload first and adds parity
