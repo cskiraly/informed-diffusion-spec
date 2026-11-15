@@ -18,7 +18,7 @@ import bits as B
 import scenario
 import wire as Wm
 from bits import (AutoMap, Bits, DefaultMap, HaveEntry, LazyBits, LazyList, LazyMap, LazySet, OfferMap, PushEntry,
-                  _join, all_bits, bitmap, lazy, lazy2, lazy_dict, popcount, tie_table)
+                  _join, all_bits, bitmap, lazy, lazy2, lazy_dict, popcount, tie_table, zero)
 from extract import DOC, generate
 
 SPEC_SRC = generate()
@@ -570,14 +570,14 @@ class Node:
             "ANSWERS_FIRST": c.get("answers_first", "off") == "on",
             "DESCRIPTOR_IN_CHUNK": True,
             # state (§8.1); missing entries read as empty
-            "desc": DefaultMap(None), "state": DefaultMap(None), "chunks": AutoMap(dict), "known_id": AutoMap(dict),
-            "received": AutoMap(Bits), "mine": AutoMap(Bits), "stop_pull": DefaultMap(False),
+            "desc": DefaultMap(None), "state": DefaultMap(None), "chunks": lazy(lazy_dict), "known_id": lazy(lazy_dict),
+            "received": lazy(LazyBits), "mine": lazy(LazyBits), "stop_pull": DefaultMap(False),
             "origin": {}, "planned": {},
             "peer_has": AutoMap(lambda: LazyMap(HaveEntry)),
             "pushed": AutoMap(lambda: LazyMap(PushEntry)),
-            "holders": AutoMap(lambda: AutoMap(set)), "sent_to": AutoMap(lambda: AutoMap(Bits)),
+            "holders": lazy2(LazySet), "sent_to": lazy2(LazyBits),
             "queue": lazy(PeerQueue), "slot_held": DefaultMap(False),
-            "unwanted": AutoMap(set), "serve_count": AutoMap(lambda: AutoMap(int)),
+            "unwanted": lazy(LazySet), "serve_count": lazy2(zero),
             "asked_at": {}, "tried": lazy(lazy_dict), "offers": OfferMap(), "promises": {},
             "offered": lazy2(LazyBits), "asked_parked": lazy(LazySet),
             "last_resort_armed": set(),

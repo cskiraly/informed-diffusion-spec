@@ -36,7 +36,7 @@ def main():
     import run
     import sim as S
     import wire as Wm
-    from bits import Bits
+    from bits import Bits, popcount
     got = {}
     run.run = lambda cfg, out=sys.stdout: got.setdefault("sim", S.Sim(cfg))
     run.main(["--nodes", "5", "--degree", "4", "--msgs", "1", "--payload", "16384", "--seed", str(SEED)])
@@ -62,7 +62,17 @@ def main():
         ("park", lambda t: (t[P].get(G, -1.0), t[P].pop(G, None)), lambda t: t[P].__setitem__(G, 1.0), P),
         ("pending", lambda t: ([x for x in t[root]], bool(t[root]), t.get(root, [])),
          lambda t: t[root].append((P, None)), root),
+        ("chunks", lambda t: (t.get(G), 0 in t[G], len(t[G])), lambda t: t[G].__setitem__(0, "a chunk"), G),
+        ("known_id", lambda t: (t[G].get(0), 0 in t[G]), lambda t: t[G].__setitem__(0, b"an id"), G),
+        ("received", lambda t: (t[G].has(0), popcount(t[G])), lambda t: t[G].set(0), G),
+        ("mine", lambda t: (t[G].has(0), popcount(t[G]), Bits() | t[G]), lambda t: t[G].set(0), G),
+        ("holders", lambda t: (len(t[G][0]), P in t[G][0], list(t[G])), lambda t: t[G][0].add(P), G),
+        ("sent_to", lambda t: (t[P][G].has(0), list(t[P])), lambda t: t[P][G].set(0), P),
+        ("unwanted", lambda t: (b"an id" in t[P], len(t[P])), lambda t: t[P].add(b"an id"), P),
+        ("serve_count", lambda t: (t[P][G], list(t[P])), lambda t: t[P].__setitem__(G, t[P][G] + 1), P),
     ]
+    line("the tables are the toy's lazy ones (a check that the node uses them)",
+         sorted(n for n, *_ in cases if type(ns[n]).__name__ == "LazyDict"), sorted(n for n, *_ in cases))
     for name, read, write, key in cases:
         t = ns[name]
         before = shape(t)
