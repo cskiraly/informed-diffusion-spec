@@ -8,10 +8,11 @@ reservation or block not installed. run.py checks both under `--late-block` and 
 does not hold, so check.py sees it. A count that is only printed would let a leak through with an unchanged
 digest, since the digest hashes events, not state.
 
-Two runs of the cell (check.py's base and `--late-block 30,400`): as it is, which must exit 0; and with a leak put
-in by hand, which must exit with run.py's failure. The leak: each installation's deferred ids are put back
-after `on_block_installed` has removed them, as if the document forgot `pending_ids.discard`. That changes no
-event, so only the check can tell.
+Three runs of the cell (check.py's base and `--late-block 30,400`): as it is, which must exit 0; with a leak put in
+by hand, which must exit with run.py's failure naming entries that still wait; and with one node on time that
+gets no chunk, which must exit with the failure naming payloads missing. The leak: each installation's deferred
+ids are put back after `on_block_installed` has removed them, as if the document forgot `pending_ids.discard`.
+That changes no event, so only the check can tell.
 """
 import subprocess
 import sys
@@ -21,11 +22,20 @@ HERE = Path(__file__).resolve().parent
 CELL = ["--nodes", "60", "--degree", "30", "--msgs", "3", "--seed", "7", "--late-block", "30,400"]
 
 
-def cell(leak, extra):
+def cell(mode, extra):
     sys.path.insert(0, str(HERE))
     import node as N
     import run
-    if leak:
+    import sim as S
+    if mode == "miss":                              # one node on time gets no chunk at all: it misses every
+        delivered = S.Sim._deliver                  #   payload, and nothing is left waiting
+
+        def deliver(self, src, dst, e, data, ctrl):
+            if dst == max(set(self.nodes) - set(self.cfg["late_nodes"])) and e.chunk is not None:
+                return
+            return delivered(self, src, dst, e, data, ctrl)
+        S.Sim._deliver = deliver
+    if mode == "leak":
         installed = N.Node.install_block
 
         def leaky(self, root):
@@ -38,17 +48,22 @@ def cell(leak, extra):
 
 def main(argv):
     if argv[:1] == ["--cell"]:
-        return cell(argv[1] == "leak", argv[2:])
+        return cell(argv[1], argv[2:])
     extra = argv
     bad = 0
-    for leak, want in ((False, 0), (True, 1)):
-        p = subprocess.run([sys.executable, "-B", __file__, "--cell", "leak" if leak else "as-is", *extra],
-                           capture_output=True, text=True)
-        last = (p.stdout + p.stderr).strip().splitlines()[-1:]
-        ok = (p.returncode == 0) if want == 0 else (p.returncode != 0 and "FAILED" in "".join(last))
+    for mode, want in (("as-is", None), ("leak", "entries still wait"), ("miss", "payloads missing")):
+        p = subprocess.run([sys.executable, "-B", __file__, "--cell", mode, *extra], capture_output=True, text=True)
+        last = "".join((p.stdout + p.stderr).strip().splitlines()[-1:])
+        if want is None:
+            ok = p.returncode == 0
+        else:                                       # the FAILED line, with a count not 0 for what was put in
+            import re
+            m = re.search(r"(\d+) " + want, last)
+            ok = p.returncode != 0 and "FAILED" in last and m is not None and int(m.group(1)) > 0
         bad += not ok
-        print(f"{'with the leak' if leak else 'as it is'}: rc={p.returncode}; its last line: {last[0] if last else ''}"
-              f"{'' if ok else '  <-- must be ' + ('rc=0' if want == 0 else 'a FAILED line, rc not 0')}")
+        print(f"{ {'as-is': 'as it is', 'leak': 'with a leak', 'miss': 'with a node missing every payload'}[mode] }: "
+              f"rc={p.returncode}; its last line: {last}"
+              f"{'' if ok else '  <-- must be ' + ('rc=0' if want is None else 'a FAILED line with ' + want + ' not 0')}")
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0
 

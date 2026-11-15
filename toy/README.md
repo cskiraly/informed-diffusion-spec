@@ -98,7 +98,7 @@ where one has a control that must come out the other way, it is named:
 - `tie_read_known.py`: a peer that was only asked about has no tie; the tied peer beside it must
   lose its park.
 - `tie_helpers_known.py`: `tie_room`, `drop_offer`, and `close_promises` with `of`, by the values
-  they must leave.
+  they must leave in every table they touch, the tries, last asks and B′'s counts included.
 - `tie_release_known.py`: what a tie does to its sender's promise, and its release to the sender's
   park, B′'s count and offer; a peer parked but not tied beside it must keep both.
 - `deferral_rules_known.py`: §4.2's rules no honest cell reaches.
@@ -106,18 +106,21 @@ where one has a control that must come out the other way, it is named:
     and tied.
   - At installation, a tied index the group does not have is dropped; the same peer's other index
     is offered.
-  - What waits for a root that never installs goes when its slot leaves the live window or its
-    group expires; a copy of a live slot beside it stays.
+  - What waits for a root that never installs goes, through `on_heartbeat`, when its slot (its
+    sender's first copy's) leaves the live window or its group expires; a copy of a live slot
+    beside it stays.
   - When a group's count becomes known, the offers, asks and ties of an index beyond it go; an
     offer of an index within it stays.
   - Level 1 rejects a copy whose slot is not its block's; the copy as it came passes.
-- `late_drain_known.py`: the `late-block` cell with a leak put in by hand must fail; as it is, it
-  must pass.
+- `late_drain_known.py`: the `late-block` cell with a leak put in by hand must fail, and so must
+  the cell with a node that gets no chunk; as it is, it must pass.
 - `late_draw_known.py`: `--late-block`'s draw and its argument.
 - `bid_gate_known.py`: a late node cannot read the group a block's bid commits before the block
   installs; after, it can.
 - `table_read_known.py`: §8.1's "reading it allocates nothing", table by table; one write through
-  the same reads must leave the entry it wrote. And the writer after a read of an owed answer.
+  the same reads must leave exactly the entry it wrote. Held reads share one entry, a held read
+  written after a set fails, the collections' own writes join, and an offer list refuses what
+  would bypass `listed`. And the writer after a read of an owed answer.
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then

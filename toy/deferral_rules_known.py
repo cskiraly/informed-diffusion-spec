@@ -16,9 +16,10 @@ On one node after a small run (one payload, its group of N = 2 complete there), 
   (as when a kept copy opens the group), and the block installs. Index 1, which the node lacks, is an offer of
   peer 1's again (the control); index N is not.
 - **What waits for a root that never installs goes when its slot leaves the live window or its group expires**
-  (§8.1; `drop_stale_waits`, at each heartbeat). For a root that never installs: peer 1's kept copy names a
-  slot that then leaves the window, and peer 1 also offers its index; peer 3's kept copy names the run's slot
-  (the control); peer 4 is tied for another group, which then expires. (The toy's slots never leave the
+  (§8.1; `drop_stale_waits`, which `on_heartbeat` runs: the check goes through it). For a root that never
+  installs: peer 1's kept copy names a slot that then leaves the window, a second copy of peer 1's names the
+  run's slot (the ties keep the first copy's), and peer 1 also offers its index; peer 3's kept copy names the
+  run's slot (the control); peer 4 is tied for another group, which then expires. (The toy's slots never leave the
   window and its groups never expire, so here `live` and `expired` are replaced.) After the sweep, peer 1's
   copy, its id, its reservation, its tie and its slot are gone, and so is its offer of the index (`drop_tie`);
   peer 4's tie and slot are gone; peer 3's copy, tie and slot stay.
@@ -103,20 +104,22 @@ def main():
     stale = waiting_copy(0, ROOT3)
     stale.slot = OLD                                        # peer 1: a copy of a slot that is to leave the window,
     ns["defer"](P, stale)
-    ns["add_offer"](Wm.WantIndex(g, 0), P)                  #   and its offer of that index
+    ns["tie"](P, type("Copy", (), {"group": g, "index": 1, "beacon_block_root": ROOT3, "slot": block.slot})())
+    ns["add_offer"](Wm.WantIndex(g, 0), P)                  #   a second copy naming the run's slot (the first's
+                                                            #   slot is the ties'), and its offer of index 0
     ns["defer"](Q, waiting_copy(1, ROOT3))                  # peer 3: a copy of the run's slot (the control)
     ns["tie"](R, type("Copy", (), {"group": GX, "index": 0, "beacon_block_root": ROOT3, "slot": block.slot})())
     ids = lambda: sorted(f.index for f in (stale, ) if ns["message_id"](f) in ns["pending_ids"])
-    line("rule 3, before: peer 1's copy, reservation and tie; its slot", (held(P, ROOT3), ns["tie_slot"].get((ROOT3, P))),
-         (([0], 1, [0]), OLD))
+    line("rule 3, before: peer 1's copy, reservation and ties; their slot, its first copy's",
+         (held(P, ROOT3), ns["tie_slot"].get((ROOT3, P))), (([0], 1, [0, 1]), OLD))
     line("rule 3, before: peer 3's; peer 4 tied for the other group", (held(Q, ROOT3), R in ns["tied"][ROOT3]),
          (([1], 1, [1]), True))
     line("rule 3, before: peer 1 an announcer of index 0, and its copy's id waiting",
          (ns["offered"][P][g].has(0), P in ns["offers"][Wm.WantIndex(g, 0)], ids()), (True, True, [0]))
     ns["live"] = lambda s: s != OLD                         # the slot leaves the live window,
     ns["expired"] = lambda x: x == GX                       #   and the other group expires
-    ns["drop_stale_waits"]()
-    line("rule 3, after: peer 1's copy, reservation and tie gone, its id and slot too",
+    ns["on_heartbeat"]()                                    # which runs drop_stale_waits
+    line("rule 3, after: peer 1's copy, reservation and both ties gone, its id and slot too",
          (held(P, ROOT3), ids(), (ROOT3, P) in ns["tie_slot"]), (([], 0, []), [], False))
     line("rule 3, after: peer 1 no longer an announcer of index 0 (drop_tie)",
          (ns["offered"][P][g].has(0), P in ns["offers"][Wm.WantIndex(g, 0)]), (False, False))

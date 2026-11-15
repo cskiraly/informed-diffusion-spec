@@ -6,7 +6,8 @@ with `of`, and `drop_offer` (§4.2, §6.1).
 
 A cell of check.py tells only that something changed, and `tie_room` and `drop_offer` run in a cell only where a
 block installs late. Here each is called on a state made by hand, on one node of a small network that is built
-and not run. The promises, the ordered lists, `offered`, the queued asks and `listed` are read before and after.
+and not run. The promises, the ordered lists, `offered`, the queued asks, `listed`, the tries (`tried`), the last
+asks (`asked_at`) and B′'s counts (`asked_parked`) are read before and after.
 Peers 1 and 3; a group G no block commits; chunk 3 named in both forms, by index and by a full id. For
 `tie_room` also: an index against a group whose descriptor is known (below its N, and at it), and the limit
 counted by (root, group) pairs, not by roots (one root with two groups, at limits of 2 and 3).
@@ -71,6 +72,12 @@ def main():
     for p in (P, Q):
         ns["queue"][p].normal.append(Wm.Entry(control=Wm.IWANT([by_index, other])))
         ns["queue"][p].normal.append(Wm.Entry(control=Wm.IWANT([by_id])))
+    for a in (by_index, by_id, other):                      # tries, last asks and B′'s counts of both chunks
+        for p in (P, Q):
+            ns["tried"][a][p] = 1.0
+        ns["asked_at"][a] = 1.0
+    for i in (3, 4):
+        ns["asked_parked"][(G, i)].add(P)
 
     def state():
         return {"promises": sorted((ns["index"](a), isinstance(a, bytes), p) for (a, p) in ns["promises"]),
@@ -79,7 +86,11 @@ def main():
                 "offered": {p: sorted(ns["offered"][p][G]) for p in (P, Q)},
                 "queued": {p: [[ns["index"](b) for c in e.iwants() for b in c.ids] for e in ns["queue"][p].normal]
                            for p in (P, Q)},
-                "listed": {p: ns["listed"](p) for p in (P, Q)}}
+                "listed": {p: ns["listed"](p) for p in (P, Q)},
+                "tried": sorted((ns["index"](a), isinstance(a, bytes), sorted(ps)) for a, ps in ns["tried"].items()
+                                if ns["group"](a) == G),
+                "asked_at": sorted((ns["index"](a), isinstance(a, bytes)) for a in ns["asked_at"] if ns["group"](a) == G),
+                "asked_parked": sorted((k[1], sorted(v)) for k, v in ns["asked_parked"].items() if k[0] == G)}
 
     before = state()
     ns["close_promises"](G, 3, of=P)
@@ -101,6 +112,9 @@ def main():
     line("drop_offer: what is queued to the peer (the entry of the id alone is gone)", after["queued"][P], [[4]])
     line("drop_offer: what is queued to the other peer", after["queued"][Q], before["queued"][Q])
     line("drop_offer: the promises left", after["promises"], [x for x in before["promises"] if not (x[0] == 3 and x[2] == P)])
+    line("drop_offer: tries, last asks and B′'s counts are left to their own lifetimes",
+         (after["tried"], after["asked_at"], after["asked_parked"]),
+         (before["tried"], before["asked_at"], before["asked_parked"]))
 
     before = state()
     ns["close_promises"](G, 3)
@@ -109,6 +123,10 @@ def main():
          (after["promises"], after["lists"], after["offered"]),
          ([x for x in before["promises"] if x[0] != 3], [x for x in before["lists"] if x[0] != 3], {P: [4], Q: [4]}))
     line("close_promises of the chunk: the lists each peer is in", after["listed"], {P: 1, Q: 1})
+    line("close_promises of the chunk: its tries, last asks and B′'s count go, in both forms; the other chunk's stay",
+         (after["tried"], after["asked_at"], after["asked_parked"]),
+         ([x for x in before["tried"] if x[0] != 3], [x for x in before["asked_at"] if x[0] != 3],
+          [x for x in before["asked_parked"] if x[0] != 3]))
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0
 
