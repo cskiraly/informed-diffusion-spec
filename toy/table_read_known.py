@@ -24,6 +24,10 @@ def shape(t):
     """What a table holds, level by level: keys and the entries' contents, as plain values."""
     if isinstance(t, dict):
         return {k: shape(v) for k, v in dict.items(t)}
+    if hasattr(t, "_d"):                                    # a LazyMap: peer_has[p], pushed[p]
+        return {k: shape(v) for k, v in t.items()}
+    if hasattr(t, "bits"):                                  # a HAVE entry
+        return sorted(t.bits)
     if hasattr(t, "urgent") and hasattr(t, "normal"):
         return (list(t.urgent), list(t.normal))
     if hasattr(t, "v"):
@@ -70,6 +74,9 @@ def main():
         ("sent_to", lambda t: (t[P][G].has(0), list(t[P])), lambda t: t[P][G].set(0), P),
         ("unwanted", lambda t: (b"an id" in t[P], len(t[P])), lambda t: t[P].add(b"an id"), P),
         ("serve_count", lambda t: (t[P][G], list(t[P])), lambda t: t[P].__setitem__(G, t[P][G] + 1), P),
+        ("peer_has", lambda t: (G in t[P], t[P][G].has(0), t[P][G].ttl, list(t[P])),
+         lambda t: setattr(t[P][G], "bits", Bits(1)), P),
+        ("pushed", lambda t: (G in t[P], t[P][G].has(0), t[P][G].first_push), lambda t: t[P][G].set(0), P),
     ]
     line("the tables are the toy's lazy ones (a check that the node uses them)",
          sorted(n for n, *_ in cases if type(ns[n]).__name__ == "LazyDict"), sorted(n for n, *_ in cases))

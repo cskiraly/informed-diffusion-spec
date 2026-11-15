@@ -6,7 +6,8 @@ all: card 16's guard asks whether a peer sent any HAVE for a group (`g not in pe
 note_push starts a clock at the first push, an installation releases the ties it finds (`tied`),
 and the writer takes an owed answer for each group it finds (`owed_answers`). LazyMap and LazyDict
 give both: a missing key reads as a fresh, detached entry, which inserts itself into the map the
-first time it is written to.
+first time it is written to. Every table of protocol.md's is one of them, or a DefaultMap. AutoMap,
+which creates an entry on a read, is left to the tables protocol-v2.md adds, which are its own.
 """
 import weakref
 
@@ -109,8 +110,8 @@ class _Lazy:
     def _attach(self):
         home = object.__getattribute__(self, "_home")
         if home is not None:
-            home._d[object.__getattribute__(self, "_key")] = self
             object.__setattr__(self, "_home", None)
+            home._adopt(object.__getattribute__(self, "_key"), self)
 
 
 class HaveEntry(_Lazy):
@@ -145,9 +146,10 @@ class PushEntry(Bits):
         self._home, self._key = home, key
 
     def _attach(self):
-        if self._home is not None:
-            self._home._d[self._key] = self
+        home = self._home
+        if home is not None:
             self._home = None
+            home._adopt(self._key, self)
 
     def set(self, i):
         super().set(i)
@@ -174,9 +176,10 @@ class OfferList(list):
         super().append(x)
         if self._listed is not None:
             self._listed[x] = self._listed.get(x, 0) + 1
-        if self._home is not None:
-            self._home._d[self._key] = self
+        home = self._home
+        if home is not None:
             self._home = None
+            home._adopt(self._key, self)
 
     def remove(self, x):
         super().remove(x)
@@ -185,12 +188,21 @@ class OfferList(list):
 
 
 class LazyMap:
-    """A map whose missing keys read as a detached entry made by `make(home, key)`."""
-    __slots__ = ("_d", "_make")
+    """A map whose missing keys read as a detached entry made by `make(home, key)`. An entry joins it through
+    `_adopt`; a LazyMap that is itself a detached entry of another map (its home) joins that one then."""
+    __slots__ = ("_d", "_make", "_home", "_key", "__weakref__")
 
-    def __init__(self, make):
+    def __init__(self, make, home=None, key=None):
         self._d = {}
         self._make = make
+        self._home, self._key = home, key
+
+    def _adopt(self, k, v):
+        self._d[k] = v
+        home = self._home
+        if home is not None:
+            self._home = None
+            home._adopt(self._key, self)
 
     def __getitem__(self, k):
         e = self._d.get(k)
@@ -254,17 +266,7 @@ class TieMap(LazyMap):
     entry, and a level joins its own map when an entry of it does: a read creates nothing at any level, and what
     is in the map is what a copy tied. `on_block_installed` goes by the entries it finds, so here existence
     carries meaning."""
-    __slots__ = ("_home", "_key")
-
-    def __init__(self, make, home=None, key=None):
-        super().__init__(make)
-        self._home, self._key = home, key
-
-    def _adopt(self, k, v):
-        self._d[k] = v
-        if self._home is not None:
-            self._home._adopt(self._key, self)
-            self._home = None
+    __slots__ = ()
 
 
 class TieBits(Bits):
