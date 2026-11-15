@@ -79,13 +79,15 @@ which takes every write at once (`--send-buffer 0`, the default until that day):
 met, a case the document allows and the check keeps. Its line is the `push` cell's line before the
 default changed, in both recordings.
 
-Six scripts hold known answers for what a digest cannot show: `own_order_known.py` (§6.1's
+Seven scripts hold known answers for what a digest cannot show: `own_order_known.py` (§6.1's
 reference order; its control, the rank read big-endian, must differ), `ihave_id_known.py` (§4.4: an
 IHAVE id that is not a chunk's id; a valid id beside it must leave an offer), `tie_read_known.py`
 (a peer that was only asked about has no tie; the tied peer beside it must lose its park) and
 `tie_helpers_known.py` (`tie_room`, `drop_offer`, and `close_promises` with `of`, by the values
 they must leave), `late_drain_known.py` (the `late-block` cell with a leak put in by hand must
-fail; as it is, it must pass) and `late_draw_known.py` (`--late-block`'s draw and its argument).
+fail; as it is, it must pass), `late_draw_known.py` (`--late-block`'s draw and its argument) and
+`bid_gate_known.py` (a late node cannot read the group a block's bid commits before the block
+installs; after, it can).
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then

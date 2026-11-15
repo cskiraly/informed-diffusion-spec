@@ -585,7 +585,9 @@ class Node:
 
         bid_keys = {}                   # block root -> the key of the group its bid commits (§1)
 
-        def bid_group(root):
+        def bid_group(root):            # of an installed block only: before, the node has not seen its bid
+            if root in node.blocks_waiting:
+                raise AssertionError(f"bid_group of a block not installed at node {node.id} (--late-block)")
             if root not in bid_keys:
                 b = node.sim.blocks[root]
                 gid = b.body.signed_execution_payload_bid.message.execution_payload_segment_group_id
