@@ -66,7 +66,13 @@ publish, and each keeps at most two deferred copies per peer.
   a leak of state changes no event and so no digest. The warm median goes from the `push` cell's 427 ms
   to 635 ms, and not only through the 18: the 41 nodes that install on time are slower too, at
   628, 616 and 645 ms at their median for the three payloads, against 426, 423 and 420 ms for the
-  same nodes without late blocks. Why is not looked into yet.
+  same nodes without late blocks. The cause is the source's sending window (`protocol.md` §7.1), one
+  for all its peers. A chunk pushed to a late node holds its slot until that node installs or for
+  `WINDOW_TIMEOUT` ("their window slots stay held", §4.2), while an on-time peer's comes back within
+  tens of milliseconds. So for the second payload the late peers hold 59 of the 69 slots at 450 ms,
+  and the source's sends fall from 30 chunks per 50 ms at its start to about 7 from 150 to 450 ms
+  (one seed). The push selectors do not apply §3's rule to push only with evidence that the peer
+  holds the block.
 - It does not reach `drop_tie`, which needs a copy that names a root whose bid commits another
   group, nor §8.2's limit on ties, which the toy does not set, nor what `drop_stale_waits` drops:
   the toy's slots never leave the live window and its groups never expire. A late node asks
