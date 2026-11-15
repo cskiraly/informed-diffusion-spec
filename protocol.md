@@ -585,9 +585,10 @@ leaves no offer, no ask and no penalty. Either way the RPC still counts as one t
 (§8.2). The id's last 20 bytes, the content id, cannot be checked before the chunk is held.
 
 One IHAVE can name a chunk under two keys: a valid id and a bitmap's index, or two valid ids of one
-group and index that differ in their content id. Its sender is then asked once per key, each ask
-with its own window (`may_ask`), promise and retries: `outstanding` sees an ask in either form, but
-`on_ihave` tests it for every candidate before it asks any. A sender that follows this document
+group and index that differ in their content id. Its sender can then be asked once per key, where
+the checks and the IHAVE limits let both asks through, each ask with its own window (`may_ask`),
+promise and retries: `outstanding` sees an ask in either form, but `on_ihave` tests it for every
+candidate before it asks any. A sender that follows this document
 never does this (with card 7 it names bitmaps only, without it full ids only), and the cost of one
 that does is not assessed.
 
@@ -1195,10 +1196,12 @@ def gated(a): return stop_pull[group(a)]      # from the decode claim on, no fur
 Pushes already on their way still land. Before completion, each newly accepted distinct index
 counts toward K; duplicates do not.
 
-With card 10 the gate never decides alone: wherever `stop_pull[g]` is set, every index of the group
-is already in `mine[g]` (`claim_group` sets both, and `drop_group` follows a claim), so `held` answers
-first wherever the two are tested (`on_ihave`, `retry_offer`, `ask_parked` and `filter_entry`). It
-decides for a node without card 10, which claims only the chunks it received (§4.6).
+With card 10 the gate never decides alone for an ask of an index the group has: wherever
+`stop_pull[g]` is set, every index of the group is already in `mine[g]` (`claim_group` sets both, and
+`drop_group` follows a claim), so `held` answers first wherever the two are tested (`on_ihave`,
+`retry_offer`, `ask_parked` and `filter_entry`). An ask of an index at or beyond the group's count
+is stopped by the gate alone. It decides for every ask at a node without card 10, which claims only
+the chunks it received (§4.6).
 
 ### 6.3 Receiving an answer
 
