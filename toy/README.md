@@ -87,7 +87,9 @@ IHAVE id that is not a chunk's id; a valid id beside it must leave an offer), `t
 they must leave), `tie_release_known.py` (what a tie does to its sender's promise, and its release
 to the sender's park, B′'s count and offer; a peer parked but not tied beside it must keep both),
 `deferral_rules_known.py` (§4.2's rules no honest cell reaches: a copy over its sender's limit of
-unknown groups is ignored, while a peer within it beside it is kept and tied), `late_drain_known.py` (the `late-block` cell with a leak put in by hand must
+unknown groups is ignored, while a peer within it beside it is kept and tied; at installation, a
+tied index the group does not have is dropped, while the same peer's other index is offered),
+`late_drain_known.py` (the `late-block` cell with a leak put in by hand must
 fail; as it is, it must pass), `late_draw_known.py` (`--late-block`'s draw and its argument) and
 `bid_gate_known.py` (a late node cannot read the group a block's bid commits before the block
 installs; after, it can).

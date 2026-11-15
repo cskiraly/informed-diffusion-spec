@@ -422,6 +422,8 @@ def on_block_installed(root):                        # resumes level 1
             park[p].pop(g, None)                     # the senders' parks for the group lift,
             for i in bits:
                 asked_parked[(g, i)].discard(p)      #   B′'s counts for their indices clear,
+                if g in desc and i >= N(desc[g]):    #   an index the group, known now, has not
+                    continue                         #   is dropped (§8.2), the others kept,
                 if not mine[g].has(i):               #   and each is an offer of its index again
                     add_offer(WantIndex(group=g, index=i), p)
     for a in ledger(g0):                             # what was announced meanwhile (§4.4), and what
@@ -451,11 +453,13 @@ id on arrival, which is safe because an id covers only those bytes, is a variant
 store keeps the copy or refuses it, within §8.2's limits on the group. A copy of a group beyond the
 sender's limit of unknown groups is ignored, as its HAVEs and offers of that group are: neither kept
 nor tied (`defer`). The sender's promise for the index closes, since it answered, with a copy that
-cannot be checked yet, and it is not asked for the index again until that root installs (`tied_to_root`: §4.4, §6.1, §7.2). The installation releases
-the root's ties for the group its bid commits: each sender's park for the group lifts, B′'s count for
-it and the index clears, and it becomes an offer of the index, asked for with the rest of the ledger
-if still wanted. Without ties, a push the store refuses is lost (its sender counts it as pushed and
-offers it to nobody, so a node whose only peer pushed it that chunk never completes), and a node on
+cannot be checked yet, and it is not asked for the index again until that root installs
+(`tied_to_root`: §4.4, §6.1, §7.2). The installation releases the root's ties for the group its bid
+commits: each sender's park for the group lifts, B′'s count for it and the index clears, and it
+becomes an offer of the index, asked for with the rest of the ledger if still wanted; an index the
+group does not have, known by then, is dropped (§8.2). Without ties, a push the store refuses is lost
+(its sender counts it as pushed and offers it to nobody, so a node whose only peer pushed it that
+chunk never completes), and a node on
 the proposer's other block (§3), whose copies all wait for the builder's block, spends its providers'
 parks, B′'s asks once more and their answers on copies that cannot validate, and can stall once it
 switches to that block. The group and root a copy names are its sender's claim, unchecked until the
