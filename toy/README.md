@@ -68,9 +68,13 @@ publish, and each keeps at most two deferred copies per peer.
   628, 616 and 645 ms at their median for the three payloads, against 426, 423 and 420 ms for the
   same nodes without late blocks. Why is not looked into yet.
 - It does not reach `drop_tie`, which needs a copy that names a root whose bid commits another
-  group, nor §8.2's limit on ties, which the toy does not set. A late node asks nothing of a group
-  before its block installs, so the cell also cannot show what a tie does to a promise, a park,
-  B′'s count or the retry's choice: those need a node that has one block and waits for another.
+  group, nor §8.2's limit on ties, which the toy does not set, nor what `drop_stale_waits` drops:
+  the toy's slots never leave the live window and its groups never expire. A late node asks
+  nothing of a group before its block installs, so the cell also cannot show what a tie does to a
+  promise, a park, B′'s count or the retry's choice: those need a node that has one block and
+  waits for another. Known answers on states made by hand have most of these
+  (`tie_helpers_known.py`, `tie_release_known.py`, `deferral_rules_known.py`); not the retry's
+  choice, nor `drop_tie` for a root whose bid commits another group.
 - `--late-block` is not meant with `--churn` (a closed connection's ties are not dropped). It never
   draws a node that publishes, and at 0 % it draws none (`late_draw_known.py`).
 
@@ -88,7 +92,9 @@ they must leave), `tie_release_known.py` (what a tie does to its sender's promis
 to the sender's park, B′'s count and offer; a peer parked but not tied beside it must keep both),
 `deferral_rules_known.py` (§4.2's rules no honest cell reaches: a copy over its sender's limit of
 unknown groups is ignored, while a peer within it beside it is kept and tied; at installation, a
-tied index the group does not have is dropped, while the same peer's other index is offered),
+tied index the group does not have is dropped, while the same peer's other index is offered; what
+waits for a root that never installs goes when its slot leaves the live window or its group
+expires, while a copy of a live slot beside it stays),
 `late_drain_known.py` (the `late-block` cell with a leak put in by hand must
 fail; as it is, it must pass), `late_draw_known.py` (`--late-block`'s draw and its argument) and
 `bid_gate_known.py` (a late node cannot read the group a block's bid commits before the block

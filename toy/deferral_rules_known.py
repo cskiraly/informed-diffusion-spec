@@ -15,12 +15,19 @@ On one node after a small run (one payload, its group of N = 2 complete there), 
   while the group's descriptor is not known yet (as when every copy was refused); the descriptor is then known
   (as when a kept copy opens the group), and the block installs. Index 1, which the node lacks, is an offer of
   peer 1's again (the control); index N is not, so the node never asks for a chunk that cannot exist.
+- **What waits for a root that never installs goes when its slot leaves the live window or its group expires**
+  (§8.1; `drop_stale_waits`, at each heartbeat). For a root that never installs: peer 1's kept copy names a
+  slot that then leaves the window, and peer 1 also offers its index; peer 3's kept copy names the run's slot
+  (the control); peer 4 is tied for another group, which then expires. (The toy's slots never leave the
+  window and its groups never expire, so here `live` and `expired` are replaced.) After the sweep, peer 1's
+  copy, its id, its reservation, its tie and its slot are gone, and so is its offer of the index (`drop_tie`);
+  peer 4's tie and slot are gone; peer 3's copy, tie and slot stay.
 """
 import copy as C
 import sys
 from pathlib import Path
 
-SEED, NODE, P, Q = 7, 2, 1, 3
+SEED, NODE, P, Q, R = 7, 2, 1, 3, 4
 ROOT = bytes([0x66]) * 32                                   # a root that never installs here
 
 
@@ -77,6 +84,37 @@ def main():
     line("rule 2: after the installation, peer 1 an announcer of index 1 (the control)", offers(1), (True, True))
     line(f"rule 2: after the installation, peer 1 an announcer of index {n}, which the group has not", offers(n),
          (False, False))
+
+    for q, f in ns["pending"].pop(ROOT, []):                # what rule 1's lines left waiting for ROOT, cleared
+        ns["pending_ids"].discard(ns["message_id"](f)); ns["release"](q, f)       #   by hand
+    ns["tied"].pop(ROOT, None); ns["tie_slot"].pop((ROOT, Q), None)
+
+    # rule 3: what waits for a root that never installs goes when its slot leaves the live window or its group expires
+    ROOT3, OLD, GX = bytes([0x77]) * 32, block.slot - 1, bytes([0xAB]) * 32
+    stale = waiting_copy(0, ROOT3)
+    stale.slot = OLD                                        # peer 1: a copy of a slot that is to leave the window,
+    ns["defer"](P, stale)
+    ns["add_offer"](Wm.WantIndex(g, 0), P)                  #   and its offer of that index
+    ns["defer"](Q, waiting_copy(1, ROOT3))                  # peer 3: a copy of the run's slot (the control)
+    ns["tie"](R, type("Copy", (), {"group": GX, "index": 0, "beacon_block_root": ROOT3, "slot": block.slot})())
+    ids = lambda: sorted(f.index for f in (stale, ) if ns["message_id"](f) in ns["pending_ids"])
+    line("rule 3, before: peer 1's copy, reservation and tie; its slot", (held(P, ROOT3), ns["tie_slot"].get((ROOT3, P))),
+         (([0], 1, [0]), OLD))
+    line("rule 3, before: peer 3's; peer 4 tied for the other group", (held(Q, ROOT3), R in ns["tied"][ROOT3]),
+         (([1], 1, [1]), True))
+    line("rule 3, before: peer 1 an announcer of index 0, and its copy's id waiting",
+         (ns["offered"][P][g].has(0), P in ns["offers"][Wm.WantIndex(g, 0)], ids()), (True, True, [0]))
+    ns["live"] = lambda s: s != OLD                         # the slot leaves the live window,
+    ns["expired"] = lambda x: x == GX                       #   and the other group expires
+    ns["drop_stale_waits"]()
+    line("rule 3, after: peer 1's copy, reservation and tie gone, its id and slot too",
+         (held(P, ROOT3), ids(), (ROOT3, P) in ns["tie_slot"]), (([], 0, []), [], False))
+    line("rule 3, after: peer 1 no longer an announcer of index 0 (drop_tie)",
+         (ns["offered"][P][g].has(0), P in ns["offers"][Wm.WantIndex(g, 0)]), (False, False))
+    line("rule 3, after: peer 3's copy, reservation and tie kept (the control), and its slot",
+         (held(Q, ROOT3), ns["tie_slot"].get((ROOT3, Q))), (([1], 1, [1]), block.slot))
+    line("rule 3, after: peer 4's tie to the expired group gone, and its slot",
+         (R in ns["tied"][ROOT3], (ROOT3, R) in ns["tie_slot"]), (False, False))
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0
 

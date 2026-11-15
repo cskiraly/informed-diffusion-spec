@@ -398,6 +398,8 @@ def tie(p, f):                                       # a copy that cannot be che
     if not admitted(p, f) or not tie_room(p, f):     #   and group, within its lifetime and window
         return                                       #   and §8.2's limits on ties
     tied[f.beacon_block_root][p][f.group].set(f.index)
+    tie_slot.setdefault((f.beacon_block_root, p), f.slot)      # the slot p's first copy named: when its
+                                                     #   ties to the root leave the live window (§8.1)
     close_promises(f.group, f.index, of=p)           # p answered: its promise for the index closes
 
 def tie_room(p, f):                                  # §8.2's limits on ties, per connection:
@@ -415,6 +417,7 @@ def on_block_installed(root):                        # resumes level 1
         on_validated(p, f, validate_chunk(f))
     g0 = bid_group(root)                             # the group this root's bid commits
     for p, groups in tied.pop(root, {}).items():     # the copies that waited for this root
+        tie_slot.pop((root, p), None)
         for g, bits in groups.items():
             if expired(g): continue                  # its offers went with its lifetime (§8.1)
             if g != g0:                              # a copy naming a group its root does not commit
@@ -435,6 +438,20 @@ def drop_tie(p, g, bits):                            # a tie its root does not r
         if authenticable(g):                         #   asks of them (§6.1), and the recovery goes
             retry_offer(WantIndex(group=g, index=i)) #   on without p (else the ledger asks at
                                                      #   installation)
+
+def drop_stale_waits():                              # at each heartbeat (§6.4): what waits for a root
+    for root in list(pending):                       #   not installed, past its group's lifetime or
+        for p, f in [(p, f) for p, f in pending[root] if expired(f.group) or not live(f.slot)]:
+            pending[root].remove((p, f))             #   its slot's live window (§8.1): a kept copy
+            pending_ids.discard(message_id(f)); release(p, f)  # goes, its reservation back,
+        if not pending[root]: del pending[root]
+    for (root, p), s in list(tie_slot.items()):      # and a tie, by the slot its sender's first copy
+        groups = tied[root][p]                       #   named, goes through drop_tie: the sender's
+        for g in [g for g in groups if expired(g) or not live(s)]:     # offers and asks of those
+            drop_tie(p, g, groups.pop(g))            #   indices with it (§6.1)
+        if not groups:                               # nothing left of p under the root
+            tied[root].pop(p, None); tie_slot.pop((root, p), None)
+            if not tied[root]: tied.pop(root, None)
 
 def send_have(p, g):                                 # [c7] always the whole bitmap, as it is now
     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=have_bits(g))), urgent=True)
@@ -1160,6 +1177,7 @@ def on_heartbeat():
     ihave_rpcs.clear(); ihave_asked.clear()                   # §4.4's limits start again, and the
     for a in held_back.values(): retry_offer(a)               #   retry runs for what they held back,
     held_back.clear()                                         #   which they do not count
+    drop_stale_waits()                                        # §4.2's copies and ties past their window
     ids = gossip_history.gossip_ids()                         # stock: ids of the last 3 heartbeats
     eligible = [q for q in topic_peers() if q not in mesh and gossip_eligible(q)]   # stock: scores
     n = min(len(eligible), max(D_LAZY, floor(GOSSIP_FACTOR * len(eligible))))
@@ -1401,8 +1419,8 @@ This document decides at the moment of sending, so it needs the backlog to be in
 | promises | ask and peer | `PROMISE` | when a copy that passes level 1 arrives, the peer's copy waits for its block (a tie, §4.2), the peer's offers of the chunk are dropped (`drop_offer`, §6.1), the group completes or expires, or the peer's connection closes |
 | `owed`, `owed_answers` | connection and group | until they leave | when the peer claims the chunk, when the group is dropped or expires, or when the connection closes |
 | `park` | peer id and group | `PARK_TTL` | at expiry; kept across reconnections, as scores are |
-| deferred chunks | block root | until the block installs | when their slot leaves the live window; reservations are released |
-| `tied` | block root, connection and group | until the root installs | released at its installation; dropped when its slot leaves the live window, or where the root's bid commits another group (`drop_tie`); when its group expires; when the connection closes |
+| deferred chunks | block root | until the block installs | when their slot leaves the live window or their group expires, at the next heartbeat (`drop_stale_waits`); reservations are released |
+| `tied`, with `tie_slot` (the slot a connection's first copy named, per root and connection) | block root, connection and group | until the root installs | released at its installation; dropped when that slot leaves the live window or its group expires, at the next heartbeat (`drop_stale_waits`), or where the root's bid commits another group (`drop_tie`); when the connection closes |
 | window slots | node | until a covering HAVE | `WINDOW_TIMEOUT`, or when the peer's queue closes |
 
 - **Per-connection state** is reset when the connection closes. A restarted peer usually keeps its

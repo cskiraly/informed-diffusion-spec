@@ -101,8 +101,10 @@ def run(cfg, out=sys.stdout):
         print(f"  late blocks: at {len(cfg['late_nodes'])} nodes, {cfg['late_block'][1] * 1000:g} ms after the publish; "
               f"deferred copies kept {tot['kept']}, refused {tot['refused']}; ties released {tot['ties released']}", file=out)
         left = [sum(len(v) for v in nd.ns["pending"].values()) + len(nd.ns["pending_ids"]) + len(nd.ns["tied"])
-                + sum(nd.reserved.values()) + len(nd.blocks_waiting) for nd in sim.nodes.values()]
-        print(f"  late blocks: left at the end (copies waiting, their ids, ties, reservations, blocks not installed): "
+                + len(nd.ns["tie_slot"]) + sum(nd.reserved.values()) + len(nd.blocks_waiting)
+                for nd in sim.nodes.values()]
+        print(f"  late blocks: left at the end (copies waiting, their ids, ties and their slots, reservations, blocks "
+              f"not installed): "
               f"{sum(left)}{'' if not sum(left) else '  <-- something still waits'}", file=out)
         missing = sum(r["missing"] for r in rows)      # the cell's two claims, checked: nothing waits at the end,
         if sum(left) or missing:                        #   and every node completes every payload

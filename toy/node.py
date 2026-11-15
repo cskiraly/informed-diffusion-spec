@@ -544,6 +544,7 @@ class Node:
             "park": AutoMap(dict), "gossip_history": GossipHistory(), "pace_queue": [],
             "pending": AutoMap(list), "pending_ids": set(),
             "tied": tie_table(),                                          # root -> peer -> group -> indices
+            "tie_slot": {},                                               # (root, peer) -> the slot its first copy named
             "mesh": set(), "now": 0.0,
         }
         self._seen = set()
