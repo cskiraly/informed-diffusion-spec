@@ -36,6 +36,7 @@ def main():
     import run
     import sim as S
     import wire as Wm
+    from bits import Bits
     got = {}
     run.run = lambda cfg, out=sys.stdout: got.setdefault("sim", S.Sim(cfg))
     run.main(["--nodes", "5", "--degree", "4", "--msgs", "1", "--payload", "16384", "--seed", str(SEED)])
@@ -48,21 +49,29 @@ def main():
         print(f"{what}: {got_}{'' if got_ == want else f'  <-- must be {want}'}")
 
     entry = Wm.Entry(control=Wm.IWANT([Wm.WantIndex(G, 0)]))
-    cases = [                       # table, the reads (as the document makes them), one write through them
-        ("owed", lambda t: (bool(t[P]), t[P][G].empty(), list(t[P])), lambda t: t[P][G].__ior__({3})),
-        ("owed_answers", lambda t: (bool(t[P]), t[P][G].empty(), t[P][G].has(3)), lambda t: t[P][G].set(3)),
+    a, k, root = Wm.WantIndex(G, 0), (G, 0), bytes([0x66]) * 32
+    cases = [                       # table, the reads (as the document makes them), one write through them, its key
+        ("owed", lambda t: (bool(t[P]), t[P][G].empty(), list(t[P])), lambda t: t[P][G].__ior__({3}), P),
+        ("owed_answers", lambda t: (bool(t[P]), t[P][G].empty(), t[P][G].has(3)), lambda t: t[P][G].set(3), P),
         ("queue", lambda t: (bool(t[P].urgent), bool(t[P].normal), t[P].has_chunks(), [e for e in t[P].normal]),
-         lambda t: t[P].normal.append(entry)),
+         lambda t: t[P].normal.append(entry), P),
+        ("tried", lambda t: (P in t[a], t.get(a, {}), list(t[a])), lambda t: t[a].__setitem__(P, 1.0), a),
+        ("offered", lambda t: (t[P][G].has(0), Bits() | t[P][G], G in t[P], t[P].pop(G, None)),
+         lambda t: t[P][G].set(0), P),
+        ("asked_parked", lambda t: (P in t[k], len(t[k]), t[k].discard(P)), lambda t: t[k].add(P), k),
+        ("park", lambda t: (t[P].get(G, -1.0), t[P].pop(G, None)), lambda t: t[P].__setitem__(G, 1.0), P),
+        ("pending", lambda t: ([x for x in t[root]], bool(t[root]), t.get(root, [])),
+         lambda t: t[root].append((P, None)), root),
     ]
-    for name, read, write in cases:
+    for name, read, write, key in cases:
         t = ns[name]
         before = shape(t)
         read(t)
         line(f"{name}: read for a peer and a group it holds nothing for; the table as it was", shape(t) == before, True)
         write(t)
         after = shape(t)
-        new = {k: v for k, v in after.items() if before.get(k) != v}
-        line(f"{name}: one write through the same reads (the control); what is new", list(new), [P])
+        new = {k_: v for k_, v in after.items() if before.get(k_) != v}
+        line(f"{name}: one write through the same reads (the control); what is new", list(new), [key])
 
     for name in ("owed", "owed_answers", "queue"):          # the writer's case, from a clean state for P
         ns[name].pop(P, None)

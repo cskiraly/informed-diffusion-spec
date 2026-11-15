@@ -17,8 +17,8 @@ from collections import deque
 import bits as B
 import scenario
 import wire as Wm
-from bits import (AutoMap, Bits, DefaultMap, HaveEntry, LazyBits, LazyMap, OfferMap, PushEntry, _join, all_bits,
-                  bitmap, lazy, lazy2, popcount, tie_table)
+from bits import (AutoMap, Bits, DefaultMap, HaveEntry, LazyBits, LazyList, LazyMap, LazySet, OfferMap, PushEntry,
+                  _join, all_bits, bitmap, lazy, lazy2, lazy_dict, popcount, tie_table)
 from extract import DOC, generate
 
 SPEC_SRC = generate()
@@ -578,13 +578,13 @@ class Node:
             "holders": AutoMap(lambda: AutoMap(set)), "sent_to": AutoMap(lambda: AutoMap(Bits)),
             "queue": lazy(PeerQueue), "slot_held": DefaultMap(False),
             "unwanted": AutoMap(set), "serve_count": AutoMap(lambda: AutoMap(int)),
-            "asked_at": {}, "tried": AutoMap(dict), "offers": OfferMap(), "promises": {},
-            "offered": AutoMap(lambda: AutoMap(Bits)), "asked_parked": AutoMap(set),
+            "asked_at": {}, "tried": lazy(lazy_dict), "offers": OfferMap(), "promises": {},
+            "offered": lazy2(LazyBits), "asked_parked": lazy(LazySet),
             "last_resort_armed": set(),
             "ihave_rpcs": DefaultMap(0), "ihave_asked": DefaultMap(0), "held_back": {},
             "owed": lazy2(LazyBits), "owed_answers": lazy2(LazyBits),
-            "park": AutoMap(dict), "gossip_history": GossipHistory(), "pace_queue": [],
-            "pending": AutoMap(list), "pending_ids": set(),
+            "park": lazy(lazy_dict), "gossip_history": GossipHistory(), "pace_queue": [],
+            "pending": lazy(LazyList), "pending_ids": set(),
             "tied": tie_table(),                                          # root -> peer -> group -> indices
             "tie_slot": {},                                               # (root, peer) -> the slot its first copy named
             "mesh": set(), "now": 0.0,
