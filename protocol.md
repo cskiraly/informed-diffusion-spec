@@ -997,6 +997,13 @@ def on_mesh_join(p):                                  # p joins our mesh: by our
 
 ### 6.1 One ask per chunk at a time, move on, park [c5]
 
+A node asks for a chunk it lacks from one announcer at a time. Each ask has a window,
+`IWANT_WINDOW`: if the chunk has not arrived when the window closes, the node asks another
+announcer (*the retry*). An ask written to a peer opens a *promise*. If nothing closes the promise
+within `PROMISE`, the peer is *parked* for the chunk's group for `PARK_TTL`: the node stops asking
+it for that group's chunks. When every announcer of a chunk is parked, the node asks each of them
+once more, after waits that double (*the last resort*, which the code's comments call B′).
+
 ```python
 def may_ask(a, p):
     at = asked_at.get(a)
@@ -1103,95 +1110,169 @@ def ask_parked(a):
         if parked(pick, a): asked_parked[k].add(pick)     # counted once the queue has taken the ask
 ```
 
-- **Offers** are recorded from every announcement, parked or not and over the IHAVE limits too
-  (§4.4), within §8.2's limits on offers, and dropped when the chunk arrives, when the announcer's
-  connection closes, or 30 s after the announcer's last offer of the group. Every
-  offer is kept, as one bitmap per connection and group (`offered`); the first 16 announcers of an
-  id, in announcement order (`offers`), are only the order in which they are tried, so a full list
-  forgets no announcer, nor does the bound on how many lists one announcer is in (§8.2). Before the block is installed the offer table is also the ledger of what
-  to ask for at installation (§4.2).
-- **Beyond the list, the node's own order.** The announcers that are not in the list, because it
-  was full, because they were in 256 lists already, or because their IHAVE was read without the
-  loop (over a limit, §4.4), are tried after it, in an order of the node's own: one that no peer
-  can predict or arrange. That is all the order has to be. No other node sees it and nothing on the
-  wire carries it, so two nodes that make it differently work together as well as two that make it
-  alike. The reference way, which `own_order` stands for and the toy runs (§8.1), ranks the
-  announcers by a keyed hash of the chunk (its group and index) and the peer id, under a secret the
-  node draws when it starts and never sends; larger first, then the larger peer id, as §5.3's
-  tie-break. Such a rank differs per chunk and per node, and stays the same over a chunk's retries.
-  An implementation is advised to run it outside its tests too, with a secret drawn at random, so
-  that the code its tests exercise is the code that runs.
-  An order that a peer can arrange, by when it connects or by its id, would let it stand ahead of
-  every other announcer beyond the list, for every chunk and at every node. So would a rank under
-  a key that is public: a peer that can compute it can connect under the id that ranks first.
-  Under a secret rank, of two such announcers each is ahead of the other about half the time, and
-  nodes rank them independently of one another. This is about the announcers beyond the list only:
-  the list keeps announcement order, which the first to announce still decides, and a sender with
-  several peer ids beyond the list has one of them ahead more often. Whatever the order, among the
-  announcers it may ask, the retry takes one it has not asked before one it has. The secret lasts
-  while the node runs, and nothing depends on its surviving a restart.
-- **An ask goes with its announcer's offers.** Where an announcer's offers of a chunk are dropped,
-  with its tie (§4.2's `drop_tie`) or 30 s after its last offer of the group, an ask of the chunk
-  still queued to it is removed and its promise for the chunk closes (`drop_offer`), so that its
-  next offer is asked for, with the retry, as any offer is. Kept, the ask would leave the announcer
-  outstanding with nothing to look at it again: once its offers are gone, a retry that finds no
-  other announcer to ask ends; its next offer is only recorded, since an ask of the chunk to it is
-  outstanding (§4.4); while that lasts, a parked announcer that offers the chunk draws no last
-  resort, since this one is not parked; and once the promise falls due and parks it too, nothing
-  asks either of them again, and the node can stall although a parked honest announcer was never
-  asked once more. An announcer can bring this about: it keeps the ask queued by not reading, and
-  chooses when it last offers. The chunk's arrival and a close need nothing more: the writer drops
-  an ask for a held chunk (§7.2), the arrival closes the chunk's promises (§4.2), and a close takes
-  the queue and the promises with the connection.
-- **A promise starts when the ask is written** (§7.2), not when it is decided: an ask held behind
-  the window or dropped at a full queue opens none, so no peer is parked for an ask it never
-  received.
-- **A promise closes** when a copy of the chunk that passes level 1 arrives, from anyone, when the
-  group is decoded (§4.6), when the peer's own copy waits for its block (its tie, for its promise
-  alone, §4.2), when the peer's offers of the chunk are dropped (above), or when the peer's
-  connection closes: the ask or its answer went with the
-  connection, and the retry, whose timer is per ask, moves on to the other announcers. A withholder
-  whose connection closes before its promise falls due is therefore not parked, and on a new
-  connection may be asked again, per index an ask and a last resort (the retry does not ask it
-  again while its promise is open, below).
-- **When every announcer is parked**, each is asked once more for the chunk, after a wait that
-  doubles with each such ask: `PROMISE` × 2ⁿ for the n-th (0.4, 0.8, 1.6 s, ...), counted once the
-  queue has taken the ask, so an ask a full queue refuses spends nothing. Against announcers that
-  never answer this adds at most one ask per announcer and chunk while its count is kept; while no
-  count is reset (a closed connection resets its announcer's), the doubling waits allow at most six
-  for a chunk within the 30 s an offer lives. The ordinary retries are as before. Without it, one slow answer parks a node's only provider for the group, and the node
-  stalls. The count is per announcer: with one per chunk, a withholder that announced first would
-  spend it, and an honest provider parked later for one slow answer would get none. It is kept per
-  chunk, by group and index, as is the one timer armed for it, so a parked peer that announces one
-  index under many ids gets one last resort for it. `asked_parked` lives as `tried` does.
-- **An announcer that is never parked holds the last resort off.** It is armed only when every
-  untied announcer is parked. An announcer whose connection closes before its promise falls due is
-  not parked (above), nor is one that leaves the ask unwritten by not reading, so that its promise
-  never starts. While such an announcer stays a candidate, a parked honest provider of the chunk is
-  not asked again, for as long as its park lasts and the group is live. This version does not
-  address it; a fix is open.
-- **An answer can still wait for a block** at a node that asks only once its block is installed
-  (§3), when it names another root: a forgery, or, when the proposer signed two blocks for the
-  slot, the builder's block at a node that installed the other one, whose bid may commit the same
-  group. The copy ties its sender (§4.2): its promise closes, so it is not parked for the copy, and
-  it is not asked for the index again until the root the copy names installs, whose installation
-  makes it an offer again. A forgery's root never installs, or commits another group, and its tie
-  goes with it.
-- **No second ask of a peer while one is outstanding.** The retry, the last resort and §4.4 pass
-  over an announcer while an earlier ask of the chunk to it is queued or promised
-  (`outstanding`, by group and index in either form), and look again a window later when every
-  candidate is outstanding. On a live connection an answer does not overtake the ask before it, so
-  a second ask could only draw a second answer. A provider answers a peer at most
-  `GOSSIP_RETRANSMISSION` (3) times per chunk and connection (§4.5): with the rule, while its park and
-  B′'s count last, it is asked for a chunk at most twice before the root its copies name installs,
-  once and B′'s once more, so its third answer is left for after a switch to that block. Without the
-  rule, asks decided while the first answer is on its way (the window's retry, an ask held in the
-  queue, B′'s once more) can spend all three on copies that cannot validate, and the node stalls
-  after it switches.
-- **Parking** affects only asks: a parked peer's announcements are not acted on for that group, but
-  its pushes and our answers to it continue.
-- Without the offer table and park, the discipline alone asks the first announcer. It re-asks
-  whoever announces after the window.
+The rules follow. Why each is as it is comes after them, under *Rationale*.
+
+**Offers.** Every announcement of a chunk is recorded as an offer (`add_offer`), within §8.2's
+limits on offers. That includes an announcement from a parked peer, and one in an IHAVE over
+gossipsub's limits (§4.4). The node keeps two records:
+- `offered` holds every offer, as one bitmap per connection and group;
+- `offers` lists, for each chunk id, its first 16 announcers in the order they announced it. The
+  list only sets the order in which announcers are tried. An announcer is in at most 256 such
+  lists (§8.2). An announcer left out of a list, because the list was full or because it was in
+  256 lists already, is still in `offered`.
+
+An offer is dropped when the chunk arrives (`close_promises`), when the announcer's connection
+closes, or 30 s after the announcer's last offer of the group (`drop_offer`). Until the block is
+installed, the offers are also the ledger of what to ask for when it installs (`ledger`, §4.2).
+
+**The retry** (`retry_offer`) runs `IWANT_WINDOW` + `RETRY_SLACK` after each ask, armed by
+`may_ask`. It also makes the asks at the block's installation (§4.2), and, at the next heartbeat,
+those held back over gossipsub's IHAVE limits (§6.4). It does nothing if the chunk is held, if the
+group's pull has stopped (§6.2) or the group has expired, or if another ask of the chunk is still
+within its window. Otherwise it takes the chunk's announcers in order (`announcers`): first the
+list, in announcement order, then every other connected peer on the topic that offered the chunk,
+in the node's own order (below). It passes over an announcer that is parked, that is tied to a root
+not yet installed (§4.2), or that has an ask of the chunk outstanding (below). Of the rest, it asks
+the first one it has not asked before (`untried`), or else the one it asked longest ago
+(`least_recently_tried`). If every announcer is parked or tied, it turns to the last resort. If
+every one left has an ask outstanding, it looks again `IWANT_WINDOW` + `RETRY_SLACK` later.
+
+**The node's own order.** The announcers beyond the list are those left out of it, because it was
+full or because they were in 256 lists already, and those whose IHAVE was read without the loop,
+over a limit (§4.4). The node tries them after the list, in an order of its own, which no peer can
+predict or arrange. That is all the order has to be: no other node sees it and nothing on the wire
+carries it, so two nodes that make it differently work together as well as two that make it alike.
+The reference way, which `own_order` stands for and the toy runs (§8.1), ranks the announcers by a
+keyed hash of the chunk (its group and index) and the peer id, under a secret the node draws when it
+starts and never sends: larger first, then the larger peer id, as in §5.3's tie-break. The rank
+differs per chunk and per node, and stays the same over a chunk's retries. The secret lasts while
+the node runs, and nothing depends on its surviving a restart. An implementation is advised to run
+the reference way outside its tests too, with a secret drawn at random, so that the code its tests
+exercise is the code that runs.
+
+**Promises.** A promise starts when the ask is written (§7.2), not when the node decides to ask: an
+ask still queued behind §7.1's window, or dropped at a full queue, opens none. If the
+promise is still open `PROMISE` after the write, the peer is parked for the chunk's group for
+`PARK_TTL` (`promise_due`). One broken promise is enough. A promise closes, and parks nobody, when:
+- a copy of the chunk that passes level 1 arrives, from anyone;
+- the group is decoded (§4.6);
+- the peer's own copy of the chunk waits for its block: the copy ties the peer (§4.2), which closes
+  that peer's promise and no other;
+- the peer's offers of the chunk are dropped (`drop_offer`, below);
+- the peer's connection closes. The ask or its answer went with the connection, and the retry,
+  whose timer is per ask, moves on to the other announcers.
+
+So an announcer that withholds a chunk, and whose connection closes before its promise falls due,
+is not parked. On a new connection it may be asked again, per index one ask and one last resort.
+(While its promise is open, the retry does not ask it again: see below.)
+
+**Parking** affects only asks. A parked peer is not asked for the group's chunks, except by the
+last resort, but its pushes, and the node's answers to it, go on.
+
+**No second ask of a peer while one is outstanding.** An ask of a chunk to a peer is outstanding
+while it is queued to the peer or its promise is open, whether it names the chunk by id or by group
+and index (`outstanding`). The retry, the last resort and §4.4 pass over an announcer with an ask
+outstanding. When every candidate has one, the retry and the last resort look again
+`IWANT_WINDOW` + `RETRY_SLACK` later.
+
+**An ask goes with its announcer's offers.** When an announcer's offers of a chunk are dropped,
+with its tie (§4.2's `drop_tie`) or 30 s after its last offer of the group, an ask of the chunk
+still queued to it is removed, and its promise for the chunk closes (`drop_offer`). Its next offer
+of the chunk is then asked for, by the retry, as any offer is. The chunk's arrival and a closed
+connection need nothing more: the writer drops an ask for a chunk the node holds (§7.2), the
+arrival closes the chunk's promises (§4.2), and a close takes the queue and the promises with the
+connection.
+
+**The last resort** (`last_resort`, `ask_parked`) is armed when every untied announcer of the
+chunk is parked: by the retry, when every announcer is parked or tied, and by §4.4, when a parked
+announcer offers the chunk. It asks the parked announcers once more each, one at a time: an ask
+after a wait of `PROMISE` × 2ⁿ, where n is the number of parked announcers it has already asked
+for the chunk (0.4, 0.8, 1.6 s, ...). An announcer unparked in the meantime is asked first. The
+count of those asked (`asked_parked`) and the one timer armed for it are kept per chunk, by group
+and index, whichever form names the chunk. An ask is counted once the queue has taken it, so an
+ask that a full queue refuses spends nothing. `asked_parked` lives as `tried` does, and a closed
+connection resets its announcer's count. Against announcers that never answer, the last resort
+adds at most one ask per announcer and chunk while its count is kept. While no count is reset, the
+doubling waits allow at most six such asks for a chunk within the 30 s an offer lives. The retry
+is unchanged by it.
+
+**An answer can still wait for a block** at a node that asks only once its block is installed
+(§3), when the answer names another root. That root is a forgery's or, when the proposer signed
+two blocks for the slot, the builder's block at a node that installed the other one, whose bid may
+commit the same group. The copy ties its sender (§4.2): the sender's promise closes, so it is not
+parked for the copy, and it is not asked for the index again until the root the copy names
+installs. That installation makes it an offer again. A forgery's root never installs, or commits
+another group, and its tie goes with it.
+
+**Without the offer table and the park,** the window alone asks the first announcer, and asks again
+whoever announces after the window.
+
+**Open: an announcer that is never parked holds the last resort off.** The last resort is armed
+only when every untied announcer is parked. An announcer whose connection closes before its promise
+falls due is not parked (above). Nor is one that leaves the ask unwritten by not reading, so that
+its promise never starts. While such an announcer stays a candidate, a parked honest provider of
+the chunk is not asked again, for as long as its park lasts and the group is live. This version
+does not address it; a fix is open.
+
+#### Rationale
+
+**One announcer at a time, then the next.** Some gossipsub implementations, go-libp2p's among them,
+ask every peer that announces a message they lack, which is what a node without card 5 does (§0).
+With an announcement per chunk (card 3), that brings back through the pull path the duplicates the
+push path saved. Asking one announcer at a time needs a window after which the node moves on:
+waiting on a single peer would let a peer that announces and never serves hold the chunk up. An
+answer that comes after the window is still taken.
+
+**Promises and the park.** The park bounds what a peer that announces and does not serve can
+capture: once parked, it is asked for the group's chunks only by the last resort. The park is
+scoped to the group, so that one payload's broken promise does not cost the next: a busy peer, the
+builder included, can break a promise on one payload, and a park across groups would then pass it
+over on the payloads that follow. *Segmented payload diffusion, card by card* (2026, card 5) gives
+what card 5 costs and saves in the measured networks.
+
+**A promise starts at the write**, not at the decision to ask, so that no peer is parked for an ask
+it never received.
+
+**Every offer is kept; the list is only an order.** As at gossipsub's IHAVE limits (§4.4), nothing
+ensures that an announcement is repeated, so an offer the node forgot could be its only offer of
+the chunk. The list, and the bound on how many lists an announcer is in, therefore bound only the
+state that orders the asks: a full list forgets no announcer, nor does the bound on lists, and
+`offered` keeps every offer within §8.2's bound per peer.
+
+**An order of the node's own, beyond the list.** An order that a peer can arrange, by when it
+connects or by its id, would let it stand ahead of every other announcer beyond the list, for every
+chunk and at every node. So would a rank under a key that is public: a peer that can compute it can
+connect under the id that ranks first. Under a secret rank, of two announcers beyond the list each
+is ahead of the other about half the time, and nodes rank them independently of one another. This
+covers the announcers beyond the list only. The list keeps announcement order, which the first to
+announce still decides, and a sender with several peer ids beyond the list has one of them ahead
+more often. Whatever the order, among the announcers it may ask, the retry takes one it has not
+asked before one it has.
+
+**No second ask while one is outstanding.** On a live connection an answer does not overtake the
+ask before it, so a second ask of the same peer could only draw a second answer. That matters while
+the answers cannot be validated yet. A provider answers a peer at most `GOSSIP_RETRANSMISSION` (3)
+times per chunk and connection (§4.5). With the rule, while its park and the last resort's count
+last, a provider is asked for a chunk at most twice before the root its copies name installs: once,
+and once more by the last resort. Its third answer is left for after a switch to that block.
+Without the rule, asks decided while the first answer is on its way (the retry after the window, an
+ask held in the queue, the last resort's ask) can spend all three answers on copies that cannot
+validate, and the node stalls after it switches.
+
+**An ask goes with its announcer's offers.** Kept, the ask would leave the announcer outstanding,
+with nothing to look at it again. Once its offers are gone, a retry that finds no other announcer
+to ask ends. The announcer's next offer is only recorded, since an ask of the chunk to it is
+outstanding (§4.4). While that lasts, a parked announcer that offers the chunk draws no last
+resort, since this one is not parked. Once the promise falls due and parks this one too, nothing
+asks either of them again, and the node can stall although a parked honest announcer was never
+asked once more. An announcer can bring this about: it keeps the ask queued by not reading, and
+chooses when it last offers.
+
+**The last resort.** Without it, one slow answer parks a node's only provider for the group, and
+the node stalls. The count is per announcer: with one count per chunk, a withholding announcer that
+announced first would spend it, and an honest provider parked later for one slow answer would get
+none. The count and the timer are per chunk, by group and index, so a parked peer that announces one
+index under many ids gets one last resort for it.
 
 ### 6.2 Stop-pull [c6]
 
