@@ -67,9 +67,9 @@ publish, and each keeps at most two deferred copies per peer.
   to 635 ms, and not only through the 18: the 41 nodes that install on time are slower too, at
   628, 616 and 645 ms at their median for the three payloads, against 426, 423 and 420 ms for the
   same nodes without late blocks. The cause is the source's sending window (`protocol.md` §7.1), one
-  for all its peers. A chunk pushed to a late node holds its slot until that node installs or for
-  `WINDOW_TIMEOUT` ("their window slots stay held", §4.2), while an on-time peer's comes back within
-  tens of milliseconds. So for the second payload the late peers hold 59 of the 69 slots at 450 ms,
+  for all its peers. A chunk pushed to a late node holds its slot until that node's HAVE covers it,
+  which can come only after the node installs, or until `WINDOW_TIMEOUT` ("their window slots stay
+  held", §4.2), while an on-time peer's comes back within tens of milliseconds. So for the second payload the late peers hold 59 of the 69 slots at 450 ms,
   and the source's sends fall from 30 chunks per 50 ms at its start to about 7 from 150 to 450 ms
   (one seed). The push selectors do not apply §3's rule to push only with evidence that the peer
   holds the block.
@@ -89,11 +89,12 @@ which takes every write at once (`--send-buffer 0`, the default until that day):
 met, a case the document allows and the check keeps. Its line is the `push` cell's line before the
 default changed, in both recordings.
 
-Ten scripts hold known answers for what a digest cannot show, each beside a control that must come
-out the other way:
+Ten scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
-  offer.
+  offer. And an IHAVE bitmap of an index beyond the group's known count is ignored and penalised;
+  bitmaps within it, or of a group whose count is not known, leave an offer.
 - `tie_read_known.py`: a peer that was only asked about has no tie; the tied peer beside it must
   lose its park.
 - `tie_helpers_known.py`: `tie_room`, `drop_offer`, and `close_promises` with `of`, by the values
@@ -107,6 +108,9 @@ out the other way:
     is offered.
   - What waits for a root that never installs goes when its slot leaves the live window or its
     group expires; a copy of a live slot beside it stays.
+  - When a group's count becomes known, the offers, asks and ties of an index beyond it go; an
+    offer of an index within it stays.
+  - Level 1 rejects a copy whose slot is not its block's; the copy as it came passes.
 - `late_drain_known.py`: the `late-block` cell with a leak put in by hand must fail; as it is, it
   must pass.
 - `late_draw_known.py`: `--late-block`'s draw and its argument.
@@ -208,8 +212,8 @@ What the toy adds to the document, and nothing else:
   between 6 and 12 by grafting and pruning, around D = 8. The mesh is built before the first publish
   and no connection closes, so §5.4, a peer joining the mesh, never runs here.
 - **Links:** each node has an uplink and a downlink. A writer hands its entries to the
-  connection's transport at once, as a QUIC stream accepts writes; the window (card 14) is what
-  holds chunks back, as in the document. The uplink is shared equally by the connections with
+  connection's transport, one at a time by default (below), as `protocol.md` §7.3 asks; the window
+  (card 14) is what holds chunks back, as in the document. The uplink is shared equally by the connections with
   something to send (processor sharing), the fluid limit of the harness's FQ-CoDel, which serves
   per-peer flows a packet at a time; `--uplink rr` sends whole entries in turn instead. The
   downlink is a FIFO over the entries that reach it.
