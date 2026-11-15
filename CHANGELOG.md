@@ -5,7 +5,7 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
-## v0.10.1, not yet released
+## v0.10.1, 2026-11-15
 
 The text rewritten for readers; the code unchanged, some comments reworded.
 
