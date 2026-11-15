@@ -40,8 +40,9 @@ keeps its title.
 
 ## Where SEACAST stands
 
-- **The latest release is [v0.8](https://github.com/cskiraly/informed-diffusion-spec/tree/v0.8)**, 2026-10-28:
-  `protocol.md` at version 0.8, the toy and its recorded cells, and the proofs in `formal/veil/`.
+- **The latest release is [v0.10](https://github.com/cskiraly/informed-diffusion-spec/tree/v0.10)**, 2026-11-15:
+  `protocol.md` at version 0.10, the toy and its recorded cells, the next version's draft with its
+  decisions taken, and the proofs in `formal/veil/`, which are of v0.8's rules.
   [`CHANGELOG.md`](CHANGELOG.md) says what each release changed; changes after the latest tag are on
   `main`, and the changelog's first entry names them.
 - **Each measurement says which code it ran.** The SEACAST post's figures ran on a research

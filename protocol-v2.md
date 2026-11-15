@@ -10,7 +10,7 @@ name since 2026-10-19; v0.4 was published as Informed Diffusion, which now names
 part (§0, "The parts").*
 
 *Draft 1, 2026-10-07. A sibling of [`protocol.md`](protocol.md), which it contains as one
-setting (§6.1). That was draft v0.3 when this was written and is v0.9 since 2026-11-12, with the
+setting (§6.1). That was draft v0.3 when this was written and is v0.10 since 2026-11-15, with the
 same section numbers; "v0.3" below means that document.*
 
 *Each later version of `protocol.md` comes in the same way. Its changes to functions this
@@ -38,12 +38,32 @@ them; §5 lists what carries over.*
   - *A rebuilt chunk names its sources' block (§4.6).*
   - *Since 2026-10-28: an ask goes with its announcer's offers (§4.2), and relabelled copies are
     open (§4.6).*
-- *v0.9 (2026-11-10, a draft):*
+- *v0.9 (2026-11-10):*
   - *The source's holding grows at a chunk's acknowledgement, not at its write (§4.3 `on_holding`,
     §4.7 `origin_acked`, §4.11 `window_timeout` and `next_to_send`).*
   - *Its offers wait for the acknowledgement too, for every object type (§4.7).*
   - *What the transport below the writer should hold, and the note for operators (its §7.3), apply
     as written (§4.11).*
+- *v0.10 (2026-11-15):*
+  - *The toy's default transport keeps `protocol.md` §7.3's rule, one entry at a time per
+    connection, and both recordings were made again (§0's "Numbers", §6.1).*
+  - *What waits for a gate is carried where this document uses `protocol.md`'s functions: `tie`,
+    with `tie_room`'s limits, the limit of unknown groups and the slot it records (`tie_slot`);
+    `close_promises`, now code, from `fill` and `tie`; and `on_block_installed`, which drops at
+    installation a tied index the group, known by then, does not have, and whose level 1 for the
+    payload is `validate_chunk` with its new check of the copy's slot (`protocol.md` §3, §4.2).*
+  - *The announcers beyond a chunk's ordered list are tried in the node's own order, in
+    `protocol.md`'s ask path, which this document keeps (`protocol.md` §6.1).*
+  - *Not yet carried, where this document has functions of its own; to follow after this version:*
+    - *its `defer` keeps a copy beyond its sender's limit of unknown groups, which `protocol.md`'s
+      ignores (the copy is not tied: `tie` checks the limit);*
+    - *its `on_heartbeat` does not call `drop_stale_waits`, so what waits for a root that never
+      installs does not go at the live window's edge, and its `tie_slot` entries stay;*
+    - *its `on_validated` does not call `drop_beyond`, so offers, asks and ties of an index beyond
+      a group's count stay when the group opens;*
+    - *its offers are read by its own `on_offer` (§4.3), not by `protocol.md`'s `on_ihave`, so §4.4's
+      new rules for an IHAVE entry do not reach it: an offer's bitmap is not held to a HAVE's limits;*
+    - *a cell's level 1 (§1's table) does not compare the copy's slot with its block's.*
 
 *This draft defines the notions, the messages, the state and the event handlers; the scheduling
 that tier 4 measured carries over unchanged where §5 says so. Every design decision is marked
