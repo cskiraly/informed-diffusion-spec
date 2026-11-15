@@ -427,7 +427,7 @@ def on_block_installed(root):                        # resumes level 1
                 drop_tie(p, g, bits); continue       #   is a forgery: nothing is released
             park[p].pop(g, None)                     # the senders' parks for the group lift,
             for i in bits:
-                asked_parked[(g, i)].discard(p)      #   B′'s counts for their indices clear,
+                asked_parked[(g, i)].discard(p)      #   their last-resort counts per index clear,
                 if g in desc and i >= N(desc[g]):    #   an index the group, known now, has not
                     continue                         #   is dropped (§8.2), the others kept,
                 if not mine[g].has(i):               #   and each is an offer of its index again
@@ -461,7 +461,7 @@ def drop_beyond(g):                                  # g's count is known now: w
     idx = {i for q in list(offered) for i in offered[q][g] if i >= n}
     idx |= {index(a) for t in (offers, tried, asked_at) for a in list(t) if group(a) == g and index(a) >= n}
     for i in sorted(idx):                            # an offer of it, an ask of it still queued, a
-        for q in list(queue): drop_offer(g, i, q)    #   promise, a try, a count of B′, under every key
+        for q in list(queue): drop_offer(g, i, q)    #   promise, a try, a last-resort count, under every key
         close_promises(g, i)
     for root, peers in list(tied.items()):           # and a tie of it: a copy that names it can only
         for q, groups in list(peers.items()):        #   be rejected when its block installs
@@ -1002,7 +1002,7 @@ A node asks for a chunk it lacks from one announcer at a time. Each ask has a wi
 announcer (*the retry*). An ask written to a peer opens a *promise*. If nothing closes the promise
 within `PROMISE`, the peer is *parked* for the chunk's group for `PARK_TTL`: the node stops asking
 it for that group's chunks. When every announcer of a chunk is parked, the node asks each of them
-once more, after waits that double (*the last resort*, which the code's comments call B′).
+once more, after waits that double (*the last resort*).
 
 ```python
 def may_ask(a, p):
@@ -1066,7 +1066,7 @@ def close_promises(g, i, of=None):                        # chunk i of g arrived
     if of is not None: return
     for a in [a for t in (offers, tried, asked_at) for a in list(t) if (group(a), index(a)) == k]:
         offers.pop(a, None); tried.pop(a, None); asked_at.pop(a, None)
-    asked_parked.pop(k, None)                             # B′'s count is per chunk
+    asked_parked.pop(k, None)                             # the last resort's count is per chunk
     for q in list(offered):
         if g in offered[q]: offered[q][g].clear(i)
 
