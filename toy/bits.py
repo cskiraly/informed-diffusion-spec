@@ -105,7 +105,7 @@ def bitmap(indices):
 
 class _Lazy:
     """Base of entries that join their map on first write."""
-    __slots__ = ("_home", "_key")
+    __slots__ = ("_home", "_key", "__weakref__")
 
     def _attach(self):
         home = object.__getattribute__(self, "_home")
@@ -137,7 +137,7 @@ class HaveEntry(_Lazy):
 
 class PushEntry(Bits):
     """pushed[p][g]: the chunks we chose to push p, when the first went, and its expiry (§5.2)."""
-    __slots__ = ("first_push", "ttl", "_home", "_key")
+    __slots__ = ("first_push", "ttl", "_home", "_key", "__weakref__")
 
     def __init__(self, home=None, key=None):
         super().__init__(0)
@@ -155,17 +155,23 @@ class PushEntry(Bits):
         super().set(i)
         self._attach()
 
+    def __ior__(self, o):
+        super().__ior__(o)
+        self._attach()
+        return self
+
     def __setattr__(self, k, v):
         object.__setattr__(self, k, v)
-        if k in ("first_push", "ttl") and getattr(self, "_home", None) is not None:
+        if (k in ("first_push", "ttl") or (k == "v" and v)) and getattr(self, "_home", None) is not None:
             self._attach()
 
 
 class OfferList(list):
     """offers[a]: an ask's announcers, in announcement order (§6.1). A missing one reads as an empty,
     detached list, which joins its map at its first append. It keeps its map's count of the lists
-    each announcer is in (§8.2's `listed`), so that the count follows whoever changes a list."""
-    __slots__ = ("_home", "_key", "_listed")
+    each announcer is in (§8.2's `listed`), so that the count follows whoever changes a list. Only `append` and
+    `remove` keep that count, so every other change of the list's members is refused."""
+    __slots__ = ("_home", "_key", "_listed", "__weakref__")
 
     def __init__(self, home=None, key=None):
         super().__init__()
@@ -186,30 +192,55 @@ class OfferList(list):
         if self._listed is not None:
             self._listed[x] -= 1
 
+    def _uncounted(self, *args, **kw):
+        raise TypeError("an offer list changes only by append and remove, which keep `listed`")
+
+    insert = extend = __setitem__ = __delitem__ = __iadd__ = __imul__ = pop = clear = _uncounted
+
 
 class LazyMap:
     """A map whose missing keys read as a detached entry made by `make(home, key)`. An entry joins it through
-    `_adopt`; a LazyMap that is itself a detached entry of another map (its home) joins that one then."""
-    __slots__ = ("_d", "_make", "_home", "_key", "__weakref__")
+    `_adopt`; a LazyMap that is itself a detached entry of another map (its home) joins that one then. As in
+    LazyDict: two reads of one missing key give one detached entry while anyone holds it, and a detached entry
+    written after another value was set under its key fails."""
+    __slots__ = ("_d", "_make", "_home", "_key", "_detached", "__weakref__")
 
     def __init__(self, make, home=None, key=None):
         self._d = {}
         self._make = make
         self._home, self._key = home, key
+        self._detached = None
 
     def _adopt(self, k, v):
+        cur = self._d.get(k)
+        if cur is not None and cur is not v:
+            raise AssertionError(f"a lazy map: a detached entry of the key {k!r} written after another value was "
+                                 f"set under it; one write would be lost")
         self._d[k] = v
-        home = self._home
-        if home is not None:
-            self._home = None
-            home._adopt(self._key, self)
+        if self._detached is not None:
+            self._detached.pop(k, None)
+        _join(self)
 
     def __getitem__(self, k):
         e = self._d.get(k)
-        return e if e is not None else self._make(self, k)
+        if e is not None:
+            return e
+        d = self._detached
+        if d is not None:
+            e = d.get(k)
+            if e is not None:
+                return e
+        e = self._make(self, k)
+        if d is None:
+            d = self._detached = weakref.WeakValueDictionary()
+        d[k] = e
+        return e
 
     def __setitem__(self, k, v):
         self._d[k] = v
+        if self._detached is not None:
+            self._detached.pop(k, None)
+        _join(self)
 
     def __contains__(self, k):
         return k in self._d
@@ -260,6 +291,9 @@ class OfferMap(LazyMap):
         self._gone(self._d.get(k))
         return self._d.pop(k, *default)
 
+    def __setitem__(self, k, v):
+        raise TypeError("an offer list joins `offers` by its first append, which keeps `listed`")
+
 
 class TieMap(LazyMap):
     """A level of `tied` (block root -> connection -> group -> indices, §4.2). A missing key reads as a detached
@@ -271,7 +305,7 @@ class TieMap(LazyMap):
 
 class TieBits(Bits):
     """tied[root][p][g]: the indices of p's copies of g that wait for the root; it joins its map at its first set."""
-    __slots__ = ("_home", "_key")
+    __slots__ = ("_home", "_key", "__weakref__")
 
     def __init__(self, home=None, key=None):
         super().__init__(0)
@@ -279,9 +313,13 @@ class TieBits(Bits):
 
     def set(self, i):
         super().set(i)
-        if self._home is not None:
-            self._home._adopt(self._key, self)
-            self._home = None
+        _join(self)
+
+    def __ior__(self, o):
+        super().__ior__(o)
+        if self.v:
+            _join(self)
+        return self
 
 
 def tie_table():
@@ -378,14 +416,25 @@ class LazyDict(dict):
         if self:
             _join(self)
 
+    def __ior__(self, other):
+        dict.update(self, other)
+        if self:
+            _join(self)
+        return self
+
 
 class LazyBits(Bits):
-    """A bitmap entry of a LazyDict; it joins at its first set."""
+    """A bitmap entry of a LazyDict; it joins at its first set, or at any write that leaves it not empty."""
     __slots__ = ("_home", "_key", "__weakref__")
 
     def __init__(self, home=None, key=None):
         super().__init__(0)
         self._home, self._key = home, key
+
+    def __setattr__(self, k, v):                # `v` set directly, as `set` and `|=` also do
+        object.__setattr__(self, k, v)
+        if k == "v" and v and getattr(self, "_home", None) is not None:
+            _join(self)
 
     def set(self, i):
         super().set(i)
@@ -420,6 +469,17 @@ class LazySet(set):
             _join(self)
         return self
 
+    def symmetric_difference_update(self, o):
+        super().symmetric_difference_update(o)
+        if self:
+            _join(self)
+
+    def __ixor__(self, o):
+        super().__ixor__(o)
+        if self:
+            _join(self)
+        return self
+
 
 class LazyList(list):
     """A list entry of a LazyDict; it joins at its first addition."""
@@ -447,6 +507,11 @@ class LazyList(list):
         if self:
             _join(self)
         return self
+
+    def __setitem__(self, i, x):                # an element, or a slice
+        super().__setitem__(i, x)
+        if self:
+            _join(self)
 
 
 def lazy(leaf):

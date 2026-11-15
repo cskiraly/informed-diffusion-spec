@@ -77,6 +77,11 @@ class _Lane(list):
             _join(self._q)
         return self
 
+    def __setitem__(self, i, x):                # an element, or a slice
+        super().__setitem__(i, x)
+        if self:
+            _join(self._q)
+
 
 class PeerQueue:
     """queue[p]: the two lanes of one peer's bounded queue (§7). Read for a peer it does not hold, the queue
