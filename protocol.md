@@ -1806,23 +1806,13 @@ This document decides at the moment of sending, so it needs the backlog to be in
   group's slot leaves the window, and then goes: from then on the window keeps the group out. A
   node that holds nothing of a group still knows the group's slot wherever it could take the group
   up: a chunk names it, and an ask needs an installed block whose bid commits the group (§4.4).
-- **Why for good.** A node's claims of a group outlive the group's expiry: a HAVE still queued
-  leaves after it, and a peer keeps the claim for `HAVE_TTL`. A node that took the group up again
-  could ask a peer for a chunk the peer still holds as its claim, and be penalised for an honest ask
-  (§4.5). The window rules this out without a bound on queues, the transport or clocks. Nodes need
-  not agree on `LIVE_WINDOW` or on the current slot: each node's own window keeps it from taking a
-  group up again, and a group expired at one node and not at another is expiry at different times,
-  which §4.5 already allows. This needs a group's slot to be fixed, and the key fixes it (§1).
-  Named by its group id alone, a group could come back: a bid of a later slot could commit its
-  descriptor, which only a dishonest builder does, and the group would be live again until its
-  payload failed level 3.
 - **How long a window.** `LIVE_WINDOW` sets how long diffusion works on a group: past it a node
   neither takes up, asks for nor serves the group. It must exceed what a group needs to reach every
   honest node, counted from the start of its slot: the block's propagation, which comes first, the
   group's diffusion, and the clock disparity between nodes. A node still short of the group by then
   gets the payload by other means. Above that, a longer window costs only state: a node keeps the
   groups, tombstones and deferred chunks of `LIVE_WINDOW` slots, besides what §8.2 bounds for groups
-  not yet tied to a block. The claim rule needs no value, only a window that moves forward.
+  not yet tied to a block. Nodes need not agree on `LIVE_WINDOW` or on the current slot.
 - **Without a slot.** Where groups carry no slot, which no group of this document does, there is no
   window, and the tombstone is kept for `TOMBSTONE_TTL` after the expiry instead. It must outlast
   the node's claims of the group: longer than a HAVE already queued can wait, plus the time an RPC
@@ -1832,63 +1822,97 @@ This document decides at the moment of sending, so it needs the backlog to be in
   taken up again: a late announcement can make the node pull it a second time.
 - **At a group's expiry** its pull state goes with it: its offers, `tried`, `asked_at`,
   `asked_parked`, promises, what is owed of it, and its queued chunks, IHAVEs and IWANTs
-  (`discard_queued`, as at `drop_group`); its chunks leave the gossip history and its paced jobs go
+  (`discard_queued`, as at `drop_group`). Its chunks leave the gossip history and its paced jobs go
   (`gossip_history.remove_group`, `discard_paced`), so nothing announces it afterwards, also when
-  the window ends it sooner than `GROUP_TTL` would. Timers already armed then find nothing to do;
+  the window ends it sooner than `GROUP_TTL` would. Timers already armed then find nothing to do:
   the retry and the writer's ask filter check expiry too (§6.1, §7.2), a decode that returns after
   it is dropped (§4.6), and so is a chunk whose validation returns after it or whose block installs
   after it (§4.2). Window slots come back the usual ways.
 - **Lifetimes counted in heartbeats** (`HAVE_TTL`, `PUSH_TTL`) are counted by the heartbeat, not
   timed exactly: an entry lives that many heartbeats after it was last refreshed.
 
-**Helpers not written out.**
-- *Chunks and groups:* `open_group` (records the group's committed descriptor in `desc` and sets
-  `state` to COLLECTING), `received` (the chunks a node got from the network, as against those it
-  rebuilt), `expired` (the group is past its active lifetime: only its tombstone is left, or,
-  once its slot has left the live window, nothing; §8.1), `live` (the slot is in the node's live
-  window, §8.1),
-  `store` (keeps a chunk in `chunks` and records its id in `known_id`),
-  `accepted` (the id was stored), `held` (an ask's chunk is in `mine`), `resolve` and `chunk_of` (an
-  ask's id and stored chunk, at an index the node holds, received or rebuilt; nothing for a dropped
-  group), `group_index`, `group` and `index` (the group and index an ask names, a WantIndex or a
-  structured id, or just one of them), `authenticable` (an installed block's bid commits the
-  group: its group id at the block's slot gives the group's key) and `bid_group` (the key of the
-  group the bid of the block with this root commits),
-  `decode_and_reencode` (§1's decoding: every chunk of the group by index, as the source built it,
+**Helpers not written out.** *Chunks and groups:*
+- `open_group`: records the group's committed descriptor in `desc` and sets `state` to COLLECTING;
+- `received`: the chunks a node got from the network, as against those it rebuilt;
+- `expired`: the group is past its active lifetime: only its tombstone is left, or, once its slot
+  has left the live window, nothing (§8.1);
+- `live`: the slot is in the node's live window (§8.1);
+- `store`: keeps a chunk in `chunks` and records its id in `known_id`;
+- `accepted`: the id was stored;
+- `held`: an ask's chunk is in `mine`;
+- `resolve` and `chunk_of`: an ask's id and stored chunk, at an index the node holds, received or
+  rebuilt; nothing for a dropped group;
+- `group_index`, `group` and `index`: the group and index an ask names, a WantIndex or a structured
+  id, or just one of them;
+- `authenticable`: an installed block's bid commits the group (its group id at the block's slot
+  gives the group's key);
+- `bid_group`: the key of the group the bid of the block with this root commits;
+- `decode_and_reencode`: §1's decoding: every chunk of the group by index, as the source built it,
   proof included, each naming the block the decode's chunks name, or one of them where they name
-  several (§4.6); None if the root differs) and `payload_of` (the decompressed body),
-  `close_promises_of_group` (§6.1's promises for a whole group), `discard_queued` (removes a group's chunks, IHAVEs and IWANTs from every
-  queue, and what is owed of it, keeping HAVEs), `gossip_history.remove_group` and `discard_paced`
-  (drop a group from the gossip history and from paced jobs), `deliver` (hands the body to the
-  application for level 3), and the codec functions of §1.
-- *Peers and messages:* `seen` and `mark_seen` (the stock seen cache), `pending_ids` (the ids of
-  deferred chunks),
-  `valid_have`, `reserve`, `release`, `admitted` and `listed` (the checks and
-  reservations of §8.2; `admitted`: a chunk's group within the peer's limits; `listed`: how many
-  ordered offer lists an announcer is in), `Entry` (a queue entry: at most
-  one chunk, plus control; `add_ihave` adds an IHAVE to its control), `enqueue` (into the bounded
-  per-peer queue of §7; true if the queue admitted the entry), `has_room` (the queue would admit
-  one now), `pop_owed_answer` (takes the lowest owed answer and returns its chunk),
-  `handle_graft_prune` (stock), `penalise` (the client's peer scoring, if it
-  has one; a client may ignore it), `tiebreak`
-  and `peer_id_bytes` (§5.3), `own_order` (§6.1: a list of peers in the node's own order for an
-  ask's chunk; any order that no peer can predict or arrange will do, and the reference, for
-  comparing implementations in tests, sorts by the first 8 bytes, read little-endian, of
-  HMAC-SHA-256(secret, group ‖ index as uint32 little-endian ‖ peer id), larger first, then the
-  larger peer id; `toy/own_order_known.py` has how a test derives the secret, and a known answer), `group_bits` (splits gossip ids by group into bitmaps), and the stock
-  `topic_peers`, `connected_topic_peers`, `gossip_eligible`, `connected`, `installed_block` (the
-  installed block with the root, or nothing; the slot a copy names is checked against the block's at
-  level 1, §3) and `block_root`.
-- *The writer:* `slot_held` (whether a peer's writer holds a slot it has not used; false at first),
-  `wake` (runs a peer's writer again, §7.2) and `WAIT` (what `next_to_send` returns while the writer
-  waits in line).
-- *Timing and sets:* `after` (a timer); `start` (runs a task off the chunk path, for as long as the
-  task takes: for level 2, a decode, a few milliseconds with an optimised codec, which this document
-  does not fix); `shuffled`; `sample_without_replacement`; and the bitmap operations, among them
-  `bitmap(indices)`, which builds a bitmap from a set of indices, `copy`, and `clear(i)`.
+  several (§4.6); None if the root differs;
+- `payload_of`: the decompressed body;
+- `close_promises_of_group`: §6.1's promises for a whole group;
+- `discard_queued`: removes a group's chunks, IHAVEs and IWANTs from every queue, and what is owed of
+  it, keeping HAVEs;
+- `gossip_history.remove_group` and `discard_paced`: drop a group from the gossip history and from
+  paced jobs;
+- `deliver`: hands the body to the application for level 3;
+- and the codec functions of §1.
+
+*Peers and messages:*
+- `seen` and `mark_seen`: the stock seen cache;
+- `pending_ids`: the ids of deferred chunks;
+- `valid_have`, `reserve`, `release`, `admitted` and `listed`: the checks and reservations of §8.2;
+  `admitted`: a chunk's group within the peer's limits; `listed`: how many ordered offer lists an
+  announcer is in;
+- `Entry`: a queue entry, at most one chunk plus control; `add_ihave` adds an IHAVE to its control;
+- `enqueue`: into the bounded per-peer queue of §7; true if the queue admitted the entry;
+- `has_room`: the queue would admit one now;
+- `pop_owed_answer`: takes the lowest owed answer and returns its chunk;
+- `handle_graft_prune`: stock;
+- `penalise`: the client's peer scoring, if it has one; a client may ignore it;
+- `tiebreak` and `peer_id_bytes`: §5.3;
+- `own_order`: §6.1's list of peers in the node's own order for an ask's chunk. Any order that no
+  peer can predict or arrange will do. The reference, for comparing implementations in tests, sorts
+  by the first 8 bytes, read little-endian, of HMAC-SHA-256(secret, group ‖ index as uint32
+  little-endian ‖ peer id), larger first, then the larger peer id; `toy/own_order_known.py` has how
+  a test derives the secret, and a known answer;
+- `group_bits`: splits gossip ids by group into bitmaps;
+- and the stock `topic_peers`, `connected_topic_peers`, `gossip_eligible`, `connected`,
+  `installed_block` (the installed block with the root, or nothing; the slot a copy names is checked
+  against the block's at level 1, §3) and `block_root`.
+
+*The writer:*
+- `slot_held`: whether a peer's writer holds a slot it has not used; false at first;
+- `wake`: runs a peer's writer again (§7.2);
+- `WAIT`: what `next_to_send` returns while the writer waits in line.
+
+*Timing and sets:*
+- `after`: a timer;
+- `start`: runs a task off the chunk path, for as long as the task takes: for level 2, a decode, a
+  few milliseconds with an optimised codec, which this document does not fix;
+- `shuffled` and `sample_without_replacement`;
+- the bitmap operations, among them `bitmap(indices)`, which builds a bitmap from a set of indices,
+  `copy`, and `clear(i)`.
 
 A group or per-peer entry that does not exist reads as empty, with `stop_pull` false, and reading it
 allocates nothing: the admission checks of §8.2 come before any state is created.
+
+#### Rationale
+
+**Why an expired group stays expired.** A node's claims of a group outlive the group's expiry: a
+HAVE still queued leaves after it, and a peer keeps the claim for `HAVE_TTL`. A node that took the
+group up again could ask a peer for a chunk the peer still holds as its claim, and be penalised for
+an honest ask (§4.5). The window rules this out without a bound on queues, the transport or clocks.
+Nodes need not agree on `LIVE_WINDOW` or on the current slot: each node's own window keeps it from
+taking a group up again, and a group expired at one node and not at another is expiry at different
+times, which §4.5 already allows. The claim rule needs no value of `LIVE_WINDOW`, only a window that
+moves forward.
+
+**A group's slot fixed by its key.** The window needs a group's slot to be fixed, and the key fixes
+it (§1). Named by its group id alone, a group could come back: a bid of a later slot could commit its
+descriptor, which only a dishonest builder does, and the group would be live again until its payload
+failed level 3.
 
 ### 8.2 Limits
 
@@ -1945,14 +1969,15 @@ the proof, so a forged variant costs one proof check and counts against its send
 | `TOMBSTONE_TTL` | only where groups have no slot: more than a queued HAVE can wait, plus an RPC's time to its peer, plus `HAVE_TTL` and a heartbeat, after the expiry | – | the tombstone outlasts the node's claims (§8.1) |
 | heartbeat, mesh, cache | 700 ms, D = 8, 6 / 3 heartbeats | – | Prysm's gossipsub settings |
 
-**Open: the push degree against payload size.** The measured tier 4 runs at R = 2 at 1 MiB and was
-swept over sizes with R = 4, 3, 2 by size (4 at 128 KiB). The rule should be keyed on K rather
-than on the uncompressed size, and is not yet fixed.
+**Open: the push degree against payload size.** R is 2 at 1 MiB. The rule should be keyed on K
+rather than on the uncompressed size, and is not yet fixed. §9 says which degrees the measurements
+used at other sizes.
 
 ## 9. As measured: where the research implementation differs
 
-The measurements in the post come from a research harness. Where it does something this document
-does not specify, and what that means for the numbers, follows. Figures 4 and 5 of
+The measurements in the posts this document accompanies come from a research harness. This section
+lists where the harness does something this document does not specify, and what that means for the
+numbers. Figures 4 and 5 of
 [*SEACAST: fast, lean broadcast for Ethereum, with an executable spec and a formal model*](https://ethresear.ch/t/seacast-fast-lean-broadcast-for-ethereum-with-an-executable-spec-and-a-formal-model/26167)
 (2026) were rerun on an implementation with v0.5's rules and the source's paced HAVE; that
 post's other figures, and the earlier posts', come from the implementation before them. Where the
@@ -2013,7 +2038,8 @@ rerun does as this document does, the entry says so.
 - *The source's HAVE* went out once per chunk as each was added to the batch: N cumulative HAVEs to
   each mesh peer, all before the data, which names the source to its mesh. This document paces it
   instead (§5.1, [P4]). A change of 2026-10-07 makes the implementation send one HAVE before the
-  data by default, and pace it as an option (`SEGMENT_SRC_HAVE=paced`). The rerun of Figures 4 and 5
+  data by default, and pace it as an option (`SEGMENT_SRC_HAVE=paced`), measured at no cost in
+  delivery. The rerun of Figures 4 and 5
   paces it at the write; this document's HAVE grows at the acknowledgement instead (§5.1), about a
   round trip later.
 - *The source announced at publish.* The implementation queues a chunk's offers to the mesh peers it
@@ -2025,6 +2051,8 @@ rerun does as this document does, the entry says so.
   (the cross-check of 2026-10-07, on the toy).
 - *The transport below the writer* was quic-go's: the measured runs kept §7.3's rule by the
   library's behaviour, not by a rule, and the harness's per-peer queue held the backlog.
+- *The push degree by payload size.* The measured tier 4 runs at R = 2 at 1 MiB, and was swept over
+  sizes with R = 4, 3, 2 by size (4 at 128 KiB). This document fixes no rule by size (§8.3).
 - *The sender counts as a holder* in a forwarding node's budget (§5.2), so R = 2 means one further push per
   received chunk. This is what was measured. The sender is also excluded from the candidates here;
   in the code it could take a budget slot and then be skipped, which is rare.
@@ -2110,3 +2138,62 @@ rerun does as this document does, the entry says so.
 - *Per-peer tables:* offers, retries and answer counts were keyed by peer id and survived a
   reconnection. §8.1 resets them with the connection. In the rerun of Figures 4 and 5 a closed
   connection's promises, offers and tried asks go with it; its answer counts still survive.
+
+## Glossary
+
+The document's terms, each with the section that defines it.
+
+- **acknowledgement**: the HAVE a node sends the peer a chunk came from (§4.2); it gives back the
+  window slot of that copy (§7.1). At the source, a chunk's acknowledgement is the first HAVE naming
+  it from any peer, or its first copy's window timeout (§5.1).
+- **announce**: to send an IHAVE bitmap naming chunks a node can send (§2, §5.2); the peer that
+  announced a chunk is its **announcer**, and the announcement its **offer** (§6.1).
+- **ask**: an IWANT for one chunk, by its id or by group and index (`WantIndex`) (§2, §6.1). An ask
+  is **outstanding** while it is queued to the peer or its promise is open (§6.1).
+- **budget**: how many mesh peers a node pushes a chunk to: `R_NODE`, less the mesh peers known to
+  hold it (§5.2).
+- **card**: one mechanism of the design, numbered; a **tier** is the set of cards it enables, and
+  the tiers are nested (§0). A comment `# [c8]` tags the code of card 8.
+- **chunk**: one piece of the payload, coded from tier 3 on, with its Merkle proof: the unit on the
+  wire (§1, §2).
+- **claim**: a node's statement, in its HAVE, that it holds a chunk, made only for chunks that
+  passed level 1 (§4.2). The **decode claim** names all N chunks of a group, at the K-th chunk
+  (§4.6).
+- **deferred**: a copy of a chunk whose block is not installed yet; it waits in a bounded store, or
+  is refused, and within §8.2's limits ties its sender either way (§4.2).
+- **descriptor**: the `SegmentDescriptor` a bid commits to, which says how the payload was cut and
+  coded (§1).
+- **expired**: a group past its active lifetime; only its tombstone is left, and the group never
+  comes back (§8.1).
+- **forward**: to pass on a chunk a node accepted: push it to some mesh peers and announce it to the
+  others (§5.2).
+- **group**: the N chunks of one payload, named in diffusion by its **key**, the group id at the
+  block's slot (§1).
+- **HAVE**: a bitmap of the chunks of one group a node holds, carried in an IDONTWANT (§2, §4.3).
+  A peer whose HAVE names a chunk is one of its **holders**.
+- **installed**: a block validated and applied locally (§3).
+- **K, N**: a group's data chunks, and all its chunks, parity included (§1).
+- **last resort**: one more ask of each parked announcer of a chunk, after waits that double (§6.1).
+- **ledger**: what was offered of a group and is not held, asked for when its block installs (§6.1,
+  §4.2).
+- **level 1, 2, 3**: the three levels of validation: a chunk's authenticity, the code's
+  consistency, the application's checks (§3).
+- **live window**: the slots a node works on; a group whose slot has left it is out for good (§8.1).
+- **owed**: an offer or answer that a full queue refused, which the next write to the peer carries
+  (§5.2, §7.2).
+- **park**: a peer whose promise broke is not asked for the group's chunks for `PARK_TTL`, except by
+  the last resort (§6.1).
+- **promise**: what an ask written to a peer opens; if nothing closes it within `PROMISE`, the peer
+  is parked (§6.1).
+- **push**: to send a chunk unasked (§5.2). **Repair** is a decoded node's push of the chunks it
+  rebuilt (§4.6).
+- **retry**: the ask of another announcer once an ask's window has closed (§6.1).
+- **source**: the node that publishes a group (§5.1).
+- **stop-pull**: no further asks for a group from its decode claim on (§6.2).
+- **tie**: what a copy that waits for its block does to its sender: the sender is not asked for that
+  index until the root the copy names installs (§4.2).
+- **window**: two different things. An ask's window, `IWANT_WINDOW`, is how long one ask of a chunk
+  is in flight before the retry (§6.1). The node's sending window, §7.1's, bounds the chunks it has
+  sent that their receivers are not yet known to hold; its **slots** are not consensus slots.
+- **withholding node**: one that keeps forwarding but never answers an ask; a **silent node** sends
+  nothing at all (§4.6).
