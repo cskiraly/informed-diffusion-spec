@@ -974,38 +974,55 @@ def candidates_for_source(f):
     return [p for p in pool if not peer_has[p][f.group].has(f.index)]
 ```
 
+**Publishing** (`publish`). Unless the group has expired or its slot is outside the live window, the
+source stores every chunk, marks it seen, and puts it in the message cache for heartbeat gossip
+(§6.4). It claims the whole group and stops pulling it. It then plans the pushes: for each chunk, in
+index order, R targets that §5.3 chooses among its candidates (`candidates_for_source`), each chunk's
+choice seeing the plans made before it. It sends the first copy of every chunk before any second
+copy. A peer's first chunk from the source follows a HAVE that names it (below). A push that a full
+queue refuses is offered instead (§5.2).
+
 - **Batch publishing** [c2] fixes only the order in which chunks enter each peer's queue. What
   leaves first on each link is decided when the queue sends (§7).
 - **Striped publishing** [c13]: a source whose configured uplink is at least `STRIPE_UPLINK`
-  stripes; a slower one pushes to its mesh, as the other nodes do. Striping pays only when the source can
-  send faster than its mesh peers can pass the chunks on, and the source knows neither their uplinks
-  nor how much of its own it can count on, so the threshold sits where the gain is measured. The
-  candidates are then every connected peer on the topic. With the fewest-first order of §5.3, and
-  each connection starting with nothing, the chunks are dealt two at a time over all connections:
-  the two copies of a chunk go to two different peers, and each connection receives about 2N/C
-  chunks. Only mesh peers not chosen to be pushed a chunk are announced it, and one whose push the
-  queue refuses is offered it instead (§5.2), so no peer is offered a chunk twice; other connections
-  get no announcement from this step, though heartbeat gossip may announce to them later (§6.4).
+  stripes; a slower one pushes to its mesh, as the other nodes do. A source that stripes takes every
+  connected peer on the topic as a candidate. With the fewest-first order of §5.3, and each
+  connection starting with nothing, the chunks are dealt two at a time over all connections: the two
+  copies of a chunk go to two different peers, and each connection receives about 2N/C chunks. Only
+  mesh peers not chosen to be pushed a chunk are announced it, and one whose push the queue refuses
+  is offered it instead (§5.2), so no peer is offered a chunk twice. Other connections get no
+  announcement from this step, though heartbeat gossip may announce to them later (§6.4).
 - The source pushes each chunk to R = 2 peers. It never uses the fast-class degree of card 17.
-- **The source announces at the acknowledgement** [c3]. The mesh peers not chosen to be pushed a
-  chunk are announced it once a copy of it is known to exist elsewhere: at the first HAVE naming it,
-  from any peer (§4.3), or, if none comes, when its first copy's window slot times out (§7.1).
-  Announced at publish, the offers would race the pushes: a transport that takes the whole batch at
-  once (a deep library buffer, a socket's send buffer, a router's queue) lets every announcement
-  leave at once, the mesh asks for chunks whose pushes are still queued, and the source answers on
-  top of its pushes. The acknowledgement is the one event the source sees whatever the transport
-  holds (§7.3); the offers trail the pushes by about a round trip.
-- **The source's HAVE is paced** [P4], for the source's privacy. A HAVE that names every chunk
-  before any chunk has left can come only from the source, so it tells each mesh peer who published
-  the payload. The source's HAVE therefore names only chunks known to have arrived somewhere: a chunk
-  joins it at the same acknowledgement, and the HAVE then goes to the mesh, as a forwarding node's does when a chunk
-  arrives. A peer the source pushes to gets a HAVE naming its first chunk just ahead of it, as a
-  forwarding node's HAVE precedes its pushes. The HAVE still keeps the other nodes from pushing the source's chunks
-  back to it, a chunk at a time. HAVEs to the mesh that would leave together may be merged into one,
-  as the research implementation merges those of the chunks sent between two of its router's turns. This removes the one certain sign of the source; others remain (its
-  HAVE grows faster than any other node's, it announces every chunk at publish, it is everyone's first
-  sender), and are the subject of separate work on the source's privacy, where P4 is this measure's
-  name. The research implementation has it as an option, measured at no cost in delivery.
+- **The source announces at the acknowledgement** [c3] (`origin_acked`). The mesh peers not chosen
+  to be pushed a chunk are announced it once a copy of it is known to exist elsewhere: at the first
+  HAVE naming it, from any peer (§4.3), or, if none comes, when its first copy's window slot times
+  out (§7.1). The offers trail the pushes by about a round trip.
+- **The source's HAVE is paced** [P4], for the source's privacy. It names only chunks known to have
+  arrived somewhere: a chunk joins it at the same acknowledgement, and the HAVE then goes to the
+  mesh, as a forwarding node's does when a chunk arrives. A peer the source pushes to gets a HAVE
+  naming its first chunk just ahead of it, as a forwarding node's HAVE precedes its pushes. HAVEs to
+  the mesh that would leave together may be merged into one, as the research implementation merges
+  those of the chunks sent between two of its router's turns.
+
+#### Rationale
+
+**Striping's threshold.** Striping pays only when the source can send faster than its mesh peers
+can pass the chunks on. The source knows neither their uplinks nor how much of its own it can count
+on, so the threshold sits where the gain is measured (§8.3).
+
+**Announcing at the acknowledgement, not at publish.** Announced at publish, the offers would race
+the pushes. A transport that takes the whole batch at once (a deep library buffer, a socket's send
+buffer, a router's queue) lets every announcement leave at once; the mesh then asks for chunks whose
+pushes are still queued, and the source answers on top of its pushes. The acknowledgement is the one
+event the source sees whatever the transport holds (§7.3).
+
+**The paced HAVE.** A HAVE that names every chunk before any chunk has left can come only from the
+source, so it would tell each mesh peer who published the payload. The paced HAVE still keeps the
+other nodes from pushing the source's chunks back to it, a chunk at a time. It removes the one
+certain sign of the source. Others remain: the source's HAVE grows faster than any other node's, it
+announces every chunk at once to a peer that joins its mesh (§5.4), and it is everyone's first
+sender. They are the subject of separate work on the source's privacy, where P4 is this measure's
+name.
 
 ### 5.2 A node forwards [c3, c4, c11, c17]
 
@@ -1042,16 +1059,19 @@ def note_push(p, g, i):
     e.set(i); e.ttl = PUSH_TTL                                          # heartbeats
 ```
 
+**Forwarding** (`forward`). A node forwards each chunk it accepts (§4.2). It pushes the chunk to at
+most `budget` of the mesh peers that do not hold it, chosen by §5.3, announces it to the other mesh
+peers that do not hold it, and puts it in the message cache for heartbeat gossip (§6.4). The peer it
+came from is neither pushed nor announced the chunk.
+
 - **Announce instead of push** [c3]: a node pushes each chunk to at most `budget` mesh peers and
   announces it to the others, which ask if they still need it.
-- **A push that does not happen is offered instead** [c3]: a chosen push that projection skips when
-  the writer reaches it (§7.2), or that a full queue refuses (§8.2), is no longer counted as pushed,
-  and the chunk is offered to the peer instead, if it is in the mesh, as a chunk not pushed is.
-  Counted, such a push would leave its peer neither pushed nor offered the chunk, and where no other
-  peer offers it, as in a triangle, a ring or at a node with one peer, that peer would never
-  complete. An offer a full queue refuses is owed, and the next write to the peer carries it
-  (§7.2). A skipped push to a connection outside the mesh (card 13) is forgotten but not offered,
-  so §5.1's other connections still get no announcement from the source's step.
+- **A push that does not happen is offered instead** [c3] (`unpush`, `owe`). A chosen push that
+  projection skips when the writer reaches it (§7.2), or that a full queue refuses (§8.2), is no
+  longer counted as pushed, and the chunk is offered to the peer instead, if it is in the mesh, as a
+  chunk not pushed is. An offer that a full queue refuses is owed, and the next write to the peer
+  carries it (§7.2). A skipped push to a connection outside the mesh (card 13) is forgotten but not
+  offered, so §5.1's other connections still get no announcement from the source's step.
 - **The phase** [c4]: the budget shrinks with every mesh peer already known to hold the chunk. The
   sender has normally claimed the chunk before it arrives (its HAVE travels urgently, ahead of the
   data), so it counts as a holder. At R = 2 a received chunk therefore goes on to one more peer early
@@ -1060,6 +1080,12 @@ def note_push(p, g, i):
 - **Push by uplink class** [c17]: `R_NODE = R_FAST` (6) if the node's configured uplink is at least
   `FAST_UPLINK` (500 Mbps), else R. The node knows its uplink from the same configuration that sizes
   its window (§7.1).
+
+#### Rationale
+
+**A push that does not happen is not counted.** Counted, such a push would leave its peer neither
+pushed nor offered the chunk. Where no other peer offers it, as in a triangle, a ring or at a node
+with one peer, that peer would never complete.
 
 ### 5.3 Whom to push to: furthest behind first [c16]
 
@@ -1086,23 +1112,47 @@ def guard_fails(p, g):                                                          
             and g not in peer_has[p])              # no HAVE at all from p for g while we keep pushing it
 ```
 
+**Choosing the targets** (`choose_push`). When the budget covers every candidate, every candidate is
+pushed. Otherwise the candidates are ranked: peers the guard demotes last, the others by the chunks
+of the group they are known to hold, fewest first, and ties by the tie-break. A forwarding node then
+draws its targets at random among the peers the guard does not demote whose count is at or below
+their median, and fills any places left in rank order. The source takes the ranking as it is.
+
 - **Chunks held** counts what the peer told us in its HAVEs plus what we chose to push it, including
   pushes still queued, and not since skipped by projection or refused by a full queue (§5.2).
   Announcements and answered asks do not count. Repair's shortfall (§4.6) reads the same count.
 - **The lower-half draw** picks the push targets uniformly, without replacement, among the peers at
   or below the median of that count. That is not a guarantee of a fair share of the traffic: an
   under-reporter is drawn with bounded probability within the lower half.
-- **The guard** moves a peer to the back when we have chosen to push it at least `R_NODE` chunks of
-  the group, the first more than 200 ms ago, and it has sent no HAVE for the group, not even an
-  empty one. A demoted peer can still be pushed if the budget reaches it, and the demotion lifts at
-  its first HAVE. Once every push counted to a peer has been skipped or refused, the clock starts
-  again at the next push, one the peer can receive (`note_push`, §5.2); each restart delays a
-  demotion by at most `GUARD_GRACE` from the push that starts it. A peer that asks and sends no HAVE
-  can cause such restarts, since our answers let projection skip the pushes counted to it.
+- **The guard** (`guard_fails`) moves a peer to the back when we have chosen to push it at least
+  `R_NODE` chunks of the group, the first more than `GUARD_GRACE` ago, and it has sent no HAVE for
+  the group, not even an empty one. A demoted peer can still be pushed if the budget reaches it, and
+  the demotion lifts at its first HAVE. Once every push counted to a peer has been skipped or
+  refused, the clock starts again at the next push, one the peer can receive (`note_push`, §5.2);
+  each restart delays a demotion by at most `GUARD_GRACE` from the push that starts it. A peer that
+  asks and sends no HAVE can cause such restarts, since our answers let projection skip the pushes
+  counted to it.
 - **At the source** the ranking is fewest-chunks-first, with no draw. The guard is evaluated but
   cannot fire, because the whole group is planned at one instant.
 - **Tie-break:** a hash of (message id, peer id), finalised; larger first, then the larger peer id.
 - **Without card 16:** order candidates by that tie-break alone.
+
+#### Rationale
+
+**Furthest behind first.** The peers that hold the fewest chunks are the ones for which a push is
+least likely to be a duplicate, and the ones that would otherwise have to ask.
+
+**A draw, not the single furthest behind.** The count trusts what each peer says about itself. Taking
+the single peer furthest behind, an under-reporter would always look furthest behind and win every
+contested push; a withholding node that tells each pusher it holds only what that pusher sent it
+would draw most of its neighbours' pushes and pass none on. Drawn within the lower half, it no
+longer wins every contested push.
+
+**The guard** is for a peer that takes pushes and never reports at all, which no count can rank.
+`GUARD_GRACE` is about one round trip, so that honest peers are not demoted (§8.3). At the source the
+plain ranking is what spreads card 13's stripes evenly over its connections (§5.1).
+*Segmented payload diffusion, card by card* (2026, card 16) gives what each form costs against
+under-reporters, as measured.
 
 ### 5.4 A peer joins the mesh
 
@@ -1113,35 +1163,40 @@ def on_mesh_join(p):                                  # p joins our mesh: by our
         announce(p, g, bitmap(set(chunks[g])))        # what we can serve, received or rebuilt (§5.2)
 ```
 
-- **A peer that joins the mesh is announced what the node holds.** Offers come from announcements,
-  and a node announces a chunk when it forwards it, which follows the chunk's arrival. Without this,
-  nothing would ensure that a peer that joins the mesh after a chunk was forwarded is offered it, nor
-  that a peer whose connection closed is offered on the new connection what the old one lost: a
-  closed connection takes with it what was queued, owed or in flight on it (§8.1). Heartbeat gossip
-  may announce a chunk on a connection outside the mesh, and a later copy may be forwarded, but
-  neither need happen: the gossip goes to a sample of the peers outside the mesh and names only the
-  last three heartbeats' chunks (§6.4). A closed connection leaves the mesh, so a reconnection is
-  announced again once the two graft each other again.
+- **A peer that joins the mesh is announced what the node holds** (`on_mesh_join`).
 - **What is announced** is what `resolve` answers (§4.5): the chunks the node stores, received or
   rebuilt, one bitmap per group, minus what it pushed the peer and what the peer claimed
   (`announce`, §5.2), owed if a full queue refuses it. Not the decode claim, which names chunks not
   yet rebuilt, and nothing of a group that expired or was dropped.
-- **At the source** that is every chunk of a group it publishes, sent or not, as §5.1's
-  announcements are at the publish; its HAVE stays paced (P4). The announcement stays inside the
-  mesh: on connections outside it, the source's announcement of every chunk at once would tell more
-  peers who published.
+- **At the source** that is every chunk of a group it publishes, sent or not; its HAVE stays paced
+  (P4). The announcement stays inside the mesh.
 - **When it runs**: at every addition of a peer to the node's mesh for the topic, whatever adds it:
   a GRAFT the node accepts, its own GRAFT when it joins the topic, the heartbeat's upkeep (a mesh
   below `Dlo`, the outbound quota) and opportunistic grafting. The node's own GRAFT runs it at once,
   without waiting for the peer to accept: a peer that prunes the node instead has received an
   ordinary offer from a peer outside its mesh. A GRAFT from a peer already in the mesh adds nothing
   and runs nothing; a peer that leaves the mesh and joins it again, even within a heartbeat, is
-  announced again.
+  announced again. A closed connection leaves the mesh, so a reconnection is announced again once
+  the two graft each other again.
 - **Its cost** is one IHAVE bitmap per stored group and join (the bitmap 16 bytes at N = 128, up to
   1 KiB at `MAX_PLAIN_CHUNKS`, plus the group id and framing), several groups' bitmaps in one RPC
   where they fit, and the asks they draw. At the receiver they count as any IHAVE does: its IHAVE
   limits delay the asks, not the reading of the bitmaps nor the retries (§4.4), and its offers are
   kept within §8.2's limits on admitted groups.
+
+#### Rationale
+
+**Why announce at a join.** Offers come from announcements, and a node announces a chunk when it
+forwards it, which follows the chunk's arrival. Without the announcement at a join, nothing would
+ensure that a peer that joins the mesh after a chunk was forwarded is offered it, nor that a peer
+whose connection closed is offered on the new connection what the old one lost: a closed connection
+takes with it what was queued, owed or in flight on it (§8.1). Heartbeat gossip may announce a chunk
+on a connection outside the mesh, and a later copy may be forwarded, but neither need happen: the
+gossip goes to a sample of the peers outside the mesh and names only the last three heartbeats'
+chunks (§6.4).
+
+**The source's announcement stays inside the mesh.** On connections outside it, the source's
+announcement of every chunk at once would tell more peers who published.
 
 ## 6. Asking
 
