@@ -952,17 +952,17 @@ def add_offer(a, p):                                      # within §8.2's limit
     if p not in o and len(o) < 16 and listed(p) < 256:    #   tried first; an announcer is in at most
         o.append(p)                                       #   256 of these lists (§8.2)
 
-def announcers(a):                                        # the list, then every other peer that offered a
-    return offers[a] + [q for q in connected_topic_peers()
-                        if q not in offers[a] and offered[q][group(a)].has(index(a))]
+def announcers(a):                                        # the list, then every other peer that offered a,
+    return offers[a] + own_order([q for q in connected_topic_peers()   #   in the node's own order (below)
+                                  if q not in offers[a] and offered[q][group(a)].has(index(a))], a)
 
 def ledger(g):                                            # what was offered of g and is not held, asked
     bits = bitmap(set())                                  #   as expand (§4.4) would ask it
     for q in connected_topic_peers(): bits |= offered[q][g]
     return [known_id[g].get(i) or WantIndex(group=g, index=i) for i in bits if not mine[g].has(i)]
 
-def untried(cands, a):                                    # the earliest announcer not asked yet:
-    return next((q for q in cands if q not in tried[a]), None)    # offers keep announcement order
+def untried(cands, a):                                    # the first not asked yet: the list keeps
+    return next((q for q in cands if q not in tried[a]), None)    #   announcement order (below)
 
 def least_recently_tried(cands, a):
     return min(cands, key=lambda q: tried[a][q])
@@ -1010,6 +1010,26 @@ def ask_parked(a):
   id, in announcement order (`offers`), are only the order in which they are tried, so a full list
   forgets no announcer, nor does the bound on how many lists one announcer is in (§8.2). Before the block is installed the offer table is also the ledger of what
   to ask for at installation (§4.2).
+- **Beyond the list, the node's own order.** The announcers that are not in the list, because it
+  was full, because they were in 256 lists already, or because their IHAVE was read without the
+  loop (over a limit, §4.4), are tried after it, in an order of the node's own: one that no peer
+  can predict or arrange. That is all the order has to be. No other node sees it and nothing on the
+  wire carries it, so two nodes that make it differently work together as well as two that make it
+  alike. The reference way, which `own_order` stands for and the toy runs (§8.1), ranks the
+  announcers by a keyed hash of the chunk (its group and index) and the peer id, under a secret the
+  node draws when it starts and never sends; larger first, then the larger peer id, as §5.3's
+  tie-break. Such a rank differs per chunk and per node, and stays the same over a chunk's retries.
+  An implementation is advised to run it outside its tests too, with a secret drawn at random, so
+  that the code its tests exercise is the code that runs.
+  An order that a peer can arrange, by when it connects or by its id, would let it stand ahead of
+  every other announcer beyond the list, for every chunk and at every node. So would a rank under
+  a key that is public: a peer that can compute it can connect under the id that ranks first.
+  Under a secret rank, of two such announcers each is ahead of the other about half the time, and
+  nodes rank them independently of one another. This is about the announcers beyond the list only:
+  the list keeps announcement order, which the first to announce still decides, and a sender with
+  several peer ids beyond the list has one of them ahead more often. Whatever the order, among the
+  announcers it may ask, the retry takes one it has not asked before one it has. The secret lasts
+  while the node runs, and nothing depends on its surviving a restart.
 - **An ask goes with its announcer's offers.** Where an announcer's offers of a chunk are dropped,
   with its tie (§4.2's `drop_tie`) or 30 s after its last offer of the group, an ask of the chunk
   still queued to it is removed and its promise for the chunk closes (`drop_offer`), so that its
@@ -1322,6 +1342,7 @@ This document decides at the moment of sending, so it needs the backlog to be in
 | `tried` | ask and announcer | 30 s | when the chunk arrives, at expiry, or when the announcer's connection closes |
 | `asked_parked` | chunk (group and index) and announcer | 30 s, as `tried` | as `tried` |
 | `last_resort_armed` | chunk | one timer, until it fires | — |
+| the secret of `own_order` (§6.1) | node | while the node runs | never sent; a restart draws another |
 | `ihave_rpcs`, `ihave_asked` | connection | one heartbeat | at the next heartbeat, or when the connection closes |
 | `held_back` | chunk (group and index) of an admitted group | until the next heartbeat | at that heartbeat, which runs the retry for it (the retry checks expiry, §6.1) |
 | promises | ask and peer | `PROMISE` | when a copy that passes level 1 arrives, the peer's copy waits for its block (a tie, §4.2), the peer's offers of the chunk are dropped (`drop_offer`, §6.1), the group completes or expires, or the peer's connection closes |
@@ -1418,7 +1439,11 @@ This document decides at the moment of sending, so it needs the backlog to be in
   one now), `pop_owed_answer` (takes the lowest owed answer and returns its chunk),
   `handle_graft_prune` (stock), `penalise` (the client's peer scoring, if it
   has one; a client may ignore it), `tiebreak`
-  and `peer_id_bytes` (§5.3), `group_bits` (splits gossip ids by group into bitmaps), and the stock
+  and `peer_id_bytes` (§5.3), `own_order` (§6.1: a list of peers in the node's own order for an
+  ask's chunk; any order that no peer can predict or arrange will do, and the reference, for
+  comparing implementations in tests, sorts by the first 8 bytes, read little-endian, of
+  HMAC-SHA-256(secret, group ‖ index as uint32 little-endian ‖ peer id), larger first, then the
+  larger peer id; `toy/own_order_known.py` has how a test derives the secret, and a known answer), `group_bits` (splits gossip ids by group into bitmaps), and the stock
   `topic_peers`, `connected_topic_peers`, `gossip_eligible`, `connected`, `installed_block` and
   `block_root`.
 - *The writer:* `slot_held` (whether a peer's writer holds a slot it has not used; false at first),
@@ -1590,9 +1615,11 @@ rerun does as this document does, the entry says so.
   400 ms and parked the asked peers for the completed group only, which changed no later decision.
   This document closes them.
 - *The offer-table retry* picked untried announcers in peer-id order; this document takes the
-  earliest to have announced. A retry that found every announcer parked stopped, and the chunk
+  earliest to have announced among a chunk's first 16 announcers, and the others after them in the
+  node's own order (§6.1). A retry that found every announcer parked stopped, and the chunk
   waited for a fresh announcement; this document asks each parked announcer once more, later, and
-  keeps every offer (§6.1). The rerun of Figures 4 and 5 does as this document does.
+  keeps every offer (§6.1). The rerun of Figures 4 and 5 does as this document does, but for the
+  order beyond the list, which is newer than the rerun.
 - *An ask dropped at a full queue* was lost, and its promise still fell due. This document starts
   the promise when the ask is written (§7.2), as the rerun of Figures 4 and 5 does.
 - *A push that did not happen.* A push that projection skipped was not announced in its place: the

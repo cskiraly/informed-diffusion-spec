@@ -7,6 +7,8 @@ as the pseudocode reads `mesh`, `peer_has` or `now`. What lives here is only wha
 leaves to the environment; a behaviour that matters and is not in the document is a gap in the
 document, and is listed in README.md.
 """
+import hashlib
+import hmac
 import math
 from collections import Counter
 import random
@@ -776,6 +778,21 @@ class Node:
 
         def sample_without_replacement(xs, k):
             return rng.sample(list(xs), k)
+
+        # §6.1's own order: a keyed hash of the chunk and the peer id, under a secret of the node's. A real node
+        # draws the secret at random; here it comes from the run's seed and the node's id, so that a run can be
+        # made again, and another code base given the same seed and ids ranks the same peers the same way.
+        own_secret = hashlib.sha256(b"own order" + (c["seed"] & (2 ** 64 - 1)).to_bytes(8, "little")
+                                    + node.sim.peer_id(self.id)).digest()
+
+        def own_order(xs, a):
+            gi = group_index(a)
+            chunk = gi.group + gi.index.to_bytes(4, "little")
+
+            def rank(q):                # larger first, then the larger peer id, as §5.3's tie-break
+                pid = node.sim.peer_id(q)
+                return int.from_bytes(hmac.new(own_secret, chunk + pid, hashlib.sha256).digest()[:8], "little"), pid
+            return sorted(xs, key=rank, reverse=True)
 
         def after(delay, fn, *args):
             node.sim.after(node, delay, fn, *args)
