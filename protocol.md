@@ -255,6 +255,7 @@ def validate_chunk(f: Chunk) -> Result:
     block = installed_block(f.slot, f.beacon_block_root)    # validated and applied locally
     if block is None:
         return DEFER                    # held in a bounded store (§8.2); not claimed, not forwarded
+    if f.slot != block.slot: return REJECT                  # the slot a copy names is its block's (§1)
     d = committed_descriptor(block, f)
     if d is None or group_key(group_id(d), block.slot) != f.group or not valid_descriptor(d): return REJECT
     if f.index >= d.count: return REJECT
@@ -1522,8 +1523,9 @@ This document decides at the moment of sending, so it needs the backlog to be in
   comparing implementations in tests, sorts by the first 8 bytes, read little-endian, of
   HMAC-SHA-256(secret, group ‖ index as uint32 little-endian ‖ peer id), larger first, then the
   larger peer id; `toy/own_order_known.py` has how a test derives the secret, and a known answer), `group_bits` (splits gossip ids by group into bitmaps), and the stock
-  `topic_peers`, `connected_topic_peers`, `gossip_eligible`, `connected`, `installed_block` and
-  `block_root`.
+  `topic_peers`, `connected_topic_peers`, `gossip_eligible`, `connected`, `installed_block` (the
+  installed block with the root, or nothing; the slot a copy names is checked against the block's at
+  level 1, §3) and `block_root`.
 - *The writer:* `slot_held` (whether a peer's writer holds a slot it has not used; false at first),
   `wake` (runs a peer's writer again, §7.2) and `WAIT` (what `next_to_send` returns while the writer
   waits in line).

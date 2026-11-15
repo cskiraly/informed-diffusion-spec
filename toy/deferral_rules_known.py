@@ -22,6 +22,10 @@ On one node after a small run (one payload, its group of N = 2 complete there), 
   window and its groups never expire, so here `live` and `expired` are replaced.) After the sweep, peer 1's
   copy, its id, its reservation, its tie and its slot are gone, and so is its offer of the index (`drop_tie`);
   peer 4's tie and slot are gone; peer 3's copy, tie and slot stay.
+- **Level 1 rejects a copy whose slot is not its block's** (§1: a group's slot is the slot of every block whose
+  bid commits it, which every chunk names and level 1 checks). A chunk the node accepted passes again (the
+  control); the same chunk naming an older slot is rejected, so that a node neither forwards it nor takes its
+  slot for its sender's ties.
 """
 import copy as C
 import sys
@@ -115,6 +119,13 @@ def main():
          (held(Q, ROOT3), ns["tie_slot"].get((ROOT3, Q))), (([1], 1, [1]), block.slot))
     line("rule 3, after: peer 4's tie to the expired group gone, and its slot",
          (R in ns["tied"][ROOT3], (ROOT3, R) in ns["tie_slot"]), (False, False))
+
+    # level 1: a copy whose slot is not its block's is rejected
+    good = ns["chunks"][g][0]                               # a chunk the node accepted, of the installed block
+    wrong = C.copy(good)
+    wrong.slot = block.slot - 1                             # the same chunk, naming an older slot
+    line("level 1: the chunk as it came, and the same naming another slot",
+         (ns["validate_chunk"](good), ns["validate_chunk"](wrong)), ("ACCEPT", "REJECT"))
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0
 
