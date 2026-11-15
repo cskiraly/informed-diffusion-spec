@@ -96,6 +96,14 @@ def run(cfg, out=sys.stdout):
     if cfg.get("MAX_IHAVE_MESSAGES", math.inf) < math.inf or cfg.get("MAX_IHAVE_LENGTH", math.inf) < math.inf:
         held = sum(nd.held_back for nd in sim.nodes.values())
         print(f"  ihave limits: {held} asks held back to the next heartbeat", file=out)
+    if cfg.get("late_block"):                   # --late-block: what §4.2's deferral did
+        tot = sum((nd.late for nd in sim.nodes.values()), Counter())
+        print(f"  late blocks: at {len(cfg['late_nodes'])} nodes, {cfg['late_block'][1] * 1000:g} ms after the publish; "
+              f"deferred copies kept {tot['kept']}, refused {tot['refused']}; ties released {tot['ties released']}", file=out)
+        left = [sum(len(v) for v in nd.ns["pending"].values()) + len(nd.ns["pending_ids"]) + len(nd.ns["tied"])
+                + sum(nd.reserved.values()) + len(nd.blocks_waiting) for nd in sim.nodes.values()]
+        print(f"  late blocks: left at the end (copies waiting, their ids, ties, reservations, blocks not installed): "
+              f"{sum(left)}{'' if not sum(left) else '  <-- something still waits'}", file=out)
     if cfg.get("upkeep"):                       # --upkeep on: protocol-v2.md §4.1's messages on the wire
         tot = sum((nd.relation_msgs for nd in sim.nodes.values()), Counter())
         print(f"  upkeep: {tot['Join']} JOINs, {tot['Graft']} GRAFTs, {tot['Prune']} PRUNEs sent; the coverage floor "
@@ -350,7 +358,14 @@ def main(argv):
                     help="MESSAGES,LENGTH: gossipsub's two IHAVE limits, the client's (protocol.md §4.4, §8.2; protocol-v2.md "
                          "§4.3): offer-bearing RPCs per peer and heartbeat, and asks in reply to them; the asks over either "
                          "wait for the next heartbeat's retry (stock gossipsub: 10,5000). Empty: no limit")
+    ap.add_argument("--late-block", default="",
+                    help="PCT,MS[,STORE]: PCT percent of the nodes (never the publisher) install each block MS milliseconds "
+                         "after its publish, so that the chunks ahead of it take protocol.md §4.2's deferral: each such node "
+                         "keeps at most STORE deferred copies per peer (default 2) and refuses the rest. The payload only")
     a = ap.parse_args(argv)
+    late = [float(x) for x in a.late_block.split(",")] if a.late_block else None
+    if late and (len(late) not in (2, 3) or a.setting in ("custody", "rows")):
+        ap.error("--late-block PCT,MS[,STORE], and not with --setting custody or rows")
     limits = [float(x) for x in a.ihave_limits.split(",")] if a.ihave_limits else [math.inf, math.inf]
     cfg = dict(CFG, seed=a.seed, nodes=a.nodes, msgs=a.msgs, degree=a.degree, CHECK_TIME=a.check_ms / 1000,
                digest=a.digest, doc=a.doc, setting=a.setting, blobs=a.blobs, cgc=a.cgc, F_LO=a.floor, upkeep=a.upkeep == "on",
@@ -367,6 +382,7 @@ def main(argv):
                invariants=(a.doc == "v2" and not a.no_invariants), answers_first=a.answers_first, answer_due=a.answer_due,
                source_offers=a.source_offers, MERGE_HOLDINGS=a.merge_holdings == "on",
                MAX_IHAVE_MESSAGES=limits[0], MAX_IHAVE_LENGTH=limits[1],
+               late_block=(int(late[0]), late[1] / 1000, int(late[2]) if len(late) == 3 else 2) if late else None,
                ALARM_WAIT=a.alarm_wait, ALARM_JITTER=a.alarm_jitter, ALARM_NEXT=a.alarm_next, ALARM_MAX=a.alarm_max)
     if a.fault.startswith("hoardcol") and a.rebuilt_seen != "on":
         ap.error("--fault hoardcol is meant strict: with --rebuilt-seen on")
@@ -440,6 +456,7 @@ def main(argv):
           f"{' dc=%g' % a.dc_mbps if a.dc_mbps else ''}{' builder=%g' % a.builder_mbps if a.builder_mbps else ''}"
           f"{' merge-holdings=on' if a.merge_holdings == 'on' else ''}{' send-buffer=%d' % a.send_buffer if a.send_buffer else ''}"
           f"{' ihave-limits=' + a.ihave_limits if a.ihave_limits else ''}"
+          f"{' late-block=' + a.late_block if a.late_block else ''}"
           f"{' payload=%d' % a.payload if a.payload else ''}"
           f"{' topology=' + a.topology if a.topology else ''}")
     if graph:

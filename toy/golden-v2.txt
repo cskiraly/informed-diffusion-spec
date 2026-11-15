@@ -12,3 +12,4 @@ without-a 4c23e1c95fee1e66 p50 461ms p99 533ms copies 4.02
 without-b 8b0bbc423f87615d p50 435ms p99 489ms copies 3.15
 loss-thin 1c8b2876216068a4 p50 836ms p99 960ms copies 1.80
 ihave-limits f4ff2cbcbfe59f47 p50 541ms p99 621ms copies 2.41
+late-block b8197d84bf9dc616 p50 821ms p99 921ms copies 2.30

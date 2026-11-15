@@ -184,6 +184,8 @@ class Sim:
             c["hoard"] = kind in ("hoard", "hoardm", "hoardcol")
             c["hoard_members"] = kind == "hoardm"              # repairs only the row's members' custody cells
             c["hoard_column"] = kind == "hoardcol"             # repairs every withheld column but one per subnet
+        if c.get("late_block"):                                # pct % of the non-publishers, by another seeded draw
+            c["late_nodes"] = scenario_fail_select(c["seed"], n, c["late_block"][0], domain=0x1A7EB10C1A7EB10C)
         das = c.get("doc") == "v2" and c.get("setting") in ("custody", "rows")
         dump = c.get("das_dump") if das else None              # a harness dump's network (run.py --topology,
         if das and c.get("samplers"):                          #   xcheck.apply_das): no draw below runs
@@ -474,6 +476,9 @@ class Sim:
         gid = ns["group_id"](d)
         root = hashlib.sha256(b"block" + m.to_bytes(4, "little")).digest()
         self.blocks[root] = Block(m, root, gid)                # the bid commits the group id; a block's slot is m
+        for i in sorted(self.cfg.get("late_nodes", ())):       # --late-block: these install it later (§4.2)
+            self.nodes[i].blocks_waiting.add(root)
+            self.after(self.nodes[i], self.cfg["late_block"][1], self.nodes[i].install_block, root)
         g = ns["group_key"](gid, m)                            # the group's name in diffusion (protocol.md §1)
         self.msgs.append((self.now, [g]))
         self.pubs.append(pub)

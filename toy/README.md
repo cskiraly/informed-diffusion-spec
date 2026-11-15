@@ -35,7 +35,7 @@ A 500-node cell takes about five minutes on one core and about 250 MB.
 
 ## Checking a change
 
-`check.py` runs thirteen small cells (60 nodes, three payloads) in parallel and compares each with
+`check.py` runs fourteen small cells (60 nodes, three payloads) in parallel and compares each with
 `golden.txt`. Each cell's digest hashes every event the simulator processes, in order: its time,
 its node, the function it runs, and its int and bytes arguments. A change in what any node does, at
 any moment, changes the digest, even when the printed numbers stay the same.
@@ -46,6 +46,24 @@ The thirteenth cell, `ihave-limits` (2026-10-27), sets stock gossipsub's two IHA
   (`protocol.md` §4.4).
 - In `protocol.md`'s run, 24 538 asks are held back. The warm median goes from the `push` cell's
   464 ms to 544 ms, and every node completes.
+
+The fourteenth cell, `late-block` (2026-11-15), is the one cell where a block installs after its
+chunks arrive (`--late-block 30,400`): 18 of the 60 nodes install each block 400 ms after its
+publish, and each keeps at most two deferred copies per peer.
+- Everywhere else a block installs at its publish at every node, so it is the one cell that runs
+  `protocol.md` §4.2's deferral: `defer`, `tie`, `on_block_installed`, and the ties' release into
+  offers.
+- In `protocol.md`'s run, 288 deferred copies are kept and 275 refused, 611 ties are released, and
+  at the end nothing waits: no copy, tie, reservation or block. The warm median goes from the
+  `push` cell's 464 ms to 816 ms, since 18 nodes cannot start before 400 ms, and every node
+  completes.
+- It does not reach `drop_tie`, which needs a copy that names a root whose bid commits another
+  group, nor §8.2's limit on ties, which the toy does not set.
+
+Four scripts hold known answers for what a digest cannot show, each with a control that fails:
+`own_order_known.py` (§6.1's reference order), `ihave_id_known.py` (§4.4: an IHAVE id that is not a
+chunk's id), `tie_read_known.py` (a peer that was only asked about has no tie) and
+`tie_helpers_known.py` (`tie_room`, `drop_offer`, and `close_promises` with `of`).
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then
@@ -123,7 +141,8 @@ What the toy adds to the document, and nothing else:
   node, the peer and the chunk, so a chunk lost once to a peer is lost every time, and an answer
   owed for it (§4.1) is dropped when the writer queues it again.
 - **What the runs leave out:** every block installs at its publish, at every node, so nothing is
-  deferred or asked for at installation; groups do not expire; connections do not close; the
+  deferred or asked for at installation, except under `--late-block` (the `late-block` cell,
+  above); groups do not expire; connections do not close; the
   queues have no limit but the loss above, and neither IHAVE limit is set (§8.2) but in the
   `ihave-limits` cell, so elsewhere nothing is held back to the next heartbeat (§4.4). The
   document's rules for the other cases are not exercised here.
@@ -289,7 +308,7 @@ with its parameters, the join tables, the push relation behind the mesh, and the
 messages onto v0.3's wire (its §7, last column): a holding is an IDONTWANT bitmap, an offer an
 IHAVE bitmap, an ask a `WantIndex`. Relations are static, as the mesh is for v0.3.
 
-`check.py --doc v2` runs the thirteen cells against the next version's own recording,
+`check.py --doc v2` runs the fourteen cells against the next version's own recording,
 `golden-v2.txt` (`--update` records it, as for v0.3). `check.py --doc v2 --golden golden.txt`
 compares the next version against `protocol.md`'s cells instead (v0.3's until 2026-10-13, v0.4's
 until 2026-10-21, v0.5's until 2026-10-25, v0.7's until 2026-10-26, v0.8's until 2026-11-12, v0.9's

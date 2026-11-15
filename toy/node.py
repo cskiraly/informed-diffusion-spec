@@ -140,6 +140,9 @@ class Node:
                                                         #   the uncovered cells lacked where it drew (option 1)
         self._retry_armed = set()       # asks whose delayed first try is scheduled (deferred offers, [D8])
         self.held_back = 0              # --ihave-limits: asks held back to the next heartbeat (protocol.md §4.4)
+        self.blocks_waiting = set()     # --late-block: the roots of the blocks not installed here yet (protocol.md §4.2)
+        self.reserved = Counter()       # --late-block: peer -> its deferred copies in the bounded store (§8.2)
+        self.late = Counter()           # --late-block: its counters (run.py reports them)
         self.alarm = Counter()          # --alarm-wait, --fault hoardcol: their counters (run.py reports them)
         self.alarm_cells = {}           # --alarm-wait: (column group, index) -> the members asked, as a custodian
         self.alarming = False           # --alarm-wait: an alarm is being sent (not a routed request, forwarded_out)
@@ -589,8 +592,8 @@ class Node:
                 bid_keys[root] = None if gid is None else ns["group_key"](gid, b.slot)   # a block of columns: none
             return bid_keys[root]
 
-        def authenticable(g):           # every block installs at its publish, at every node
-            return any(bid_group(root) == g for root in node.sim.blocks)
+        def authenticable(g):           # a block installs at its publish, or later here (--late-block)
+            return any(bid_group(root) == g for root in node.sim.blocks if root not in node.blocks_waiting)
 
         def held(a):
             gi = group_index(a)
@@ -650,11 +653,18 @@ class Node:
         def listed(p):
             return ns["offers"].listed.get(p, 0)
 
-        def reserve(p, f):
-            return False
+        _room = (c.get("late_block") or (0, 0, 0))[2]    # --late-block: deferred copies kept per peer (§8.2)
+
+        def reserve(p, f):              # the bounded store's reservation: a place for one more copy of p's
+            if node.reserved[p] >= _room:
+                node.late["refused"] += 1
+                return False
+            node.reserved[p] += 1
+            node.late["kept"] += 1
+            return True
 
         def release(p, f):
-            pass
+            node.reserved[p] -= 1
 
         def penalise(p):
             node.penalties += 1
@@ -713,7 +723,7 @@ class Node:
             return True
 
         def installed_block(slot, root):
-            return node.sim.blocks.get(root)
+            return None if root in node.blocks_waiting else node.sim.blocks.get(root)
 
         def block_root(block):
             return block.root
@@ -1704,6 +1714,13 @@ class Node:
                 ns["push_in"][q][P][0].add(col)
             union |= set(m)
         ns["mesh"] = union                              # what the toy's v0.3-side options read as "the mesh"
+
+    def install_block(self, root):
+        """--late-block: the block installs here now, and what waited for it resumes (protocol.md §4.2)."""
+        self.blocks_waiting.discard(root)
+        self.late["ties released"] += sum(len(list(bits)) for groups in self.ns["tied"].get(root, {}).values()
+                                          for bits in groups.values())
+        self.ns["on_block_installed"](root)
 
     def expire_offers(self, now):
         """§8.1: an announcer's offers of a group go 30 s after its last one (the ordered lists and
