@@ -7,7 +7,9 @@ with `of`, and `drop_offer` (§4.2, §6.1).
 A cell of check.py tells only that something changed, and `tie_room` and `drop_offer` run in a cell only where a
 block installs late. Here each is called on a state made by hand, on one node of a small network that is built
 and not run. The promises, the ordered lists, `offered`, the queued asks and `listed` are read before and after.
-Peers 1 and 3; a group G no block commits; chunk 3 named in both forms, by index and by a full id.
+Peers 1 and 3; a group G no block commits; chunk 3 named in both forms, by index and by a full id. For
+`tie_room` also: an index against a group whose descriptor is known (below its N, and at it), and the limit
+counted by (root, group) pairs, not by roots (one root with two groups, at limits of 2 and 3).
 """
 import sys
 from pathlib import Path
@@ -46,6 +48,19 @@ def main():
     line("tie_room, another peer, which has none", ns["tie_room"](Q, copy(3, ROOT2)), True)
     line("tie_room's questions left no entry: the peers under the two roots",
          (sorted(ns["tied"][ROOT].keys()), sorted(ns["tied"][ROOT2].keys())), ([P], []))
+    G3 = bytes([0x99]) * 32                                # a group whose descriptor is known, with N = 4
+    ns["desc"][G3] = type("Desc", (), {"count": 4})()
+    line("tie_room, a known group, an index below its N", ns["tie_room"](Q, copy(3, ROOT2, G3)), True)
+    line("tie_room, a known group, an index at its N", ns["tie_room"](Q, copy(4, ROOT2, G3)), False)
+    del ns["desc"][G3]
+    ns["tied"][ROOT][P][G3].set(0)                         # P: one root, two groups; the limit counts (root, group)
+    ns["MAX_PENDING_GROUPS"] = 2                           #   pairs, so P is at a limit of 2 (by roots it would be 1)
+    line("tie_room, one root and two groups tied for the peer, a third pair at a limit of 2",
+         ns["tie_room"](P, copy(3, ROOT2)), False)
+    ns["MAX_PENDING_GROUPS"] = 3
+    line("tie_room, the same at a limit of 3 (the control)", ns["tie_room"](P, copy(3, ROOT2)), True)
+    ns["tied"][ROOT][P].pop(G3)
+    ns["MAX_PENDING_GROUPS"] = 1
 
     # the state for the other two: offers, asks and promises of chunk 3 in both forms, and of chunk 4
     for a in (by_index, by_id, other):
