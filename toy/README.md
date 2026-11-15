@@ -54,16 +54,23 @@ publish, and each keeps at most two deferred copies per peer.
   `protocol.md` §4.2's deferral: `defer`, `tie`, `on_block_installed`, and the ties' release into
   offers.
 - In `protocol.md`'s run, 288 deferred copies are kept and 275 refused, 611 ties are released, and
-  at the end nothing waits: no copy, tie, reservation or block. The warm median goes from the
-  `push` cell's 464 ms to 816 ms, since 18 nodes cannot start before 400 ms, and every node
-  completes.
+  at the end nothing waits: no copy, tie, reservation or block (the run prints the count; the
+  check does not read it). Every node completes. The warm median goes from the `push` cell's 464 ms
+  to 816 ms, and not only through the 18: the 41 nodes that install on time are slower too, at
+  571, 916 and 714 ms at their median for the three payloads. Why is not looked into yet.
 - It does not reach `drop_tie`, which needs a copy that names a root whose bid commits another
-  group, nor §8.2's limit on ties, which the toy does not set.
+  group, nor §8.2's limit on ties, which the toy does not set. A late node asks nothing of a group
+  before its block installs, so the cell also cannot show what a tie does to a promise, a park,
+  B′'s count or the retry's choice: those need a node that has one block and waits for another.
+- `--late-block` is not meant with `--churn` (a closed connection's ties are not dropped), and it
+  keeps node 1 on time, which is the publisher unless a topology names another.
 
-Four scripts hold known answers for what a digest cannot show, each with a control that fails:
-`own_order_known.py` (§6.1's reference order), `ihave_id_known.py` (§4.4: an IHAVE id that is not a
-chunk's id), `tie_read_known.py` (a peer that was only asked about has no tie) and
-`tie_helpers_known.py` (`tie_room`, `drop_offer`, and `close_promises` with `of`).
+Four scripts hold known answers for what a digest cannot show: `own_order_known.py` (§6.1's
+reference order; its control, the rank read big-endian, must differ), `ihave_id_known.py` (§4.4: an
+IHAVE id that is not a chunk's id; a valid id beside it must leave an offer), `tie_read_known.py`
+(a peer that was only asked about has no tie; the tied peer beside it must lose its park) and
+`tie_helpers_known.py` (`tie_room`, `drop_offer`, and `close_promises` with `of`, by the values
+they must leave).
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then

@@ -1,9 +1,9 @@
 """Bitmaps and the read-without-allocating maps of the pseudocode's §8.1.
 
 The pseudocode treats per-group and per-peer state as maps whose missing entries read as empty
-"and reading it allocates nothing". Two of them also carry meaning in whether an entry exists at
-all: card 16's guard asks whether a peer sent any HAVE for a group (`g not in peer_has[p]`), and
-note_push starts a clock at the first push. LazyMap gives both: a missing key reads as a fresh,
+"and reading it allocates nothing". Some also carry meaning in whether an entry exists at
+all: card 16's guard asks whether a peer sent any HAVE for a group (`g not in peer_has[p]`),
+note_push starts a clock at the first push, and an installation releases the ties it finds (`tied`). LazyMap gives both: a missing key reads as a fresh,
 detached entry, which inserts itself into the map the first time it is written to.
 """
 

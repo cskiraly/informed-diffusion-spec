@@ -359,7 +359,7 @@ def main(argv):
                          "§4.3): offer-bearing RPCs per peer and heartbeat, and asks in reply to them; the asks over either "
                          "wait for the next heartbeat's retry (stock gossipsub: 10,5000). Empty: no limit")
     ap.add_argument("--late-block", default="",
-                    help="PCT,MS[,STORE]: PCT percent of the nodes (never the publisher) install each block MS milliseconds "
+                    help="PCT,MS[,STORE]: PCT percent of the nodes (never node 1, the publisher unless a topology names another) install each block MS milliseconds "
                          "after its publish, so that the chunks ahead of it take protocol.md §4.2's deferral: each such node "
                          "keeps at most STORE deferred copies per peer (default 2) and refuses the rest. The payload only")
     a = ap.parse_args(argv)

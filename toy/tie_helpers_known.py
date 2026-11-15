@@ -5,8 +5,9 @@ with `of`, and `drop_offer` (§4.2, §6.1).
     python3 tie_helpers_known.py
 
 A cell of check.py tells only that something changed, and `tie_room` and `drop_offer` run in a cell only where a
-block installs late. Here each is called on a state made by hand, on one node after a small run, and every table it may touch is read before and
-after. Peers 1 and 3; a group G no block commits; chunk 3 named in both forms, by index and by a full id.
+block installs late. Here each is called on a state made by hand, on one node of a small network that is built
+and not run. The promises, the ordered lists, `offered`, the queued asks and `listed` are read before and after.
+Peers 1 and 3; a group G no block commits; chunk 3 named in both forms, by index and by a full id.
 """
 import sys
 from pathlib import Path
