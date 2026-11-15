@@ -372,6 +372,9 @@ cannot be checked yet.
 
 ### 4.1 The order of handling
 
+A node handles each RPC from a peer in a fixed order: its chunks, its IHAVEs, its IWANTs, GRAFT and
+PRUNE, and its HAVEs last. It then sends one response.
+
 ```python
 def on_rpc(p, rpc):
     for f in rpc.chunks: on_chunk(p, f)                       # §4.2
@@ -392,11 +395,11 @@ def respond(p, asks, answers, prunes):                         # one response pe
             owed_answers[p][f.group].set(f.index)              #   queued once there is room (§7.2)
 ```
 
-An ask and a HAVE in the same RPC are therefore handled ask first, and the asks and answers one RPC
-produces leave together, the control riding on the first answer. An answer a full queue refuses is
-owed: the writer queues it once there is room (§7.2), so the queue cannot turn an honest answer into
-the asker's broken promise. Validation (§3) runs off this path, on the router's event loop like
-block installation; a chunk's handling continues when its result is known.
+So an ask and a HAVE in the same RPC are handled ask first, and the asks and answers one RPC
+produces leave together, the control riding on the first answer. An answer that a full queue
+refuses is owed: the writer queues it once there is room (§7.2), so the queue cannot turn an honest
+answer into the asker's broken promise. Validation (§3) runs off this path, on the router's event
+loop, like block installation; a chunk's handling continues when its result is known.
 
 ### 4.2 A chunk arrives
 
@@ -526,36 +529,67 @@ def have_bits(g):                                    # what our HAVE says of g: 
     return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what is known to have arrived [P4]
 ```
 
-A node announces a chunk once its proof checks, not on arrival as stock IDONTWANT does: a held
-index is stronger evidence than a held id, since it covers any chunk claiming that index. A chunk
-that arrives ahead of its block is announced only when the block installs; until then its senders
-may keep pushing it, and their window slots stay held (§7.1). Announcing such a chunk by its exact
-id on arrival, which is safe because an id covers only those bytes, is a variant not evaluated yet.
+**The path of a chunk** (`on_chunk`, `on_validated`). A copy of a chunk the node accepted before is
+acknowledged, a copy of one it rejected is ignored, and another copy of one that waits for its block
+ties its sender too (below); none of them goes further. A chunk of an expired group, or whose slot is
+outside the live window, is ignored (§8.1). Any other chunk goes through level 1 (§3), and is ignored
+if, meanwhile, its group expired or its slot left the live window. A chunk that waits for its block
+is deferred (`defer`, below). Otherwise the chunk is marked seen, accepted or rejected, and is never
+validated again; one that fails level 1 counts against its sender. A chunk that passes opens its
+group if it is the group's first (below). It is ignored if the group was dropped (§4.6), and only
+acknowledged if the node received that index already. Otherwise it is stored, and closes every
+promise for its index (§6.1). The node claims it unless it had claimed it already (a decoded node
+has claimed every chunk), sends its HAVE to the mesh if it claimed the chunk, and to the sender in
+any case, as the acknowledgement (§7.1), and forwards the chunk (§5.2). At the K-th chunk received
+it claims the group and starts decoding (§4.6).
 
-**A copy that waits ties its sender** to the root it names, for its index, whether the deferred
-store keeps the copy or refuses it, within §8.2's limits on the group. A copy of a group beyond the
-sender's limit of unknown groups is ignored, as its HAVEs and offers of that group are: neither kept
-nor tied (`defer`). The sender's promise for the index closes, since it answered, with a copy that
-cannot be checked yet, and it is not asked for the index again until that root installs
-(`tied_to_root`: §4.4, §6.1, §7.2). The installation releases the root's ties for the group its bid
-commits: each sender's park for the group lifts, B′'s count for it and the index clears, and it
-becomes an offer of the index, asked for with the rest of the ledger if still wanted; an index the
-group does not have, known by then, is dropped (§8.2). The count becomes known at the group's first
-valid chunk; then every offer, ask and tie of an index beyond it, made while it was unknown, goes
-(`drop_beyond`), so the node never asks for a chunk that cannot exist. Without ties, a push the store
-refuses is lost (its sender counts it as pushed and offers it to nobody, so a node whose only peer
-pushed it that chunk never completes), and a node on
-the proposer's other block (§3), whose copies all wait for the builder's block, spends its providers'
-parks, B′'s asks once more and their answers on copies that cannot validate, and can stall once it
-switches to that block. The group and root a copy names are its sender's claim, unchecked until the
-block installs: a tie whose root's bid commits another group is a forgery, and is dropped with its
-sender's offers of those indices and its asks of them (§6.1), the recovery going on without it; so
-is a tie whose slot leaves the live window. A forger affects only its own promise and the asks to
-itself. An installation releases its own root's ties, once, so a proposer that signs m blocks for
-the slot allows at most m releases at a node.
+**A node announces a chunk once its proof checks**, not on arrival as stock IDONTWANT does. A chunk
+that arrives ahead of its block is announced only when the block installs. Until then its senders
+may keep pushing it, and their window slots stay held (§7.1).
+
+**A copy that waits ties its sender** (`tie`) to the root it names, for its index, whether the
+deferred store keeps the copy or refuses it, within §8.2's limits on ties (`tie_room`). A copy of a
+group beyond the sender's limit of unknown groups is ignored, as its HAVEs and offers of that group
+are: neither kept nor tied (`defer`). The sender's promise for the index closes, since it answered,
+with a copy that cannot be checked yet, and it is not asked for the index again until that root
+installs (`tied_to_root`: §4.4, §6.1, §7.2).
+
+**The block's installation** (`on_block_installed`) resumes level 1 for the copies that waited for
+its root, and releases the root's ties for the group its bid commits: each tied sender's park for the
+group lifts, its last-resort counts for those indices clear, and it becomes an offer of each index
+again, asked for with the rest of the ledger if the node still wants it. An index the group does not
+have, known by then, is dropped (§8.2). An installation releases its own root's ties once.
+
+**A tie that is not released.** The group and root a copy names are its sender's claim, unchecked
+until the block installs. A tie whose root's bid commits another group is a forgery: it is dropped
+with its sender's offers of those indices and its asks of them (`drop_tie`, §6.1), and the recovery
+goes on without the sender. So is a tie whose slot leaves the live window. At each heartbeat
+(`drop_stale_waits`, §6.4) the node also drops the copies that wait past their group's lifetime or
+their slot's live window, and gives their reservations back.
+
+**The group's count becomes known** at the group's first valid chunk. Then every offer, ask and tie
+of an index beyond it, made while it was unknown, goes (`drop_beyond`), so the node never asks for a
+chunk that cannot exist.
 
 Without card 7 the node sends the stock IDONTWANT for `mid` to its mesh, and no acknowledgement goes
 back to the sender.
+
+#### Rationale
+
+**A held index, not a held id.** A node announces a chunk once its proof checks because a held index
+is stronger evidence than a held id: it covers any chunk claiming that index. Not evaluated yet:
+announcing a chunk that arrives ahead of its block by its exact id, on arrival. That is safe, because
+an id covers only those bytes.
+
+**Why ties.** Without them, a push the store refuses is lost: its sender counts it as pushed and
+offers it to nobody, so a node whose only peer pushed it that chunk never completes. And a node on
+the proposer's other block (§3), whose copies all wait for the builder's block, would spend its
+providers' parks, the last resort's asks and their answers on copies that cannot validate, and could
+stall once it switches to that block.
+
+**What a forger can do.** It affects only its own promise and the asks to itself. An installation
+releases its own root's ties, once, so a proposer that signs m blocks for the slot allows at most m
+releases at a node.
 
 ### 4.3 A HAVE arrives in an IDONTWANT [c7]
 
@@ -572,6 +606,12 @@ def on_have(p, h: HaveBitmap):
         window_release(p, h.group, i)                 # [c14] a slot to p frees when p holds i, from anyone
         if h.group in planned: origin_acked(h.group, i)   # [c3, P4] a copy of i exists elsewhere (§5.1)
 ```
+
+A HAVE for an expired group is ignored (§8.1), and a malformed one counts against its sender (§8.2).
+Otherwise the node adds the HAVE's bits to what it knows the peer holds (`peer_has`), whose lifetime
+each HAVE for the group refreshes (`HAVE_TTL`). For each index the peer newly holds, the node counts
+the peer as a holder (card 9), frees the window slot of any copy it sent the peer at that index
+(card 14), and, for a group it publishes, notes that a copy of the chunk exists elsewhere (§5.1).
 
 `peer_has` is the one view of what each peer holds. Cancel and projection (§7.2), the push
 candidates and budget (§5.2), whom to push to (§5.3) and what to announce read it at the moment they
@@ -616,50 +656,65 @@ def expand(entry):                                                    # [c7]
     return [known_id[g].get(i) or WantIndex(group=g, index=i) for i in entry.bits if not mine[g].has(i)]
 ```
 
-An IHAVE bitmap tells us who can serve, not who holds. It feeds the offer table only: never
-`peer_has`, `holders`, cancel or the window. Nothing is asked for a group no installed block's bid
-commits: the offer table keeps the announcement, and the installation asks for it (§4.2).
+**What an IHAVE does** (`on_ihave`). Each entry is a HAVE bitmap or a chunk's id (below). Every chunk
+an entry names (`expand`) that the node does not hold, in a group not expired, is recorded as an
+offer from the sender (§6.1). The node then asks the sender for it, unless the group's pull has
+stopped (§6.2), no installed block's bid commits the group yet (§3), the sender's copy of the chunk
+waits for its block (§4.2), the sender is parked for the group (the last resort may then be armed,
+§6.1), or an ask of the chunk to the sender is outstanding (§6.1). The asks go in random order, each
+through `may_ask`, the one ask per chunk at a time of §6.1. Over gossipsub's IHAVE limits they wait
+for the next heartbeat (below).
 
-For a bitmap, `expand` asks by index, and so does `ledger` (§6.1): the lookup of `known_id` in both
-never gives an id as this document stands. An id is recorded only for a chunk the node stored, every
-stored chunk is in `mine`, and neither asks for a chunk in `mine`. The lookup is kept for a node that
-knows a chunk's id without holding the chunk, which nothing here brings about.
+**An IHAVE bitmap tells the node who can serve, not who holds.** It feeds the offer table only:
+never `peer_has`, `holders`, cancel or the window. Nothing is asked for a group no installed block's
+bid commits: the offer table keeps the announcement, and the installation asks for it (§4.2).
 
-An IHAVE's bitmap is held to a HAVE's limits (`valid_have`, §4.3, §8.2): one with an index at or
-beyond the group's count, once its descriptor is known, is ignored and counts against the sender, as
-a HAVE is. An entry that is not a bitmap is a chunk's structured id (§2), or it is ignored
-(`valid_id`). An id is valid if it has the id's 56 bytes and names an index its group can have:
-below `MAX_PLAIN_CHUNKS`, and below the group's count where its descriptor is known. Any other id
-leaves no offer, no ask and no penalty. Either way the RPC still counts as one that bears an IHAVE
-(§8.2). The id's last 20 bytes, the content id, cannot be checked before the chunk is held.
+**Valid entries.** An IHAVE's bitmap is held to a HAVE's limits (`valid_have`, §4.3, §8.2): one with
+an index at or beyond the group's count, once its descriptor is known, is ignored and counts against
+the sender, as a HAVE is. An entry that is not a bitmap is a chunk's structured id (§2), or it is
+ignored (`valid_id`). An id is valid if it has the id's 56 bytes and names an index its group can
+have: below `MAX_PLAIN_CHUNKS`, and below the group's count where its descriptor is known. Any other
+id leaves no offer, no ask and no penalty. Either way the RPC still counts as one that bears an
+IHAVE (§8.2). The id's last 20 bytes, the content id, cannot be checked before the chunk is held.
 
-One IHAVE can name a chunk under two keys: a valid id and a bitmap's index, or two valid ids of one
-group and index that differ in their content id. Its sender can then be asked once per key, where
-the checks and the IHAVE limits let both asks through, each ask with its own window (`may_ask`),
-promise and retries: `outstanding` sees an ask in either form, but `on_ihave` tests it for every
-candidate before it asks any. A sender that follows this document
-never does this (with card 7 it names bitmaps only, without it full ids only), and the cost of one
-that does is not assessed.
-
-**Gossipsub's two IHAVE limits** delay asks here and lose no offer. Beyond `MAX_IHAVE_MESSAGES`
+**Gossipsub's two IHAVE limits** delay asks here, and lose no offer. Beyond `MAX_IHAVE_MESSAGES`
 IHAVE-bearing RPCs from a peer within a heartbeat, or once the peer has been asked `MAX_IHAVE_LENGTH`
 ids in reply to its IHAVEs, its announcements are still recorded, and what the node would ask of it
-is held back to the next heartbeat, which runs the retry for it as for any ask, with the retry's
-checks (§6.4, §6.1). Only asks in reply to IHAVEs count against the limits: the retry, the last
-resort and the asks at installation do not. Every entry of an IHAVE is read, whereas a stock
-implementation may stop after `MAX_IHAVE_LENGTH` ids of one IHAVE. Ignoring an IHAVE, or the rest
-of one, as stock gossipsub does, could lose a node's only offer of a chunk: nothing ensures that an
-announcement is repeated, and heartbeat gossip is for peers outside the mesh. A limit therefore
-delays asks, to the next heartbeat's retry, and loses no offer; its value is the client's (§8.2).
+is held back to the next heartbeat. The heartbeat runs the retry for it as for any ask, with the
+retry's checks (§6.4, §6.1). Only asks in reply to IHAVEs count against the limits: the retry, the
+last resort and the asks at installation do not. Every entry of an IHAVE is read, where a stock
+implementation may stop after `MAX_IHAVE_LENGTH` ids of one IHAVE. The limits' values are the
+client's (§8.2).
 
-Over a limit a node may read an IHAVE's bitmaps without the loop above: their indices join
+**Over a limit a node may read an IHAVE's bitmaps without the loop above.** Their indices join
 `offered`, for a group not expired and within §8.2's limits on offers, and `held_back`, for a group
 an installed block's bid commits. The heartbeat's retry does the rest: it skips what is held,
-stopped or expired, and arms the last resort when every announcer is parked. It differs from the
+stopped or expired, and arms the last resort when every announcer is parked. This differs from the
 loop in timing and order: a chunk can be retried at the heartbeat where the loop would have left it
 to a retry already armed or to the last resort, which can add an ask, and the peer is missing from
 the ordered list `offers`. An IHAVE over a limit then costs what a HAVE does. The limits pace the
 asks made in reply to IHAVEs; they bound neither the work of reading IHAVEs nor the retries.
+
+**Open: one chunk under two keys.** One IHAVE can name a chunk under two keys: a valid id and a
+bitmap's index, or two valid ids of one group and index that differ in their content id. Its sender
+can then be asked once per key, where the checks and the IHAVE limits let both asks through, each
+ask with its own window (`may_ask`), promise and retries: `outstanding` sees an ask in either form,
+but `on_ihave` tests it for every candidate before it asks any. A sender that follows this document
+never does this (with card 7 it names bitmaps only, without it full ids only), and the cost of one
+that does is not assessed.
+
+#### Rationale
+
+**Every entry read, every offer kept.** Ignoring an IHAVE, or the rest of one, as stock gossipsub
+does, could lose a node's only offer of a chunk: nothing ensures that an announcement is repeated,
+and heartbeat gossip is for peers outside the mesh. A limit therefore delays asks, to the next
+heartbeat's retry, and loses no offer.
+
+**Why `expand` looks up `known_id`.** For a bitmap, `expand` asks by index, and so does `ledger`
+(§6.1): the lookup of `known_id` in both never gives an id as this document stands. An id is
+recorded only for a chunk the node stored, every stored chunk is in `mine`, and neither asks for a
+chunk in `mine`. The lookup is kept for a node that knows a chunk's id without holding the chunk,
+which nothing here brings about.
 
 ### 4.5 An IWANT arrives
 
@@ -680,19 +735,34 @@ def on_iwant(p, iw):                                  # returns the answers (§4
     return list(answers.values())                     # [c14] one chunk per queue entry (§4.1)
 ```
 
-**An ask for a chunk the asker claimed is dropped: the claim wins.** Claims are made only for chunks
-that passed level 1, and within a group's active lifetime (§8.1) a node's holdings only grow. Both
-lanes of a peer's queue feed one ordered writer, the asker drops its queued asks for chunks it holds
-just before writing them (§7.2), and RPCs are handled in stream order, with IWANT before IDONTWANT
-within one (§4.1). So on a live connection an honest ask always arrives before the claim it would
-contradict, and an ask after the claim is a protocol violation. A group past its active lifetime
-stays expired, so a node never asks for it again: its claims of the group can outlive the expiry (a
-HAVE still queued leaves after it, and a peer keeps a claim for `HAVE_TTL`), and taking the group up
-again could contradict them. The group's tombstone keeps it out until its slot leaves the live
-window, and the window from then on (§8.1). Controls for an expired group are ignored without
-penalty. A restart is not an exception: it is a new connection, with no claims.
+**What an IWANT does** (`on_iwant`). Each id asked for is a `WantIndex` or a chunk's structured id.
+An ask for a chunk of an expired group is ignored, without penalty. An ask for a chunk the asker has
+claimed counts against the asker, and is dropped (below). Otherwise the node answers with its copy
+of the chunk at that index, received or rebuilt (`resolve`), unless it holds none, the asker said
+it does not want that id (stock IDONTWANT), or the node has already answered the asker
+`GOSSIP_RETRANSMISSION` (3) times for that id. One RPC draws at most one answer per id. `resolve`
+returns nothing for a group the node dropped (§4.6).
 
-`resolve` returns nothing for a group the node dropped (§4.6).
+**An ask for a chunk the asker claimed is dropped: the claim wins.** On a live connection an honest
+ask always arrives before the claim it would contradict (Rationale), so an ask after the claim is a
+protocol violation.
+
+**A group past its active lifetime stays expired**, so a node never asks for it again. The group's
+tombstone keeps it out until its slot leaves the live window, and the window from then on (§8.1).
+Controls for an expired group are ignored without penalty. A restart is not an exception: it is a
+new connection, with no claims.
+
+#### Rationale
+
+**Why an honest ask comes before the claim.** Claims are made only for chunks that passed level 1,
+and within a group's active lifetime (§8.1) a node's holdings only grow. Both lanes of a peer's
+queue feed one ordered writer, the asker drops its queued asks for chunks it holds just before
+writing them (§7.2), and RPCs are handled in stream order, with IWANT before IDONTWANT within one
+(§4.1).
+
+**Why an expired group stays expired.** A node's claims of the group can outlive the expiry: a HAVE
+still queued leaves after it, and a peer keeps a claim for `HAVE_TTL`. Taking the group up again
+could contradict them.
 
 ### 4.6 Decode, the claim, repair and the levels above [c6, c10]
 
@@ -735,93 +805,124 @@ def drop_group(g):                                    # level 2 or level 3 faile
     close_promises_of_group(g)                        # its announcers did nothing wrong: nobody is parked
 ```
 
-- **The decode claim goes out at K, before decoding.** Every chunk that passed level 1 is an
-  authentic leaf under the committed root. If the N leaves form a codeword, every node's decode
-  succeeds and the claim is true; if they do not, any K of them rebuild a codeword that differs
-  somewhere, so every node's check fails, and the claim was about a group every node drops. What
-  waits for level 2 is everything that hands out rebuilt data: delivery, and the rebuilt chunks,
-  which the node pushes, and `resolve` finds, only once they are stored. *What a forwarding node checks,
-  and when it decodes* (2026) maps the alternatives.
-- **Forwarding continues** while a node decodes: the chunks it received were authentic whatever
-  levels 2 and 3 find, so it forwards later arrivals as before (§4.2).
-- **A decode that outlives its group** is dropped. This document does not bound a decode's duration
-  (§8.1), and a group past its active lifetime keeps only its tombstone, so a decode that returns
-  after the expiry stores, pushes, offers and delivers nothing.
-- **The decode claim makes the node a holder.** Its peers stop pushing to it and count it as a
-  holder of every chunk. The claim is not an announcement, and asks go to announcers (§6.1), so a
-  node that only held its rebuilt chunks would never be asked for them: holding them is the same as
-  rebuilding nothing.
-- **Repair** [c10]. Once level 2 passes, the node pushes the chunks it rebuilt to each mesh peer
-  whose claims show it short of K: at most that peer's shortfall, counting what the node already
-  chose to push it, picked at random among the rebuilt chunks the peer lacks, so that decoded
-  neighbours tend to push different chunks. Card 4's budget cannot be reused here: late in a
-  diffusion most mesh peers have claimed every chunk, and the budget would shrink to nothing. The
-  pushes are ordinary normal-lane chunks: rarest at pop orders them with the rest of the queue
-  (card 9), one the peer claims meanwhile is cancelled at dispatch (card 8), a peer projected to
-  reach K without it is skipped (card 12), and the window keeps the backlog where those rules act
-  (card 14). There is no random delay before the push: on a full release a short one changed
-  nothing measurable; with only K chunks released it was not tried. A peer that claims less than it
-  holds draws at most its claimed shortfall from each decoded neighbour, once per group; repair
-  skips card 16's guard and draw.
-- **What a receiver sees.** A rebuilt chunk names the block the chunks it was rebuilt from name,
-  where they all name one, even when another installed block's bid commits the group; where they
-  name several, it names one of those blocks. Where the source's chunk at that index names the same
-  root, the rebuilt one is that chunk, byte for byte: the same id and the same proof. Its receiver
-  checks it at level 1 and forwards it like any other. Nothing marks it as rebuilt, and nothing
-  needs to. Repair waits for level 2 but not for level 3: once the group has passed level 2, a
-  rebuilt chunk is an authentic leaf, as a forwarded one is. The roots can differ only when a
-  proposer signs two blocks of a slot whose bids commit the group: the group's chunks may then name
-  either root, which their ids cover, and a node cannot tell which one the source's chunk names at
-  an index it never received. Keeping the root its chunks name matters then: a rebuilt chunk naming
-  the other block would wait for good at a neighbour that installed only the block the chunks name,
-  and its sender, which counted the push, would send nothing more for the index. A source names one
-  block, so with this rule every honest copy of a group names it, as long as no node relabels a
-  chunk: honest nodes forward a relabelled copy, and rebuild from it (below). A rebuilt chunk that
-  named a block whose bid commits another group would never pass level 1: a receiver without that
-  block defers it until the block installs, then rejects it.
-- **Open: relabelled copies.** Where a proposer signs two blocks of a slot whose bids commit the
-  group, any node can relabel a chunk, putting the other block's root in place of the one it names.
-  The copy is authentic: level 1 finds the block by the root the chunk names and checks the proof
-  against the descriptor's root (§3), so it passes wherever that block is installed, and its id is
-  its own (§2). An honest node that installed that block takes such copies in, forwards them and can
-  decode from them; the source's copies of those indices are then second copies, only acknowledged
-  (§4.2), and its rebuilt chunks can name that block too (above). A neighbour that installed only
-  the builder's block defers these copies, ties their sender to the other root (§4.2), and asks it
-  for those indices again only if that root installs there. Where that sender is its only
-  provider, the neighbour stalls once more than N − K of the sender's copies name the other block
-  (any one, for a plain group), although the source reaches it through honest nodes. Nobody is
-  penalised, since every copy is authentic. It takes such a proposer, which is slashable (§3), and a
-  node that relabels. Options, none chosen: *level 1 by group*, where the root a chunk names takes
-  no part in level 1, deferral or ties (level 1 checks against any installed block whose bid commits
-  the chunk's group, a copy waits only while none is installed, ties go by group and index, and any
-  such block's installation releases them), under which two blocks whose bids commit the group act
-  as one for diffusion; *a group per block root*, where chunks under
-  different roots are separate groups, deduplicated apart, so the honest node takes in and forwards
-  the source's copies too, at the cost of shared deduplication under equivocation; and *root-aware
-  asks*, where the asker names the root it installed and the answerer sends its chunk under that
-  root, with the ties and the choice of the copy a node keeps changed to match.
-- **Why push, and not hold or announce.** A builder may release only the K chunks needed to
-  decode. Every node then needs every one of them, the slowest to reach it included, and the other
-  K exist only in the nodes that have decoded. Completion times spread out, and a builder that
-  releases late, near a deadline such as the payload timeliness vote, can use the spread to split
-  the network. Repair puts the other K back as soon as the first nodes decode, so that a node still
-  short can again complete on any K of the N. That brings the spread most of the way back to that
-  of a full release, also against withholders that refuse to repair, whether or not they announce
-  chunks they do not hold, and about half of the way against silent nodes. An announcement would
-  add an ask and an answer, three link delays instead of one, so it helps mainly where other asks
-  fail. It can also be baited: an announcement is a promise nobody can check before asking, and a
-  withholder or a liar draws asks it never answers until the park stops them (§6.1). Where every
-  chunk is released and the other nodes are honest, a rebuilt chunk is one more copy of a plentiful one,
-  and repair has little to do; on thin links it changed nothing measurable. *What a forwarding node
-  checks, and when it decodes* (2026) gives the measurements.
-- **Level 3 runs on the reassembled payload**, with the envelope's separately sent signature, and
-  gates only what consensus consumes. If it fails, the application calls `drop_group`.
-- **The claim reaches mesh peers only.** A peer outside the mesh that is still pushing (the striping
-  source of card 13) or answering learns of it from the node's next acknowledgement.
+**The decode claim goes out at K, before decoding** (`claim_group`). At its K-th chunk a node stops
+asking for the group (stop-pull, §6.2), claims all N chunks, sends its mesh a HAVE with all N bits,
+and closes every promise for the group (§6.1).
+
+**The decode claim makes the node a holder.** Its peers stop pushing to it and count it as a holder
+of every chunk. The claim reaches mesh peers only: a peer outside the mesh that is still pushing (the
+striping source of card 13) or answering learns of it from the node's next acknowledgement.
+
+**Decoding** (`decode_group`) is level 2 (§3), and runs off the chunk path. Its result is dropped if
+the group expired meanwhile: a decode that returns after the expiry stores, pushes, offers and
+delivers nothing (§8.1). If the code is inconsistent, the node drops the group (below). Otherwise it
+stores the chunks it rebuilt and serves them from then on: `resolve` finds a rebuilt chunk only once
+it is stored. A rebuilt chunk is not marked seen, so a copy that arrives later is still forwarded.
+The node then pushes the rebuilt chunks (repair, below) and delivers the payload to level 3.
+
+**Forwarding continues** while a node decodes: it forwards later arrivals as before (§4.2).
+
+**Repair** [c10]. Once level 2 passes, the node pushes the chunks it rebuilt to each mesh peer whose
+claims show it short of K (`push_rebuilt`). It pushes a peer at most its shortfall, counting what the
+node already chose to push it, picked at random among the rebuilt chunks the peer lacks. The pushes
+are ordinary normal-lane chunks: rarest at pop orders them with the rest of the queue (card 9), one
+the peer claims meanwhile is cancelled at dispatch (card 8), a peer projected to reach K without it
+is skipped (card 12), and the window keeps the backlog where those rules act (card 14). A push that a
+full queue refuses is offered instead (§5.2). There is no random delay before the push. A peer that
+claims less than it holds draws at most its claimed shortfall from each decoded neighbour, once per
+group. Repair skips card 16's guard and draw.
+
+**What a receiver sees.** A rebuilt chunk names the block the chunks it was rebuilt from name, where
+they all name one, even when another installed block's bid commits the group; where they name
+several, it names one of those blocks. Where the source's chunk at that index names the same root,
+the rebuilt one is that chunk, byte for byte: the same id and the same proof. Its receiver checks it
+at level 1 and forwards it like any other. Nothing marks it as rebuilt. Repair waits for level 2 but
+not for level 3.
+
+**Dropping a group** (`drop_group`), when level 2 or level 3 fails. The node marks the group invalid
+and stops pulling it. It removes the group's chunks, IHAVEs and IWANTs from every queue, with what is
+owed of it; its HAVEs stay. It announces the group no more, at the heartbeat or paced, and it closes
+every promise for the group, so nobody is parked: its announcers did nothing wrong.
+
+**Level 3 runs on the reassembled payload**, with the envelope's separately sent signature, and
+gates only what consensus consumes. If it fails, the application calls `drop_group`.
+
+**Open: relabelled copies.** Where a proposer signs two blocks of a slot whose bids commit the
+group, any node can relabel a chunk, putting the other block's root in place of the one it names.
+The copy is authentic: level 1 finds the block by the root the chunk names and checks the proof
+against the descriptor's root (§3), so it passes wherever that block is installed, and its id is its
+own (§2). An honest node that installed that block takes such copies in, forwards them and can
+decode from them. The source's copies of those indices are then second copies, only acknowledged
+(§4.2), and its rebuilt chunks can name that block too (above). A neighbour that installed only the
+builder's block defers these copies, ties their sender to the other root (§4.2), and asks it for
+those indices again only if that root installs there. Where that sender is its only provider, the
+neighbour stalls once more than N − K of the sender's copies name the other block (any one, for a
+plain group), although the source reaches it through honest nodes. Nobody is penalised, since every
+copy is authentic. It takes such a proposer, which is slashable (§3), and a node that relabels.
+Options, none chosen:
+- *level 1 by group*: the root a chunk names takes no part in level 1, deferral or ties. Level 1
+  checks against any installed block whose bid commits the chunk's group, a copy waits only while
+  none is installed, ties go by group and index, and any such block's installation releases them.
+  Two blocks whose bids commit the group then act as one for diffusion;
+- *a group per block root*: chunks under different roots are separate groups, deduplicated apart,
+  so the honest node takes in and forwards the source's copies too, at the cost of shared
+  deduplication under equivocation;
+- *root-aware asks*: the asker names the root it installed and the answerer sends its chunk under
+  that root, with the ties and the choice of the copy a node keeps changed to match.
 
 Without card 10 a node that has decoded claims only the chunks it received, its peers keep pushing
 it parity it does not need, and it pushes none of the chunks it rebuilt. Without card 6 there is no
 code: a node needs every chunk, and completion is "all K received".
+
+#### Rationale
+
+**The claim before decoding.** Every chunk that passed level 1 is an authentic leaf under the
+committed root. If the N leaves form a codeword, every node's decode succeeds and the claim is true.
+If they do not, any K of them rebuild a codeword that differs somewhere, so every node's check fails,
+and the claim was about a group every node drops. What waits for level 2 is everything that hands
+out rebuilt data: delivery, and the rebuilt chunks. *What a forwarding node checks, and when it
+decodes* (2026) maps the alternatives. Forwarding need not wait either: the chunks a node received
+were authentic whatever levels 2 and 3 find.
+
+**Why push, and not hold or announce.** A builder may release only the K chunks needed to decode.
+Every node then needs every one of them, the slowest to reach it included, and the other K exist
+only in the nodes that have decoded. Completion times spread out, and a builder that releases late,
+near a deadline such as the payload timeliness vote, can use the spread to split the network.
+Repair puts the other K back as soon as the first nodes decode, so that a node still short can again
+complete on any K of the N. Holding the rebuilt chunks would not do it: the claim is not an
+announcement, and asks go to announcers (§6.1), so a node that only held its rebuilt chunks would
+never be asked for them, which is the same as rebuilding nothing. An announcement would add an ask
+and an answer, three link delays instead of one, so it helps mainly where other asks fail. It can
+also be baited: an announcement is a promise nobody can check before asking, and a withholding node
+or a liar draws asks it never answers until the park stops them (§6.1). Where every chunk is released
+and the other nodes are honest, a rebuilt chunk is one more copy of a plentiful one, and repair has
+little to do. *What a forwarding node checks, and when it decodes* (2026) measures how much of the
+spread repair takes back, against withholding nodes and silent nodes, and what it does on a full
+release.
+
+**A shortfall, not card 4's budget.** Card 4's budget cannot be reused for repair: late in a
+diffusion most mesh peers have claimed every chunk, and the budget would shrink to nothing. The
+chunks are picked at random so that decoded neighbours tend to push different ones. A random delay
+before the push, so that decoded neighbours do not all push at once, was not taken: *What a
+forwarding node checks, and when it decodes* found it changed nothing measurable on a full release,
+and did not try it with only K chunks released.
+
+**Nothing marks a rebuilt chunk.** Once the group has passed level 2, a rebuilt chunk is an authentic
+leaf, as a forwarded one is.
+
+**Keeping the root its chunks name.** The roots can differ only when a proposer signs two blocks of
+a slot whose bids commit the group: the group's chunks may then name either root, which their ids
+cover, and a node cannot tell which one the source's chunk names at an index it never received. A
+rebuilt chunk naming the other block would wait for good at a neighbour that installed only the
+block the chunks name, and its sender, which counted the push, would send nothing more for the
+index. A source names one block, so with this rule every honest copy of a group names it, as long
+as no node relabels a chunk: honest nodes forward a relabelled copy, and rebuild from it (above). A
+rebuilt chunk that named a block whose bid commits another group would never pass level 1: a
+receiver without that block defers it until the block installs, then rejects it.
+
+**A decode that outlives its group.** This document does not bound a decode's duration (§8.1), and
+a group past its active lifetime keeps only its tombstone, so the decode's result has nothing left
+to act on.
 
 ## 5. Publishing and forwarding
 
