@@ -77,8 +77,8 @@ publish, and each keeps at most two deferred copies per peer.
   group, nor §8.2's limit on ties, which the toy does not set, nor what `drop_stale_waits` drops:
   the toy's slots never leave the live window and its groups never expire. A late node asks
   nothing of a group before its block installs, so the cell also cannot show what a tie does to a
-  promise, a park, B′'s count or the retry's choice: those need a node that has one block and
-  waits for another. Known answers on states made by hand have most of these
+  promise, a park, a last-resort count or the retry's choice: those need a node that has one block
+  and waits for another. Known answers on states made by hand have most of these
   (`tie_helpers_known.py`, `tie_release_known.py`, `deferral_rules_known.py`); not the retry's
   choice, nor `drop_tie` for a root whose bid commits another group.
 - `--late-block` is not meant with `--churn` (a closed connection's ties are not dropped). It never
@@ -98,9 +98,9 @@ where one has a control that must come out the other way, it is named:
 - `tie_read_known.py`: a peer that was only asked about has no tie; the tied peer beside it must
   lose its park.
 - `tie_helpers_known.py`: `tie_room`, `drop_offer`, and `close_promises` with `of`, by the values
-  they must leave in every table they touch, the tries, last asks and B′'s counts included.
+  they must leave in every table they touch, the tries, last asks and last-resort counts included.
 - `tie_release_known.py`: what a tie does to its sender's promise, and its release to the sender's
-  park, B′'s count and offer; a peer parked but not tied beside it must keep both.
+  park, last-resort count and offer; a peer parked but not tied beside it must keep both.
 - `deferral_rules_known.py`: §4.2's rules no honest cell reaches.
   - A copy over its sender's limit of unknown groups is ignored; a peer within it beside it is kept
     and tied.

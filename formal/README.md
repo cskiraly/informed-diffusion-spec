@@ -54,7 +54,7 @@ with these on (`PICK` in `tools/gen_instances.py`, the rules picked for v0.5; th
 | v0.5's rule | switches | fixes |
 |---|---|---|
 | A′: a push to a mesh peer that does not happen is offered to it instead, and an offer or answer a full queue refuses is owed (§5.2, §7.2, §4.1) | `PROJECT_OFFERS`, `ADMIT_OFFERS` | F1 |
-| B′: every offer is kept, and when every announcer of a chunk is parked, each is asked once more, at a wait that doubles (§6.1, §8.2) | `LAST_RESORT`, `OFFERS_DURABLE` | F2 |
+| B′, the last resort: every offer is kept, and when every announcer of a chunk is parked, each is asked once more, at a wait that doubles (§6.1, §8.2) | `LAST_RESORT`, `OFFERS_DURABLE` | F2 |
 | C′: no ask before the block is installed; what was offered meanwhile is asked for then (§3, §4.4, §4.2) | `NO_ASK_BEFORE_INSTALL` | F3 |
 | D′: the retry and the writer's ask filter check expiry, and a group's pull state goes at its expiry (§6.1, §7.2, §8.1) | `RETRY_CHECKS_EXPIRY`, `EXPIRY_CLEANUP` | F4 |
 | E: a promise starts when the ask is written (§7.2, §6.1) | `PROMISE_AT_WRITE` | F5 |

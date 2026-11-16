@@ -22,14 +22,14 @@ reaches it waits for that block, kept by the deferred store or refused. The node
 builder's block later (fork choice: the switch), and only then does a copy validate (`installed`).
 
 F6: before the switch the providers' answers wait or are refused, their promises fall due and park
-them, B′'s ask once more is spent on them, and so are a provider's three answers per chunk and
+them, the last resort's ask is spent on them, and so are a provider's three answers per chunk and
 connection (`GOSSIP_RETRANSMISSION`); after the switch every announcer is parked and has been asked
 once more, or has no answer left, and the node stalls. The two rules, each a switch with a known
 answer:
 - `ROOT_TIED` (§4.2's ties): a copy that waits ties its sender to the root it names, for its index;
   the sender's promise closes, since it answered, and it is not asked for the index again until that
-  root installs. The installation releases the ties: each sender's park lifts, B′'s count for it
-  clears, and it is an offer again, asked for (§4.2's `on_block_installed`).
+  root installs. The installation releases the ties: each sender's park lifts, the last-resort count
+  for it clears, and it is an offer again, asked for (§4.2's `on_block_installed`).
 - `NO_REASK_OPEN` (§6.1): no announcer is asked for a chunk while an earlier ask of it to that announcer is
   outstanding, queued or promised; a retry or a last resort that finds every candidate outstanding
   waits, and the outstanding ask is pending work.
@@ -40,14 +40,15 @@ answers the first three, and may drop any later one (its count kept for the conn
 worst case of the stock lifetime).
 
 The rest is `NoStallAsk.lean`'s machinery: one ask per chunk in its window, the retry, promises that
-fall due at any time, B′, the writer's ask filter (which also drops a queued ask to a tied peer), the
-claim rule's drop, answers cancelled or owed, the ledger (C′), held-back offers (v0.7); and its
-environment, with the other block's installation and pushes that wait for the builder's block.
+fall due at any time, the last resort, the writer's ask filter (which also drops a queued ask to a
+tied peer), the claim rule's drop, answers cancelled or owed, the ledger (C′), held-back offers
+(v0.7); and its environment, with the other block's installation and pushes that wait for the
+builder's block.
 
 Connections close at any time, as in `NoStallAsk.lean`: what is between the two nodes is lost both
 ways, their promises close, and the state kept per connection goes, the asks' numbering (with the
-provider's serve count) and the ties among it (§8.1); B′'s counts with it are a switch with a known
-answer.
+provider's serve count) and the ties among it (§8.1); the last-resort counts with it are a switch
+with a known answer.
 
 Assumed: every honest copy names the builder's block, rebuilt ones included. v0.7's §4.6 let a
 rebuilt chunk name either installed block whose bid commits the group, so a node that installed
@@ -75,14 +76,14 @@ enum kind = { askQ, askF, ansQ, ansOwed, ansF }
 -- an ask's number among n's asks to q for the chunk: the first, the second, the third, a later one
 enum ord = { o1, o2, o3, o4 }
 
-immutable individual lastResort : Bool     -- B′ (§6.1): every announcer parked, each asked once more
+immutable individual lastResort : Bool     -- §6.1: every announcer parked, each asked once more
 immutable individual owedAnswers : Bool    -- §4.1, §7.2: an answer a full queue refuses is owed
 immutable individual askLedger : Bool      -- C′ (§3, §4.2): what was offered before the block is asked
 -- §4.4, §6.4 (v0.7): an ask an IHAVE limit holds back is retried at the next heartbeat
 immutable individual heldBackRetry : Bool
 immutable individual rootTied : Bool       -- F6: ROOT_TIED (§4.2's ties, v0.8)
 immutable individual noReask : Bool        -- F6: NO_REASK_OPEN (§6.1, v0.8)
--- §6.1, §8.1: B′'s count for an announcer goes with its connection, as `tried` does
+-- §6.1, §8.1: the last-resort count for an announcer goes with its connection, as `tried` does
 immutable individual countsReset : Bool
 
 relation gate (n : node) : Bool                    -- a block whose bid commits the group is installed
@@ -94,9 +95,9 @@ relation offered (n : node) (q : node) : Bool      -- q offered the chunk to n
 relation ledger (n : node) (q : node) : Bool       -- q offered it before n's gate opened (§4.2)
 relation inWindow (n : node) : Bool                -- an ask of n's is in its window
 relation retryArmed (n : node) : Bool
-relation lrArmed (n : node) : Bool                 -- B′'s timer
+relation lrArmed (n : node) : Bool                 -- the last resort's timer
 relation parked (n : node) (q : node) : Bool       -- n parked q, for the group
-relation askedParked (n : node) (q : node) : Bool  -- B′'s count
+relation askedParked (n : node) (q : node) : Bool  -- the last-resort count
 relation promise (n : node) (q : node) : Bool      -- n's ask to q, written, open
 relation tied (n : node) (q : node) : Bool         -- q's copy waits at n for the builder's root
 relation made (n : node) (q : node) (j : ord) : Bool    -- n's j-th ask to q was queued
@@ -250,8 +251,8 @@ action installOther (n : node) {
 -- §3, §4.2: the builder's block installs at n, first or as the switch. Its handler takes the deferred
 -- copies in, then releases the ties (ROOT_TIED) and asks for what is offered, by the case: a copy of
 -- this chunk was waiting, and the chunk is held; the copies brought the group to K, and the decode
--- claim stopped the pull; or neither: each tied sender's park lifts, B′'s count for it clears, it is
--- an offer again, the ledger's offers join, and the retry is armed, which finds them
+-- claim stopped the pull; or neither: each tied sender's park lifts, the last-resort count for it
+-- clears, it is an offer again, the ledger's offers join, and the retry is armed, which finds them
 action installTakenIn (n : node) {
   require ¬ installed n
   if gate n then
@@ -347,8 +348,8 @@ action parkOther (n q : node) {
 
 -- §8.1: the connection between n and q closes: what is queued, owed or in flight between them is
 -- lost, both ways; their promises close (§6.1); the state kept per connection goes: offers (the
--- ledger's too), B′'s counts, the asks' numbering with the serve count, ties (§8.1) and claims;
--- parks, windows and timers stay
+-- ledger's too), the last-resort counts, the asks' numbering with the serve count, ties (§8.1) and
+-- claims; parks, windows and timers stay
 action close (n q : node) {
   require n ≠ q
   if ∃ J, stage askQ n q J ∨ stage askF n q J then
@@ -462,14 +463,14 @@ action retryParked (n : node) {
     lrArmed n := true
 }
 
--- §6.1 (B′): the last resort's timer: nothing to do
+-- §6.1: the last resort's timer: nothing to do
 action lrNoop (n : node) {
   require en_lrNoop n
   lrArmed n := false
 }
 
--- §6.1 (B′): an announcer unparked meanwhile, or else a parked one not asked once more, neither tied
--- nor outstanding; counted once the queue has taken the ask
+-- §6.1 (the last resort): an announcer unparked meanwhile, or else a parked one not asked once
+-- more, neither tied nor outstanding; counted once the queue has taken the ask
 action lrAsk (n q : node) (j : ord) (full : Bool) {
   require en_lrAsk n q ∧ nextAsk n q j
   lrArmed n := false
@@ -520,8 +521,8 @@ invariant [stage_made] (stage askQ N Q J → made N Q J) ∧ (stage askF N Q J �
 -- an ask outstanding goes to an announcer
 invariant [asked_offered] premises → (stage askQ N Q J → offered N Q ∨ got N) ∧
   (promise N Q → offered N Q ∨ got N)
--- F6: before the builder's block, a provider is asked at most twice, the second time by B′; so its
--- third answer is left for after the switch
+-- F6: before the builder's block, a provider is asked at most twice, the second time by the last
+-- resort; so its third answer is left for after the switch
 invariant [first_ask] premises → ¬ installed N → made N Q o1 →
   (∃ J, stage askQ N Q J) ∨ promise N Q ∨ parked N Q ∨ tied N Q ∨ got N ∨ stop N
 invariant [second_ask] premises → ¬ installed N → made N Q o2 → askedParked N Q ∨ tied N Q
@@ -641,10 +642,10 @@ sat trace [close_reasked] {
 /-! ## Known answers: with one rule off, the machinery fails -/
 
 -- F6's first form, without ROOT_TIED: on the other block, the provider (parked by another chunk) is
--- asked once more by B′; the answer waits and its promise falls due; at the switch every announcer
--- is parked and has been asked once more, with nothing on its way, so no ask can follow: the retry
--- the installation arms finds them all parked and arms no last resort (the run to that quiet state
--- exceeds the simplifier's steps)
+-- asked once more by the last resort; the answer waits and its promise falls due; at the switch
+-- every announcer is parked and has been asked once more, with nothing on its way, so no ask can
+-- follow: the retry the installation arms finds them all parked and arms no last resort (the run to
+-- that quiet state exceeds the simplifier's steps)
 sat trace [ka_no_root_tied] {
   installTakenIn
   installOther
@@ -697,8 +698,9 @@ sat trace [ka_no_ledger] {
     stalled)
 }
 
--- B′'s count kept across a close: the last resort's ask is lost with the connection, the announcer
--- offers again on the new one, and it is never asked: its count says it was asked once more
+-- the last-resort count kept across a close: the ask it counted is lost with the connection, the
+-- announcer offers again on the new one, and it is never asked: its count says it was asked once
+-- more
 sat trace [ka_counts_kept] {
   installTakenIn
   install

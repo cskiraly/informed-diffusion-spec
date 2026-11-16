@@ -163,12 +163,12 @@ chunk of the group, so they hold for each:
   connection (§8.1). The mesh is directed, as gossipsub's is, and starts empty.
 - **The asking** (`NoStallAsk`): when it has nothing left to do, every offer to a node that has its
   block is resolved: the node holds the chunk or has stopped pulling. It models one ask in its
-  window, the retry, parks from promises that fall due at any time, B′'s last resort, the writer's
+  window, the retry, parks from promises that fall due at any time, the last resort, the writer's
   ask filter, the serve limit at its worst, the claim rule's drop, answers cancelled or owed, offers
   before the block kept and asked for at installation (C′), offers over an IHAVE limit kept and
   asked for by the next heartbeat's retry (v0.7), and connections that close: what is between the
-  two nodes is lost, their promises close, and the state kept per connection goes, B′'s counts with
-  it; parks stay (§6.1, §8.1).
+  two nodes is lost, their promises close, and the state kept per connection goes, the last-resort
+  counts with it; parks stay (§6.1, §8.1).
 - **The counting** (`NoStallCount`, plain Lean): a node stops pulling at its K-th received chunk, the
   source holds all N, and with nothing pending a node that has received K has made its decode claim;
   a node that has not stopped holds only chunks it received. Then, by induction along the quiet
@@ -260,7 +260,7 @@ quiet state's mesh, in which such peers are not neighbours. In the transport the
 `resyncOnJoin`, with two known answers without it: `ka_rejoin_lost` (a close with a push of the chunk
 queued, the peer back in the mesh, nothing offered) and `ka_late_join` (a peer that joins after the
 publish). In the asking, a close loses what is between the two nodes and resets the state kept per
-connection, as §8.1 has it, and the proof needs B′'s count to go with the connection
+connection, as §8.1 has it, and the proof needs the last-resort count to go with the connection
 (`countsReset`): kept, the last resort's ask lost with the connection is never made again
 (`ka_counts_kept`).
 
@@ -269,11 +269,11 @@ two blocks for one slot may put the same bid in both, so both commit the group. 
 the other block asks, since its bid commits the group, but every honest chunk names the builder's
 block, so a copy waits for that block, kept or refused; the node may switch to the builder's block
 later. Before the switch the providers' answers wait or are refused, their promises fall due and
-park them, B′'s ask once more is spent on them, and so are a provider's three answers per chunk and
+park them, the last resort is spent on them, and so are a provider's three answers per chunk and
 connection (`GOSSIP_RETRANSMISSION`); after the switch the node can stall (`../README.md`, F6). The
 rules: `ROOT_TIED` (§4.2's ties), under which a copy that waits ties its sender, closes its promise
 and keeps it from being asked for the index until the root it names installs, whose installation
-lifts the sender's park and B′'s count for it and makes it an offer again; and `NO_REASK_OPEN`
+lifts the sender's park and last-resort count and makes it an offer again; and `NO_REASK_OPEN`
 (§6.1), no ask to a peer while an earlier ask of the chunk to it is outstanding, queued or promised. `NoStallEquiv` is
 the asking piece with the gate (a block whose bid commits the group: asks are allowed) split from the
 builder's block (which a copy needs to validate), both rules as switches, and the asks to a peer
@@ -282,15 +282,15 @@ two and a provider's answers are counted. The stages of `NoStallAsk.lean` are se
 where the serve limit is at its worst, but they would hide F6's second form. The result: when the
 asking is done, a node that has installed the builder's block holds every offered chunk or has
 stopped pulling, also when it installed the other block first, and with connections closing. At its
-core, before the builder's block a provider is asked at most twice, the second time by B′, so its
-third answer is left for after the switch (`two_before`), and the third ask, made only with that
-block, is answered (`third_answered`). Known answers: without `ROOT_TIED` the switch leaves every
-announcer parked and asked once more, with nothing on its way, so no ask follows (F6's first form);
-without `NO_REASK_OPEN` a provider is asked a third time before the switch, the bound F6's second form
-breaks (its stall, some 30 steps, is the Quint model's); and B′'s counts kept across a close. With
-`NoStallEquiv` in place of `NoStallAsk`, Q1 holds for the honest nodes reachable from the source
-through nodes that installed the builder's block, along whom the counting runs
-(`every_installed_reachable_node_completes`): a node that installs only the other block cannot
+core, before the builder's block a provider is asked at most twice, the second time by the last
+resort, so its third answer is left for after the switch (`two_before`), and the third ask, made
+only with that block, is answered (`third_answered`). Known answers: without `ROOT_TIED` the switch
+leaves every announcer parked and asked once more, with nothing on its way, so no ask follows (F6's
+first form); without `NO_REASK_OPEN` a provider is asked a third time before the switch, the bound
+F6's second form breaks (its stall, some 30 steps, is the Quint model's); and the last-resort counts
+kept across a close. With `NoStallEquiv` in place of `NoStallAsk`, Q1 holds for the honest nodes
+reachable from the source through nodes that installed the builder's block, along whom the counting
+runs (`every_installed_reachable_node_completes`): a node that installs only the other block cannot
 validate the chunks, so nothing reaches a node behind it. This rests on every honest copy naming the
 builder's block, rebuilt ones included, which the models assume. v0.7's §4.6 let a rebuilt chunk
 name either installed block whose bid commits the group: a node that installed both could rebuild a
@@ -309,8 +309,8 @@ the models.
 | piece | proof | traces | cost |
 |---|---|---|---|
 | transport | 190 of 190 conditions, 679 theorems | 6 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered; the chunk announced again to a peer back in the mesh after a close lost a queued push; and to a peer that joined after the publish), 6 known answers (F1: a skipped push counted, offered to nobody; a refused push lost; F7: a refused copy lost; F11: an announcement ignored by the receiver's limit; F9: without the resync, nothing offers the chunk to a peer back in the mesh after a close lost a queued push, nor to a late joiner) | 3.1 minutes, the library's build with only this model rebuilt; 4.0 GB, that build's peak |
-| asking | 378 of 378 conditions, 1021 theorems | 6 non-vacuity (an offer answered; an offerer parked by another chunk, asked once more by the last resort; an offer before the block asked for at installation; an offer over an IHAVE limit asked for by the heartbeat's retry; one from a parked offerer, asked once more by the last resort the heartbeat's retry arms; an ask lost with its connection, the announcer's offer on the new one asked for by the retry), 5 known answers (F2: without B′ an offerer parked by another chunk is never asked; answers lost twice without owed answers; an offer before the block never asked without the ledger; an offer over an IHAVE limit never asked without the heartbeat's retry; B′'s count kept across a close, the last resort's ask lost with the connection never made again) | 44.6 minutes at one condition at a time, beside another job (3.9 minutes at two before the closes), 7.4 GB |
-| asking, under equivocation | 660 of 660 conditions, 1411 theorems | 6 non-vacuity (an offer answered; on the other block, an answer that waits ties its sender and closes its promise; a node on the other block with a tied sender switches, the sender is asked and the chunk validates; the last resort; the ledger; an ask lost with its connection, the announcer asked afresh on the new one), 5 known answers (without `ROOT_TIED`, at the switch every announcer parked and asked once more with nothing on its way; without `NO_REASK_OPEN`, a third ask to a provider before the switch; without B′; without the ledger; B′'s counts kept across a close) | 16.4 minutes, 11.7 GB |
+| asking | 378 of 378 conditions, 1021 theorems | 6 non-vacuity (an offer answered; an offerer parked by another chunk, asked once more by the last resort; an offer before the block asked for at installation; an offer over an IHAVE limit asked for by the heartbeat's retry; one from a parked offerer, asked once more by the last resort the heartbeat's retry arms; an ask lost with its connection, the announcer's offer on the new one asked for by the retry), 5 known answers (F2: without the last resort an offerer parked by another chunk is never asked; answers lost twice without owed answers; an offer before the block never asked without the ledger; an offer over an IHAVE limit never asked without the heartbeat's retry; the last-resort count kept across a close, the ask it counted lost with the connection never made again) | 44.6 minutes at one condition at a time, beside another job (3.9 minutes at two before the closes), 7.4 GB |
+| asking, under equivocation | 660 of 660 conditions, 1411 theorems | 6 non-vacuity (an offer answered; on the other block, an answer that waits ties its sender and closes its promise; a node on the other block with a tied sender switches, the sender is asked and the chunk validates; the last resort; the ledger; an ask lost with its connection, the announcer asked afresh on the new one), 5 known answers (without `ROOT_TIED`, at the switch every announcer parked and asked once more with nothing on its way; without `NO_REASK_OPEN`, a third ask to a provider before the switch; without the last resort; without the ledger; the last-resort counts kept across a close) | 16.4 minutes, 11.7 GB |
 | counting | three theorems | none | seconds |
 
 All conditions are theorems Lean's kernel checks, on `propext`, `Classical.choice` and `Quot.sound`

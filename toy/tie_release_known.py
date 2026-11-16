@@ -4,13 +4,13 @@
     python3 tie_release_known.py
 
 The `late-block` cell cannot show these: a late node asks nothing of a group before its block installs, so no
-promise of it is open when a copy ties its sender, and no park or count of B′ is there for the installation to
+promise of it is open when a copy ties its sender, and no park or last-resort count is there for the installation to
 lift. Here they are made by hand, on one node after a small run, for the run's own block and group, with the
 node made to lack one chunk (index 1 of N = 2).
 
 - **The tie.** A copy of index 1 from peer 1 ties it: its promise for index 1 closes (it answered, with a copy
   that cannot be checked yet), and `tied_to_root` says it is tied, so the retry does not ask it again.
-- **The release.** The installation lifts peer 1's park for the group, clears it from B′'s count of index 1,
+- **The release.** The installation lifts peer 1's park for the group, clears it from the last-resort count of index 1,
   makes it an offer of index 1 again, and leaves no tie. Peer 3, parked and counted too but not tied, is the
   control: its park and its count stay.
 """
@@ -57,7 +57,7 @@ def main():
     ns["on_block_installed"](root)
     line("the release: peer 1's park for the group lifted, peer 3's kept",
          (g in ns["park"][P], ns["park"][Q].get(g) == until), (False, True))
-    line("the release: B′'s count of index 1 holds peer 1, peer 3",
+    line("the release: the last-resort count of index 1 holds peer 1, peer 3",
          (P in ns["asked_parked"][(g, I)], Q in ns["asked_parked"][(g, I)]), (False, True))
     line("the release: peer 1 an announcer of index 1 again", ns["offered"][P][g].has(I) and P in ns["offers"][a], True)
     line("the release: ties left under the root, and tied_to_root of peer 1",

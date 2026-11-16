@@ -7,7 +7,7 @@ with `of`, and `drop_offer` (§4.2, §6.1).
 A cell of check.py tells only that something changed, and `tie_room` and `drop_offer` run in a cell only where a
 block installs late. Here each is called on a state made by hand, on one node of a small network that is built
 and not run. The promises, the ordered lists, `offered`, the queued asks, `listed`, the tries (`tried`), the last
-asks (`asked_at`) and B′'s counts (`asked_parked`) are read before and after.
+asks (`asked_at`) and the last-resort counts (`asked_parked`) are read before and after.
 Peers 1 and 3; a group G no block commits; chunk 3 named in both forms, by index and by a full id. For
 `tie_room` also: an index against a group whose descriptor is known (below its N, and at it), and the limit
 counted by (root, group) pairs, not by roots (one root with two groups, at limits of 2 and 3).
@@ -72,7 +72,7 @@ def main():
     for p in (P, Q):
         ns["queue"][p].normal.append(Wm.Entry(control=Wm.IWANT([by_index, other])))
         ns["queue"][p].normal.append(Wm.Entry(control=Wm.IWANT([by_id])))
-    for a in (by_index, by_id, other):                      # tries, last asks and B′'s counts of both chunks
+    for a in (by_index, by_id, other):                      # tries, last asks and last-resort counts of both chunks
         for p in (P, Q):
             ns["tried"][a][p] = 1.0
         ns["asked_at"][a] = 1.0
@@ -112,7 +112,7 @@ def main():
     line("drop_offer: what is queued to the peer (the entry of the id alone is gone)", after["queued"][P], [[4]])
     line("drop_offer: what is queued to the other peer", after["queued"][Q], before["queued"][Q])
     line("drop_offer: the promises left", after["promises"], [x for x in before["promises"] if not (x[0] == 3 and x[2] == P)])
-    line("drop_offer: tries, last asks and B′'s counts are left to their own lifetimes",
+    line("drop_offer: tries, last asks and last-resort counts are left to their own lifetimes",
          (after["tried"], after["asked_at"], after["asked_parked"]),
          (before["tried"], before["asked_at"], before["asked_parked"]))
 
@@ -123,7 +123,7 @@ def main():
          (after["promises"], after["lists"], after["offered"]),
          ([x for x in before["promises"] if x[0] != 3], [x for x in before["lists"] if x[0] != 3], {P: [4], Q: [4]}))
     line("close_promises of the chunk: the lists each peer is in", after["listed"], {P: 1, Q: 1})
-    line("close_promises of the chunk: its tries, last asks and B′'s count go, in both forms; the other chunk's stay",
+    line("close_promises of the chunk: its tries, last asks and last-resort count go, in both forms; the other chunk's stay",
          (after["tried"], after["asked_at"], after["asked_parked"]),
          ([x for x in before["tried"] if x[0] != 3], [x for x in before["asked_at"] if x[0] != 3],
           [x for x in before["asked_parked"] if x[0] != 3]))

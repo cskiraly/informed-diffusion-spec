@@ -18,11 +18,12 @@ so the result holds for each.
 What the machinery does with an offer is modelled as the spec writes it: one ask per chunk in flight
 (its window ends at any time); the retry asks an unparked announcer, any one; a promise opens at the
 write and falls due at any time while open, parking its peer for the group; when every announcer is
-parked, each is asked once more (B′); the asker drops an ask for a chunk it holds or no longer pulls;
-the first ask a node receives for a chunk it holds is answered, later ones may be dropped (the serve
-limit, at its worst), and one from a peer that claimed the chunk is dropped; an answer is cancelled
-if the asker claimed the chunk meanwhile; a queue may refuse any entry (the group's other traffic
-can fill it): a refused ask is lost and its retry stays armed, a refused answer is owed (§4.1).
+parked, each is asked once more (the last resort); the asker drops an ask for a chunk it holds or no
+longer pulls; the first ask a node receives for a chunk it holds is answered, later ones may be
+dropped (the serve limit, at its worst), and one from a peer that claimed the chunk is dropped; an
+answer is cancelled if the asker claimed the chunk meanwhile; a queue may refuse any entry (the
+group's other traffic can fill it): a refused ask is lost and its retry stays armed, a refused
+answer is owed (§4.1).
 
 The rest of the protocol is the **environment**, events that may happen at any time and any number
 of times: an honest node holding the chunk offers it (an IHAVE, handled as §4.4 does: over one of
@@ -42,10 +43,10 @@ armed, and finds the offers). A node stops pulling, and takes a chunk in, only o
 A connection closes at any time (§8.1), also part of the environment: what is queued, owed or in
 flight between the two nodes is lost both ways; their promises close (§6.1: the ask or its answer
 went with the connection, and the retry, whose timer is per ask, stays armed); and the state kept
-per connection goes: the offers (the ledger's too), B′'s counts, the serve count and the claims.
-Parks stay, kept by peer id. The offers a new connection brings (F9's resync) are offers from
-honest holders, as above. Resetting B′'s counts is a switch with a known answer: kept across the
-close, an announcer whose last resort the close lost is never asked again.
+per connection goes: the offers (the ledger's too), the last-resort counts, the serve count and the
+claims. Parks stay, kept by peer id. The offers a new connection brings (F9's resync) are offers
+from honest holders, as above. Resetting the last-resort counts is a switch with a known answer:
+kept across the close, an announcer whose last resort the close lost is never asked again.
 
 Not modelled here: how offers come about (the transport: `NoStallTransport.lean`), lifetimes,
 adversaries. -/
@@ -60,12 +61,12 @@ type node
 -- a, owed by a, in flight)
 enum kind = { askQ, askF, ansQ, ansOwed, ansF }
 
-immutable individual lastResort : Bool     -- B′ (§6.1): every announcer parked, each asked once more
+immutable individual lastResort : Bool     -- §6.1: every announcer parked, each asked once more
 immutable individual owedAnswers : Bool    -- §4.1, §7.2: an answer a full queue refuses is owed
 immutable individual askLedger : Bool      -- C′ (§3, §4.2): what was offered before the block is asked
 -- §4.4, §6.4 (v0.7): an ask an IHAVE limit holds back is retried at the next heartbeat
 immutable individual heldBackRetry : Bool
--- §6.1, §8.1: B′'s count for an announcer goes with its connection, as `tried` does
+-- §6.1, §8.1: the last-resort count for an announcer goes with its connection, as `tried` does
 immutable individual countsReset : Bool
 
 relation installed (n : node) : Bool               -- n's block is installed
@@ -76,9 +77,9 @@ relation offered (n : node) (q : node) : Bool      -- q offered the chunk to n
 relation ledger (n : node) (q : node) : Bool       -- q offered it before n's block (§4.2)
 relation inWindow (n : node) : Bool                -- an ask of n's is in its window
 relation retryArmed (n : node) : Bool
-relation lrArmed (n : node) : Bool                 -- B′'s timer
+relation lrArmed (n : node) : Bool                 -- the last resort's timer
 relation parked (n : node) (q : node) : Bool       -- n parked q, for the group
-relation askedParked (n : node) (q : node) : Bool  -- B′'s count
+relation askedParked (n : node) (q : node) : Bool  -- the last-resort count
 relation promise (n : node) (q : node) : Bool      -- n's ask to q, written, open
 relation served (q : node) (n : node) : Bool       -- q answered an ask of n's
 relation stage (k : kind) (a : node) (b : node) : Bool
@@ -254,7 +255,7 @@ action parkOther (n q : node) {
 
 -- §8.1: the connection between n and q closes: what is queued, owed or in flight between them is
 -- lost, both ways; their promises close (§6.1); the state kept per connection goes (offers, the
--- ledger's too, B′'s counts, the serve count, claims); parks, windows and timers stay
+-- ledger's too, the last-resort counts, the serve count, claims); parks, windows and timers stay
 action close (n q : node) {
   require n ≠ q
   if stage askQ n q ∨ stage askF n q then
@@ -355,14 +356,14 @@ action retryParked (n : node) {
     lrArmed n := true
 }
 
--- §6.1 (B′): the last resort's timer: nothing to do
+-- §6.1: the last resort's timer: nothing to do
 action lrNoop (n : node) {
   require en_lrNoop n
   lrArmed n := false
 }
 
--- §6.1 (B′): an announcer unparked meanwhile, or else a parked one not asked once more; counted once
--- the queue has taken the ask
+-- §6.1 (the last resort): an announcer unparked meanwhile, or else a parked one not asked once
+-- more; counted once the queue has taken the ask
 action lrAsk (n q : node) (full : Bool) {
   require en_lrAsk n q
   lrArmed n := false
@@ -574,8 +575,9 @@ sat trace [ka_held_back_lost] {
   assert (lastResort ∧ owedAnswers ∧ askLedger ∧ ¬ heldBackRetry ∧ countsReset ∧ stalled)
 }
 
--- B′'s count kept across a close: the last resort's ask is lost with the connection, the announcer
--- offers again on the new one, and it is never asked: its count says it was asked once more
+-- the last-resort count kept across a close: the ask it counted is lost with the connection, the
+-- announcer offers again on the new one, and it is never asked: its count says it was asked once
+-- more
 sat trace [ka_counts_kept] {
   install
   arriveOther
