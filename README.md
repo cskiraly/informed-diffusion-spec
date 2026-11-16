@@ -50,10 +50,10 @@ SEACAST diffuses.
 
 ## Where SEACAST stands
 
-- **The latest release is [v0.10.1](https://github.com/cskiraly/informed-diffusion-spec/tree/v0.10.1)**, 2026-11-15:
-  `protocol.md` at version 0.10.1, v0.10's rules with the text rewritten for readers, the toy and
-  its recorded cells, the next version's draft with its decisions taken, and the proofs in
-  `formal/veil/`, which are of v0.8's rules.
+- **The latest release is [v0.10.2](https://github.com/cskiraly/informed-diffusion-spec/tree/v0.10.2)**, 2026-11-16:
+  `protocol.md` at version 0.10.2, v0.10's rules with the text rewritten for readers, the toy (its
+  lazy tables made fast again in v0.10.2) and its recorded cells, the next version's draft with its
+  decisions taken, and the proofs in `formal/veil/`, which are of v0.8's rules.
   [`CHANGELOG.md`](CHANGELOG.md) says what each release changed; changes after the latest tag are on
   `main`, and the changelog's first entry names them.
 - **Each measurement says which code it ran.** The SEACAST post's figures ran on a research

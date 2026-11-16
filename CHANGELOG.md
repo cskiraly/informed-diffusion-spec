@@ -5,7 +5,7 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
-## After v0.10.1, not yet released
+## v0.10.2, 2026-11-16
 
 No rule changes: the toy's runs of the next version's draft no longer slowed by its lazy tables, the
 last resort named as `protocol.md` names it in the toy and the Veil proofs, and this changelog easier to
@@ -28,7 +28,7 @@ scan.
 - **Unchanged:** `protocol.md`, `protocol-v2.md`, the models and proofs in `formal/` (only comments and
   README wording changed there), and every recorded cell's digest.
 
-## v0.10.1, 2026-11-15
+## v0.10.1, 2026-11-15 (`ea92383`)
 
 The text rewritten for readers; the code unchanged, some comments reworded.
 
