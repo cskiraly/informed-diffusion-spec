@@ -7,9 +7,17 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 
 ## After v0.10.1, not yet released
 
-No rule changes: the toy and the Veil proofs name the last resort as `protocol.md` does, and this
-changelog is easier to scan.
+No rule changes: the toy's runs of the next version's draft no longer slowed by its lazy tables, the
+last resort named as `protocol.md` names it in the toy and the Veil proofs, and this changelog easier to
+scan.
 
+- **The toy's lazy tables keep their detached entries.** `toy/bits.py`: a missing key of a lazy table
+  reads as a detached entry, which is now kept in a plain cache until it joins its table or its key is
+  set, not in a weak one. The weak cache made an entry and dropped it again at most reads of a missing
+  key, which made the toy's runs of `protocol-v2.md` much slower than before v0.10. Every reader sees
+  the same as before: an entry nobody wrote is empty, as a new one would be. An entry that is read and
+  never written now stays in its table's cache, one per key, table and node, so a run holds a little
+  more memory.
 - **The toy and the Veil proofs call B′ the last resort**, as `protocol.md` does since v0.10.1:
   `toy/README.md`, two known answers (`toy/tie_helpers_known.py`, `toy/tie_release_known.py`, and two
   lines they print) and `formal/veil/` (comments only). The Quint model and its tools keep the label,
@@ -17,6 +25,8 @@ changelog is easier to scan.
   names it.
 - **Each entry of this changelog opens with a summary**, and each change with a few words in bold; the
   entries before v0.9 are lists, as v0.9's and v0.10's are since v0.10.1.
+- **Unchanged:** `protocol.md`, `protocol-v2.md`, the models and proofs in `formal/` (only comments and
+  README wording changed there), and every recorded cell's digest.
 
 ## v0.10.1, 2026-11-15
 

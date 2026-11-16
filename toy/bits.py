@@ -9,7 +9,6 @@ give both: a missing key reads as a fresh, detached entry, which inserts itself 
 first time it is written to. Every table of protocol.md's is one of them, or a DefaultMap. AutoMap,
 which creates an entry on a read, is left to the tables protocol-v2.md adds, which are its own.
 """
-import weakref
 
 
 def _v(x):
@@ -201,8 +200,8 @@ class OfferList(list):
 class LazyMap:
     """A map whose missing keys read as a detached entry made by `make(home, key)`. An entry joins it through
     `_adopt`; a LazyMap that is itself a detached entry of another map (its home) joins that one then. As in
-    LazyDict: two reads of one missing key give one detached entry while anyone holds it, and a detached entry
-    written after another value was set under its key fails."""
+    LazyDict: two reads of one missing key give one detached entry until it is written or its key is set, and a
+    detached entry written after another value was set under its key fails."""
     __slots__ = ("_d", "_make", "_home", "_key", "_detached", "__weakref__")
 
     def __init__(self, make, home=None, key=None):
@@ -232,7 +231,7 @@ class LazyMap:
                 return e
         e = self._make(self, k)
         if d is None:
-            d = self._detached = weakref.WeakValueDictionary()
+            d = self._detached = {}
         d[k] = e
         return e
 
@@ -354,9 +353,11 @@ class DefaultMap(dict):
 # ---- §8.1's rule for the rest of the tables: a read creates nothing, at any level, and a write through a read
 # creates what it writes. A missing key reads as a detached entry (or a constant), which joins its map at its
 # first write; the map, if it is itself such an entry of another, joins that one then, and so on up. Two reads
-# of one missing key give the same detached entry while anyone holds it (a weak cache, which no `in`, `len`
-# or iteration sees), so that a caller holding one sees what another writes through the other. A detached
-# entry written after another value was set under its key would lose a write: that fails (`_adopt`).
+# of one missing key give the same detached entry until it joins or its key is set (a cache, which no `in`,
+# `len` or iteration sees), so that a caller holding one sees what another writes through the other. The cache
+# keeps an entry nobody holds: one not written is empty, as a new one would be, and a weak cache made and
+# dropped an entry at most reads of a missing key. A detached entry written after another value was set under
+# its key would lose a write: that fails (`_adopt`).
 
 def _join(e):
     home = e._home
@@ -386,7 +387,7 @@ class LazyDict(dict):
         e = self._make(self, k)
         if hasattr(e, "_home"):                     # an entry that can join (a count reads as a plain 0)
             if d is None:
-                d = self._detached = weakref.WeakValueDictionary()
+                d = self._detached = {}
             d[k] = e
         return e
 
