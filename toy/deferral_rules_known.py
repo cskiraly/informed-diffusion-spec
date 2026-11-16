@@ -3,6 +3,7 @@
 of unknown groups, a block that never installs or an index its group does not have.
 
     python3 deferral_rules_known.py
+    python3 deferral_rules_known.py --doc v2     # the same states on protocol-v2.md's own defer, on_heartbeat and fill
 
 On one node after a small run (one payload, its group of N = 2 complete there), with states made by hand:
 
@@ -38,6 +39,7 @@ import sys
 from pathlib import Path
 
 SEED, NODE, P, Q, R = 7, 2, 1, 3, 4
+V2 = sys.argv[1:] == ["--doc", "v2"]                       # protocol-v2.md: v0.10's rules carried into its own functions
 ROOT = bytes([0x66]) * 32                                   # a root that never installs here
 
 
@@ -49,7 +51,7 @@ def main():
     got = {}
     run.run = lambda cfg, out=sys.stdout: got.setdefault("sim", S.Sim(cfg))
     run.main(["--nodes", "5", "--degree", "4", "--msgs", "1", "--payload", "16384", "--seed", str(SEED),
-              "--late-block", "0,400,2"])                   # no late node; a store of two copies per peer
+              "--late-block", "0,400,2"] + (["--doc", "v2"] if V2 else []))   # no late node; a store of two copies per peer
     sim, cfg = got["sim"], got["sim"].cfg
     sim.run(cfg["first"]); sim.publish(1); sim.run(cfg["first"] + cfg["gap"])    # the run's one payload, to its end
     nd = sim.nodes[NODE]
@@ -131,8 +133,11 @@ def main():
     # when the group's count becomes known, what named an index beyond it goes (drop_beyond, from on_validated)
     ROOT4, U = bytes([0x88]) * 32, 5                        # a root that never installs; peer 5
     d = ns["desc"].pop(g)                                   # the group's count not known yet
+    if V2:
+        ns["T_of"].pop(g, None)                             # protocol-v2.md opens a group in fill, by T_of
     beyond, inside = Wm.WantIndex(g, n), Wm.WantIndex(g, 1)
-    ns["on_ihave"](Q, Wm._IHave([g + n.to_bytes(4, "little") + bytes([0x44]) * 20]))   # an id of index N: an offer
+    if not V2:                                              # protocol-v2.md reads offers as bitmaps (its on_offer):
+        ns["on_ihave"](Q, Wm._IHave([g + n.to_bytes(4, "little") + bytes([0x44]) * 20]))   # an id of index N: an offer
     ns["tried"][beyond][Q] = ns["now"]; ns["asked_at"][beyond] = ns["now"]  # an ask of it made (the group is past
                                                                             #   its stop-pull here, so by hand)
     ns["add_offer"](beyond, Q); ns["add_offer"](inside, Q)  # Q offers index N, and index 1 (the control)

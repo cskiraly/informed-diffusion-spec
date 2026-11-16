@@ -81,7 +81,8 @@ publish, and each keeps at most two deferred copies per peer.
   and waits for another. Known answers on states made by hand have most of these
   (`tie_helpers_known.py`, `tie_release_known.py`, `deferral_rules_known.py`); not the retry's
   choice, nor `drop_tie` for a root whose bid commits another group.
-- `--late-block` is not meant with `--churn` (a closed connection's ties are not dropped). It never
+- `--late-block` with `--churn`: since 2026-11-16 a closed connection's ties go with it, with the
+  rest of §8.1's per-connection state (`close_known.py`); no recorded cell combines them. It never
   draws a node that publishes, and at 0 % it draws none (`late_draw_known.py`).
 
 The fifteenth cell, `push-deep` (2026-11-15), is the `push` cell with the earlier transport,
@@ -89,7 +90,7 @@ which takes every write at once (`--send-buffer 0`, the default until that day):
 met, a case the document allows and the check keeps. Its line is the `push` cell's line before the
 default changed, in both recordings.
 
-Ten scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Sixteen scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -112,6 +113,24 @@ where one has a control that must come out the other way, it is named:
   - When a group's count becomes known, the offers, asks and ties of an index beyond it go; an
     offer of an index within it stays.
   - Level 1 rejects a copy whose slot is not its block's; the copy as it came passes.
+
+  With `--doc v2` it runs the same states on `protocol-v2.md`'s own `defer`, `on_heartbeat` and
+  `fill`, which carry these rules since 2026-11-16.
+- `v2_carried_known.py`: the same rules where `protocol-v2.md` has its own functions for offers and
+  cells, on a small rows run.
+  - An offer's bitmap of an index beyond the group's known count is ignored and penalised; one
+    within it leaves an offer.
+  - At the cell header, a tied index the group does not have is dropped, and the same peer's other
+    index is offered.
+  - A sender with nothing left tied under the root loses its tie's slot; a peer still tied for
+    another group keeps its slot.
+  - A cell's level 1 rejects a copy whose slot is not its header's, for its column and its row; the
+    copy as it came passes.
+- `close_known.py`: a connection's close under `protocol-v2.md` (`--churn`).
+  - The closed announcer's offers, tries, promises, last-resort counts and ties go; its park and
+    the kept deferred copy, the controls, stay.
+  - A probed claimant that leaves gets no verdict and no penalty, and the duty is re-armed at its own
+    time, here already passed, so at once; a connected claimant beside it, the control, is judged.
 - `late_drain_known.py`: the `late-block` cell with a leak put in by hand must fail, and so must
   the cell with a node that gets no chunk; as it is, it must pass.
 - `late_draw_known.py`: `--late-block`'s draw and its argument.
@@ -120,7 +139,28 @@ where one has a control that must come out the other way, it is named:
 - `table_read_known.py`: §8.1's "reading it allocates nothing", table by table; one write through
   the same reads must leave exactly the entry it wrote. Held reads share one entry, a held read
   written after a set fails, the collections' own writes join, and an offer list refuses what
-  would bypass `listed`. And the writer after a read of an owed answer.
+  would bypass `listed`. And the writer after a read of an owed answer. With `--doc v2` it also
+  reads the tables `protocol-v2.md` adds (§3: the relations, JOINs, backoffs, standing asks,
+  claims, the probe's tables, the repair sample's and the sampler's), which read without creating
+  since 2026-11-16.
+- `probe_decode_known.py`: a marked probe that reaches a claimant still decoding is kept, the
+  first per asker and group, and answered with its exemption when the decode stores the cell; a
+  second probe from the same asker, and a plain ask beside it, must not be answered then.
+- `probe_write_known.py`: the probe's promise and the verdict's wait start when its WANT is
+  written; a probe a full queue refuses, or one still unwritten when the wait ends, gets no verdict
+  and penalises nobody. A probe written and not answered beside them must be judged and penalised.
+- `probe_settle_known.py`: a probe given no verdict while still queued is not written later; a
+  refused probe, and one whose claimant closes, return the duty to its own time when that is later;
+  after a probe given no verdict, a plain ask of the probed cell that the claimant answers leaves no
+  promise open. A marked ask kept while decoding is answered and charged once, with its exemption:
+  alone, repeated, or beside a standing ask of the same asker sent before it or after it, and
+  repeated with one slot of the serving limit left. A probe not yet settled must still be written,
+  the claimant's own copy before the write must pass it, another peer's copy must leave a written
+  probe's promise open, a close when the duty was due must reconsider at once, and a plain standing
+  ask must be answered once.
+- `refusal_report_known.py`: the report of asks left unanswered does not count a marked probe of a
+  claimed index as claimed, since it is answered (R5); a plain ask beside it, and a second marked
+  probe past the cap, must be counted.
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then
@@ -782,9 +822,10 @@ the run's seed and the node (`probe-index/<seed>/<node>` in `node.py`), so that 
 other; the claimant is then drawn from the node's own generator, as before. Over five cells at 60
 nodes, degree 30, three blocks and seeds 7 to 9, with `--send-buffer 0` (`--setting rows`; `--fault claim20`; with
 `--row-subnets 16 --withhold 64`; the same with `--fault hoard20` in place of the liars; and the
-liars' withheld cell with `--supernodes 5`), no honest or hoarding claimant failed its probe (3 of
-1 289 verdicts failed with the claimant's own copy alone), and liars passed 3, 1 and 61 times in the
-three liar cells, where any peer's copy passed at least 57, 115 and 558. Figures in this section
+liars' withheld cell with `--supernodes 5`), no honest or hoarding claimant failed its probe (none
+of 1 298 verdicts with the rules of 2026-11-16; before them, 3 of 1 289 failed with the claimant's
+own copy alone), and liars passed 3, 1 and 61 times in the three liar cells, where any peer's copy
+passed at least 57, 115 and 558 (measured before 2026-11-16). Figures in this section
 measured before 2026-11-15 ran with the lowest index, without the mark and the kept WANT, and with any
 peer's copy passing the claimant, unless they say otherwise.
 

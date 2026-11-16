@@ -5,6 +5,62 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
+## After v0.10.2, not yet released
+
+`protocol.md` unchanged: the next version's draft carries v0.10's rules where it has functions of its
+own, follows §8.1's lifetimes at a connection's close, and settles the probe of a claim's open cases;
+its figures are measured again.
+
+The draft of SEACAST's next version (`protocol-v2.md`), changed since v0.10:
+- **v0.10's rules in the draft's own functions.** Its `defer` ignores a copy beyond its sender's limit
+  of unknown groups; its `fill` drops what names an index beyond a group's count when it opens the
+  group (`drop_beyond`); its `on_heartbeat` drops what waits for a gate that never opens
+  (`drop_stale_waits`); its `on_offer` holds an offer's bitmap to a holding's limits; and its
+  `on_header_validated` drops a tied index a cell group does not have, and a sender's `tie_slot` with
+  its last tie. A cell's level 1 rejects a copy whose slot is not its header's, as `validate_chunk`
+  does for the payload (§1's table). §5 gains two rows.
+- **A connection's close** follows §3's lifetimes, which are `protocol.md` §8.1's. A peer's claims go
+  with its connection (`claims_close`), and a probe of a claimant that leaves before its verdict gets
+  none: the member's own repair is reconsidered at the duty's own time, the time it was armed for
+  when the claim deferred it (`duty_at`), at once if that has passed (§4.6).
+- **The probe's wait starts at its write**, as every promise does (`protocol.md` §6.1): its promise
+  starts when its WANT is written (`probe_sent`), and the verdict waits until the later of one window
+  after that and the duty's own time. A probe a full queue refuses, or one still unwritten when the
+  duty next fires, gets no verdict unless the claimant's own copy comes first, and otherwise the
+  member's own repair is reconsidered, which bounds the deferral at one window past the later of the
+  duty's own time and one window after the decision. A probe settled while still queued is not
+  written later (`probe_settled`). Once settled, the probe holds no promise open: a promise under its
+  key is a plain ask's, which any copy closes (`probe_promise`), so a later plain ask of the probed
+  cell does not park a claimant that answered it (§4.6).
+- **A claimant still decoding answers the probe when the cell is stored.** It keeps the first marked
+  ask per asker and group of a claimed index it has not stored (`probe_waiting`), and answers it once,
+  with its exemption, from `fill` and `decode_group` (`serve_waiting_probe`). While it is kept,
+  neither the same marked ask repeated nor a standing WANT of the same index from the same asker,
+  sent before it or after it, is kept as a standing WANT as well. No case of the probe is left open
+  (§4.6, §8).
+- **The probe's figures measured again** with these rules, in the toy's rows at 60 nodes over five cells
+  and three seeds: none of 1 298 verdicts on honest or hoarding claimants failed, liars passed 3, 1 and
+  61 times in the three liar cells, and the mark cost 9 duplicate cells in 2 428 probes. None of the
+  runs reached a path that `probe_settled`, `duty_at` or the single answer changes (a probe given no
+  verdict while queued, a refusal or a close, a kept probe), and the settled probe's promise changes
+  no verdict once given: it acts only on an ask of the probed cell to the claimant after the
+  verdict, and after a pass the member holds the cell, while after a failure the claimant was parked
+  for the group when its promise broke. The runs did not count such asks, so whether it would change
+  their events, copies or verdict counts is not shown. The earlier figures stay, labelled as
+  measured before (§4.6, §8, `toy/README.md`).
+
+The toy:
+- **The draft's tables read without creating entries**, as `protocol.md`'s do since v0.10
+  (`toy/bits.py`'s non-inserting classes), and the report of asks left unanswered no longer counts a
+  marked probe as claimed.
+- **A connection's close (`--churn`)** drops what §8.1's rows say and keeps the peer's park, which it
+  deleted before.
+- **Known answers** for each change: `toy/v2_carried_known.py`, `toy/close_known.py`,
+  `toy/refusal_report_known.py`, `toy/probe_decode_known.py`, `toy/probe_write_known.py` and
+  `toy/probe_settle_known.py`; `toy/deferral_rules_known.py` and `toy/table_read_known.py` also run the
+  draft (`--doc v2`).
+- **Unchanged:** `protocol.md`, and every recorded cell's digest in `golden.txt` and `golden-v2.txt`.
+
 ## v0.10.2, 2026-11-16
 
 No rule changes: the toy's runs of the next version's draft no longer slowed by its lazy tables, the

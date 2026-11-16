@@ -10,8 +10,8 @@ name since 2026-10-19; v0.4 was published as Informed Diffusion, which now names
 part (§0, "The parts").*
 
 *Draft 1, 2026-10-07. A sibling of [`protocol.md`](protocol.md), which it contains as one
-setting (§6.1). That was draft v0.3 when this was written and is v0.10 since 2026-11-15, with the
-same section numbers; "v0.3" below means that document.*
+setting (§6.1). That was draft v0.3 when this was written and is v0.10.2 since 2026-11-16, with
+the same section numbers; "v0.3" below means that document.*
 
 *Each later version of `protocol.md` comes in the same way. Its changes to functions this
 document does not redefine apply as written, and those to functions it does are carried into
@@ -54,16 +54,23 @@ them; §5 lists what carries over.*
     payload is `validate_chunk` with its new check of the copy's slot (`protocol.md` §3, §4.2).*
   - *The announcers beyond a chunk's ordered list are tried in the node's own order, in
     `protocol.md`'s ask path, which this document keeps (`protocol.md` §6.1).*
-  - *Not yet carried, where this document has functions of its own; to follow after this version:*
-    - *its `defer` keeps a copy beyond its sender's limit of unknown groups, which `protocol.md`'s
-      ignores (the copy is not tied: `tie` checks the limit);*
-    - *its `on_heartbeat` does not call `drop_stale_waits`, so what waits for a root that never
-      installs does not go at the live window's edge, and its `tie_slot` entries stay;*
-    - *its `on_validated` does not call `drop_beyond`, so offers, asks and ties of an index beyond
-      a group's count stay when the group opens;*
-    - *its offers are read by its own `on_offer` (§4.3), not by `protocol.md`'s `on_ihave`, so §4.4's
-      new rules for an IHAVE entry do not reach it: an offer's bitmap is not held to a HAVE's limits;*
-    - *a cell's level 1 (§1's table) does not compare the copy's slot with its block's.*
+  - *Carried since 2026-11-16 where this document has functions of its own (§4.2, §4.3, §4.8,
+    §1's table):*
+    - *its `defer` ignores a copy beyond its sender's limit of unknown groups, as `protocol.md`'s
+      does;*
+    - *its `on_heartbeat` calls `drop_stale_waits`, so what waits for a gate that never opens goes
+      at the live window's edge or the group's expiry;*
+    - *its `fill` calls `drop_beyond` when it opens a group, so offers, asks and ties of an index
+      beyond the group's count go;*
+    - *its `on_offer` holds an offer's bitmap to a holding's limits, as `protocol.md`'s `on_ihave`
+      holds an IHAVE's;*
+    - *its `on_header_validated` drops a tied index a cell group, known by then, does not have, and
+      removes a sender's `tie_slot` with its last tie under the root, as `on_block_installed` does;*
+    - *a cell's level 1 rejects a copy whose slot is not its header's, as `validate_chunk` does for
+      the payload against its block (decided 2026-11-16).*
+- *v0.10.1 (2026-11-15) and v0.10.2 (2026-11-16): `protocol.md`'s prose and comments rewritten,
+  its code the same, and the toy's tables made faster, the recorded cells' digests the same;
+  nothing to carry.*
 
 *This draft defines the notions, the messages, the state and the event handlers; the scheduling
 that tier 4 measured carries over unchanged where §5 says so. Every design decision is marked
@@ -225,7 +232,7 @@ class TypeParams:                                    # per object type; values i
 | group id | `group_key(group_id(descriptor), slot)`, the key of v0.3 §1 | `(block_root, column)` | `(block_root, row)` |
 | N | `descriptor.count` | the blob count | `NUMBER_OF_COLUMNS` = 128 |
 | K | `ceil(total_length / segment_size)` | N: no code across blobs | 64 |
-| `verify` | v0.3's `validate_chunk`: the Merkle path to the committed root; DEFER before the block | `verify_cell_kzg_proof_batch`, one cell index, many commitments; DEFER before the header | the same, one commitment, many cell indices |
+| `verify` | v0.3's `validate_chunk`: the Merkle path to the committed root, and since v0.10 the copy's slot its block's; DEFER before the block | `verify_cell_kzg_proof_batch`, one cell index, many commitments, and the copy's slot its header's (REJECT otherwise, as v0.10's `validate_chunk`); DEFER before the header | the same, one commitment, many cell indices, and the same slot check |
 | `decode` | v0.3's `decode_and_reencode`: any K chunks to all N, or None if the root differs | the cells present, if all are; nothing is rebuilt within a column (§4.6) | `recover_cells_and_kzg_proofs` from 64 |
 | `header_of` | the descriptor the chunk carries (design A), checked against the bid in the installed block | `PartialDataColumnHeader`, validated once per block on any group | the same header |
 | `project` | `[(g, i)]` | `[((root, c), b), ((root, row b), c)]` | the same two |
@@ -503,13 +510,19 @@ forwarded: Dict[PeerId, int]                          # new: routed requests fro
 claims: Dict[GroupId, Set[PeerId]]                    # new: peers whose claim_all arrived (R5, §4.6)
 reconsider_at: Dict[GroupId, float]                   # new: when our later decode duty fires, if armed (§4.6)
 deferred: Dict[GroupId, bool]                         # new: we deferred it once on a claim (R5)
+duty_at: Dict[GroupId, float]                         # new: the duty's own time when the claim deferred it (R5)
 waited: Dict[GroupId, bool]                           # new: we waited once for chunks held on another axis (§4.6)
 probe: Dict[GroupId, int]                             # new: the index we asked a claimant for, to verify the claim (R5)
 probed: Dict[GroupId, PeerId]                         # new: the claimant we asked
 probe_asks: Set[Ask]                                  # new: those asks, exempt from stop-pull (§4.6)
-probe_ok: Dict[GroupId, bool]                         # new: the probe's verdict, once: True if the claimant's own copy came
+probe_sent: Set[GroupId]                              # new: groups whose probe's WANT was written (§4.6)
+probe_ok: Dict[GroupId, Optional[bool]]               # new: the probe's verdict, once: True if the claimant's own copy came;
+                                                      #   None: no verdict, the probe not written in time or
+                                                      #   the claimant gone (§4.6)
 probe_served: Dict[PeerId, Dict[GroupId, bool]]       # new: as a claimant, p's probe of the group answered (§4.6)
 probe_answers: Dict[PeerId, Dict[GroupId, Bitmap]]    # new: those answers until written, by the chunk's own group
+probe_waiting: Dict[GroupId, Dict[PeerId, int]]       # new: as a claimant still decoding, p's first marked ask of the
+                                                      #   group, until the cell is stored (§4.6)
 rsample: Dict[GroupId, List[int]]                     # new: the repair sample's indices, asked of custodians (R5, option)
 rsample_step: Dict[GroupId, int]                      # new: how many of REPAIR_SAMPLE's steps were asked
 rsample_asked: Dict[GroupId, Dict[int, Set[PeerId]]]  # new: the custodians each sampled cell was asked of
@@ -518,9 +531,10 @@ rsample_final: Dict[GroupId, bool]                    # new: the last step's re-
 
 Lifetimes are v0.3 §8.1's: per-group state lives `GROUP_TTL` past the last chunk or the completion,
 or until its slot leaves the node's live window if that comes first, and leaves a tombstone until
-the window has passed the slot, and the probe's tables (`probe_ok`, and `probe_served` and
-`probe_answers` for every peer) go with it, a peer's entries also with its connection (a bit of
-`probe_answers` whose answer is never written stays until then); per-peer entries live `HAVE_TTL`
+the window has passed the slot, and the probe's tables (`probe_ok`, and `probe_served`,
+`probe_answers` and `probe_waiting` for every peer) go with it, a peer's entries also with its connection (a bit of
+`probe_answers` whose answer is never written stays until then), and a peer's claims go with its
+connection (`claims_close`, §4.6); per-peer entries live `HAVE_TTL`
 and `PUSH_TTL` heartbeats or until the connection closes; relations live until PRUNE or
 disconnection, a GRAFT
 of ours until it is answered, a PRUNE of either end ends it or the connection closes, an owed
@@ -960,6 +974,9 @@ grafts on them.
   first block on, against the same cells without churn. Its cost per node and gap, paired by seed,
   was 0.14 to 0.19 JOINs and 0.30 to 0.44 GRAFTs more at 1 %, and 0.69 to 0.88 and 1.53 to 1.92 at
   5 %. Every node completed, and the warm block's 99th percentile moved within the toy's noise.
+  These runs predate 2026-11-16. Since then, the toy's close also drops the closed peer's offers,
+  tries, promises and ties, and keeps its park (§3's lifetimes, `protocol.md` §8.1). They were not
+  run again.
 - How long its links are kept, and whether they rotate, is the rendezvous's, as for the coverage
   floor.
 
@@ -990,7 +1007,9 @@ def on_validated(p, f, result):
 
 def fill(g, i, f, p):
     if expired(g): return                              # an expired group is not taken up again (v0.3 §8.1)
-    if g not in T_of: open_group(g, f)                 # hdr[g], T_of[g], interest[g], known_at[g]
+    if g not in T_of:
+        open_group(g, f)                               # hdr[g], T_of[g], interest[g], known_at[g]
+        drop_beyond(g)                                 # what named an index it has not goes (protocol.md §4.2, §8.2)
     if state[g] == INVALID: return                     # a dropped group (§4.6)
     if received[g].has(i) or rebuilt[g].has(i):        # a copy of a chunk we hold: acknowledge it
         probe_answer(g, i, p)                          # (R5) a duplicate from the claimant passes its probe too
@@ -1002,6 +1021,7 @@ def fill(g, i, f, p):
     close_promises(g, i)                               # [c5] the chunk arrived, from anyone
     if kept: promises[kept[0]] = kept[1]
     serve_standing(g, i)                               # §4.10: WANTs that preceded it are answered now
+    serve_waiting_probe(g, i)                          # (R5) and a probe that reached us while we decoded
     claim = not mine[g].has(i)                         # not yet claimed (a node past K claimed everything)
     if claim: mine[g].set(i)                           # [c7] only chunks that passed level 1
     ack = {p} if p is not None else set()              # [c14] the sender's acknowledgement
@@ -1044,6 +1064,8 @@ def defer(p, f):                                      # protocol.md §4.2's, at 
     T = type_of_group(f.group)                        #   the payload, the cell header for cells
     result = T.verify(f, T.header_of(f))
     if result != DEFER: return on_validated(p, f, result)   # the gate opened in the meantime
+    if not admitted(p, f): return                     # a group beyond the peer's unknown groups (protocol.md §8.2):
+                                                      #   ignored, neither kept nor tied
     tie(p, f)                                         # kept or refused, its sender is tied to the root it names
     if reserve(p, f):                                 # a per-peer reservation in the bounded store (v0.3 §8.2)
         pending[f.beacon_block_root].append((p, f))
@@ -1059,13 +1081,18 @@ def on_header_validated(root):                       # (P2) a block's cell heade
         T = type_of_group(f.group)
         on_validated(p, f, T.verify(f, T.header_of(f)))
     for p, held in tied[root].items():                # their senders' ties for the root's cell groups release:
-        for g in [g for g in held if g in groups]:    #   parks lift, B′'s counts clear, each an offer again
+        for g in [g for g in held if g in groups]:    #   parks lift, last-resort counts clear, each an offer again
             bits = held.pop(g)
             if expired(g): continue
             park[p].pop(g, None)
             for i in bits:
                 asked_parked[(g, i)].discard(p)
+                if g in hdr and i >= type_of_group(g).index_count(hdr[g]):   # an index the group, known now,
+                    continue                          #   has not is dropped (protocol.md §8.2), the others kept
                 if not mine[g].has(i): add_offer(Ask(g, i), p)
+    for p in [p for p, held in tied[root].items() if not held]:   # a sender with nothing left tied under
+        del tied[root][p]; tie_slot.pop((root, p), None)          #   the root: its tie's slot goes too (§8.1)
+    if not tied[root]: tied.pop(root, None)
     for g in groups:                                  # every column and row group of the block
         for a in ledger(g): retry_offer(a)            # offered meanwhile, or released, asked for now (v0.5 §4.4)
 ```
@@ -1078,9 +1105,17 @@ of a refused copy is gone).
   `retry_offer`, `last_resort`, `ask_parked` or `filter_entry`, which this document takes as they
   are.
 - **The release.** The gate's opening releases the ties: each sender's park for the group lifts,
-  B′'s count for its indices clears, and each index is its offer again. For the payload this is at
+  the last resort's count for its indices clears, and each index is its offer again; an index the
+  group does not have, once its count is known, is dropped instead. A sender with nothing
+  left tied under the root loses the slot its ties recorded (`tie_slot`). For the payload this is at
   the block's installation (`on_block_installed`); for cells it is at the header
   (`on_header_validated`, above).
+- **What waits is bounded** as in `protocol.md` §4.2 and §8.1, since v0.10, for both object types.
+  A copy of a group beyond its sender's limit of unknown groups is ignored, neither kept nor tied
+  (`defer`). When a group opens, at its first valid chunk, what named an index beyond its count
+  goes: offers, asks, promises, tries and ties (`drop_beyond`, from `fill`). And at each heartbeat,
+  what waits for a gate that never opens goes once its slot leaves the live window or its group
+  expires (`drop_stale_waits`, from `on_heartbeat`).
 - **Ordering.** `defer` here waits for the gate of the chunk's own type; `protocol.md`'s waited
   for the block alone. Cells leave the store and their ties at the header, so a binding validates
   a block's cell header no later than it installs the block (a rule, decided 2026-11-01). The
@@ -1097,7 +1132,7 @@ of a refused copy is gone).
   only on `protocol.md`'s paths, so the rule applies to both object types as written.
 
 The toy's cells carry their header, so their gate is open from the first cell and neither `defer`
-nor `on_header_validated` runs there.
+nor `on_header_validated` runs there; `toy/v2_carried_known.py` calls the latter by hand.
 
 ### 4.3 A holding or an offer arrives
 
@@ -1120,6 +1155,8 @@ def on_holding(p, h: Have):                            # v0.3 §4.3's on_have
 def on_offer(p, h: Have):                              # v0.3 §4.4's on_ihave over one group's bitmap; returns asks
     g = h.group
     if expired(g): return []
+    if not valid_have(h):                              # held to a holding's limits, as protocol.md §4.4 holds an
+        penalise(p); return []                         #   IHAVE's bitmap: ignored, and counted (§8.2)
     if now - known_at[g] < type_of_group(g).params.START_DELAY:   # [D8] (R7) a secondary axis waits
         return deferred_offers(p, h)                   # recorded as offers; asked when the delay has run
     candidates = []
@@ -1221,7 +1258,11 @@ def on_want(p, asks):                                  # v0.3 §4.5's on_iwant, 
             continue                                   # (R6) refused without penalty
         mid = resolve(a)                               # [c7] our chunk at that index: received or rebuilt
         if mid is None:                                # gi carries its WANT's fields (§2)
-            if gi and (declared or gi.standing):
+            if flagged and p not in probe_waiting[gi.group]:   # (R5) claimed, not stored: we are decoding; the
+                probe_waiting[gi.group][p] = gi.index  #   first per asker and group is answered when it is (§4.6),
+                standing[gi.group][gi.index].discard(p)   #   once: in place of p's standing WANT of that index,
+            elif (gi and (declared or gi.standing)     #   whether it came before the probe or after it
+                  and probe_waiting[gi.group].get(p) != gi.index):
                 standing[gi.group][gi.index].add(p)    # §4.10: answered when the chunk arrives
             if gi and gi.hops > 0: route_want(p, gi.group, gi.index, gi.hops)   # §4.10: one step on
             continue
@@ -1237,6 +1278,16 @@ def serve_standing(g, i):                              # §4.10: the chunk a WAN
     for q in standing[g].pop(i, ()):
         if peer_has[q][g].has(i) or served[q][g] >= type_of_group(g).params.SERVE_LIMIT: continue
         served[q][g] += 1
+        if not enqueue(q, Entry(chunk=chunks[g][i], solicited=True), urgent=False):   # an answer, like any
+            owed_answers[q][g].set(i)                  #   other: refused by a full queue, owed (v0.5 §7.2)
+        note_push(q, g, i)                             # so that no offer follows it (§4.4)
+
+def serve_waiting_probe(g, i):                         # (R5) the cell a kept probe waited for is stored, received or
+    for q in [q for q, j in probe_waiting[g].items() if j == i]:   # rebuilt: answered as on_want answers a probe,
+        del probe_waiting[g][q]                        #   with its one exemption
+        if probe_served[q][g] or served[q][g] >= type_of_group(g).params.SERVE_LIMIT: continue
+        served[q][g] += 1
+        serve_probe(q, g, chunks[g][i])
         if not enqueue(q, Entry(chunk=chunks[g][i], solicited=True), urgent=False):   # an answer, like any
             owed_answers[q][g].set(i)                  #   other: refused by a full queue, owed (v0.5 §7.2)
         note_push(q, g, i)                             # so that no offer follows it (§4.4)
@@ -1361,7 +1412,9 @@ def reconsider(g, at):
     if reconsider_at.get(g) != at or state[g] != COMPLETE: return   # re-armed since, or decoding already
     del reconsider_at[g]
     if deferred[g] and g not in probe_ok:              # (R5) the verdict, once: only the claimant's own copy
-        probe_ok[g] = False; penalise(probed[g])       #   passes it, whichever peer brought the cell
+        if g in probe_sent:                            #   passes it, whichever peer brought the cell; a probe
+            probe_ok[g] = False; penalise(probed[g])   #   not written by now gets none, and our own repair
+        else: probe_ok[g] = None                       #   goes on below (§4.6)
     if popcount(known_in_scope(g)) >= T.index_count(hdr[g]): return # whole in the subnet's view: nothing to rebuild
     if (deferred[g] and received[g].has(probe[g]) and wants_family(T, T.family(g))   # (R5) the claim held, on a
             and not owed_missing(g)):                        #   row we take part in, and its repair reached us; on a
@@ -1379,6 +1432,13 @@ def reconsider(g, at):
     for q in suppression_scope(g): send_have(q, g)
     start(decode_group, g)
 
+def claims_close(p):                                   # (R5) p's connection closed: its claims go, so a probe draws
+    for g in [g for g, qs in claims.items() if p in qs]:   #   among connected claimants; our probe of p, not yet
+        claims[g].discard(p)                           #   judged, gets no verdict, its promise gone with the
+        if deferred[g] and probed.get(g) == p and g not in probe_ok:   # connection, and the deferral ends:
+            probe_ok[g] = None                         #   no verdict, and our own repair is reconsidered at the
+            arm(g, max(now, duty_at.get(g, now)))      #   duty's own time, at once if that has passed
+
 def note_claim(p, g):                                  # (R5) from on_holding: p claims every index of g
     claims[g].add(p)
     if (g in reconsider_at and state[g] == COMPLETE and not deferred[g]
@@ -1387,6 +1447,7 @@ def note_claim(p, g):                                  # (R5) from on_holding: p
 def defer_on_claim(g):                                 # (R5) verify the claim by one ask, and wait for it
     T = type_of_group(g)
     deferred[g] = True
+    duty_at[g] = reconsider_at.get(g, now)             # the duty's own time: a probe with no verdict returns to it
     lack = [i for i in range(T.index_count(hdr[g])) if not mine[g].has(i)]
     i = choice(lack)                                   # an index we lack, at random: the claimant cannot tell which
     probe[g] = i
@@ -1394,9 +1455,11 @@ def defer_on_claim(g):                                 # (R5) verify the claim b
     a = Ask(g, i)
     add_offer(a, q); tried[a][q] = now                 # a claim is an offer of every index (v0.3 §6.1's tables)
     probe_asks.add(a)                                  # past stop-pull and the ask window: gated exempts it
-    promises[(a, q)] = now; after(T.params.DEFER_WINDOW, promise_due, a, q, now)   # broken: the claimant is parked
-    send(q, Want(group=g, bits=bitmap({i}), probe=True), urgent=False)   # marked: answered whatever we hold
-    arm(g, max(reconsider_at.get(g, now), now + T.params.DEFER_WINDOW))
+    if not send(q, Want(group=g, bits=bitmap({i}), probe=True), urgent=False):   # marked: answered whatever we hold
+        probe_ok[g] = None                             # refused by a full queue, never written: no verdict, and our
+        return arm(g, max(now, duty_at[g]))            #   own repair is reconsidered at the duty's own time (§4.6)
+    arm(g, max(reconsider_at.get(g, now), now + T.params.DEFER_WINDOW))   # its promise starts at its write
+                                                       #   (filter_entry); not written by then: no verdict either
 
 def gated(a): return stop_pull[group(a)] and a not in probe_asks    # [c6] v0.3 §6.2, with the probe exempt
 
@@ -1406,14 +1469,18 @@ def probe_answer(g, i, p):                             # (R5) the claimant's own
         promises.pop((Ask(g, i), p), None)
 
 def probe_promise(g, i):                               # (R5) the probe's promise, still open: another peer's copy
-    if not deferred[g] or probe.get(g) != i: return None   #   does not close it
-    k = (Ask(g, i), probed[g])
-    return (k, promises[k]) if k in promises else None
+    if not deferred[g] or probe.get(g) != i or g in probe_ok: return None   #   does not close it; once the
+    k = (Ask(g, i), probed[g])                         #   probe is judged or given no verdict, a promise under
+    return (k, promises[k]) if k in promises else None #   its key is a plain ask's, which any copy closes
 
 def probe_waits(a, p) -> bool:                         # (R5) a is our probe of p, flagged and not yet answered or
     gi = group_index(a)                                #   judged: our queue writes it even if another peer's copy
     return (gi is not None and gi.probe and deferred[gi.group] and probed.get(gi.group) == p   # came first
             and probe.get(gi.group) == gi.index and gi.group not in probe_ok)
+
+def probe_settled(a) -> bool:                          # (R5) a is our probe, judged or given no verdict: if still
+    gi = group_index(a)                                #   queued, it is not written (§4.6)
+    return gi is not None and gi.probe and gi.group in probe_ok
 
 def probe_of_claim(p, gi) -> bool:                     # (R5) as the claimant: p's flagged ask of an index we claim,
     return (gi is not None and gi.probe and mine[gi.group].has(gi.index)   #   while no flagged ask of the group
@@ -1438,10 +1505,16 @@ def filter_entry(p, entry):                            # protocol.md §7.2's, bu
     for c in entry.iwants():                                   # the asker drops asks for chunks it
         c.ids = [a for a in c.ids                              #   now holds, no longer pulls, or of a
                  if (not held(a) or probe_waits(a, p))         # (R5) but our waiting probe of p
+                 and not probe_settled(a)                      # (R5) and a probe settled while queued,
                  and not gated(a) and not expired(group(a))    #   group past its lifetime,
                  and not tied_to_root(p, a)]                   #   and asks to a peer whose copy waits
         for a in c.ids:                                        # [c5] the promise starts at the write
-            if (a, p) not in promises:
+            if probe_waits(a, p) and group(a) not in probe_sent:   # (R5) our probe, written now: its promise
+                W = type_of_group(group(a)).params.DEFER_WINDOW    #   and the verdict's wait start here (§4.6)
+                probe_sent.add(group(a))
+                promises[(a, p)] = now; after(W, promise_due, a, p, now)   # broken: the claimant is parked
+                arm(group(a), max(reconsider_at.get(group(a), now), now + W))
+            elif (a, p) not in promises:
                 promises[(a, p)] = now
                 after(PROMISE, promise_due, a, p, now)         # 400 ms
     return entry if not entry.is_empty() else None             # control rides on and survives
@@ -1455,6 +1528,7 @@ def decode_group(g):                                   # level 2, off the chunk 
     filled = []                                        # the other groups the rebuilt chunks fill, in order
     for i in new:
         store(g, i, whole[i]); rebuilt[g].set(i)       # servable from now on
+        serve_waiting_probe(g, i)                      # (R5) a probe that reached us while we decoded (§4.6)
         for (g2, i2) in T.project(whole[i]):           # (R4) a rebuilt chunk fills its other groups too
             if g2 == g: continue
             fill(g2, i2, whole[i], None)
@@ -1513,13 +1587,19 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
   duty armed this way fires unless the group became whole in that view meanwhile ("a node MUST
   cancel a pending reconstruction of a row that completes through other means", EIP-8371).
 - **Deferral on a claim, verified by one ask** (R5). A peer's `claim_all` for a group whose later
-  duty is armed defers the duty once, by at least `DEFER_WINDOW`, and the receiver asks that peer
+  duty is armed defers the duty once, by at least `DEFER_WINDOW` (a probe that ends without a
+  verdict returns the duty to its own time, below), and the receiver asks that peer
   for one index it lacks, drawn at random (a claim is a promise: §4.5 `may_be_asked`). The duty and
   the claimant are judged apart. If the chunk arrives, from anyone, the claim is verified for the
   duty, and a row member's duty ends when the window has run; a node that keeps the row on no link
   goes by the cells it holds (below). The claimant passes only on its own copy, an answer or a push:
-  if none has come when the deferred duty fires, the claimant is penalised, once, and another peer's
-  copy leaves its promise open, so that v0.3's pull discipline parks it when the promise breaks. The
+  if none has come when the deferred duty fires, with its probe written and the claimant still
+  connected (below), the claimant is penalised, once, and another peer's
+  copy leaves its promise open, so that v0.3's pull discipline parks it when the promise breaks.
+  That holds only while the probe waits: once it is judged or given no verdict, a promise under its
+  key is a plain ask's, which any copy closes (`probe_promise`), so a later plain ask of the probed
+  cell to the claimant, which an offer of the claimant's can bring, does not park a claimant that
+  answered it. The
   probe's promise is the deferral window itself, not v0.3's `PROMISE` of 400 ms: a reconstructor
   that has just decoded is pushing a row's worth of rebuilt cells through its window, and in the toy
   its answer to a probe left 450 ms after it was decided, so with the shorter promise honest
@@ -1537,8 +1617,9 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
   peer suppress reconstruction; the probe makes the re-arm a verdict on the claimant rather than a
   timer, at the cost of one cell.
 - **The probe is marked, and its cell drawn at random** (R5, decided 2026-11-15). Three rules keep
-  the verdict on the claimant fair to an honest one and hard to meet for a dishonest one, but for
-  three cases left open (below).
+  the verdict on the claimant fair to an honest one and hard to meet for a dishonest one. Three
+  more, since 2026-11-16, say when the probe's wait starts, and what a claimant still decoding and
+  a claimant's departure do.
   - *The mark.* The probe's WANT sets `probe` (§2). The claimant answers the first such ask per
     asker and group, of an index it claims, whatever the asker's holdings say: neither the claim
     rule (§4.5) nor a receipt of the asker's refuses it, and card 8 lets the answer through once
@@ -1558,44 +1639,94 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
     lowest one, which an earlier draft took, can be read from the member's announced holdings, so a
     claimant could keep exactly that cell and withhold the rest; drawn at random, the claimant
     cannot tell which cell will be asked.
+  - *The probe's wait starts at its write* (since 2026-11-16), as every promise does (`protocol.md`
+    §6.1). The probe's promise starts when its WANT is written (`filter_entry`) and lasts
+    `DEFER_WINDOW`; the wait for the verdict lasts until the later of that and the duty's own time,
+    the time it was armed for when the claim deferred it (`duty_at`). A probe that is not written
+    gets no penalty, and no verdict unless the claimant's own copy of the probed cell comes first,
+    which passes it as it passes any probe; without a verdict, the member's own repair is
+    reconsidered (`reconsider`):
+    - one a full queue refuses, at the duty's own time, at once if that has passed (`send`'s
+      result);
+    - one still unwritten when the duty next fires, `DEFER_WINDOW` after the decision or at the
+      duty's own time if that is later. Settled while still queued, it is not written later
+      (`probe_settled`): no verdict waits on it any more.
+
+    The second bounds the deferral: the verdict, or the reconsideration without one, comes at most
+    one window past the later of the duty's own time and one window after the decision
+    (`max(duty_at, decision + DEFER_WINDOW) + DEFER_WINDOW`): otherwise a claimant that stopped
+    reading its connection would keep the probe queued and hold the member's repair off without
+    end, which the probe exists to prevent.
+    Started at the decision instead, the wait penalised a claimant for a WANT it never received.
+  - *A claimant still decoding answers when the cell is stored* (since 2026-11-16). A claimant that
+    decodes claims every index at once, before it has stored the cells it rebuilds, so a probe can
+    find nothing to answer (`resolve`). The claimant keeps the first marked ask per asker and group
+    of a claimed index it has not stored (`probe_waiting`), and answers it, with its exemption, when
+    the cell is stored, received or rebuilt (`serve_waiting_probe`, from `fill` and
+    `decode_group`). It answers it once: while it is kept, neither the same marked ask repeated nor
+    a standing WANT of the same index from the same asker, sent before it or after it, is kept as a
+    standing WANT as well, which would send the cell twice and charge the serving limit twice, or
+    spend the last slot without the exemption, so that the claimant's own queue could cancel the
+    answer as a duplicate once the asker's holding names the cell. Dropped, the probe would go
+    unanswered, and an honest claimant whose decode
+    outlasts the probe's round trip would be penalised. A decode that fails stores nothing, so its
+    claimant is judged as one that does not answer.
+  - *A claimant that leaves is not judged* (since 2026-11-16). A peer's claims go with its
+    connection (`claims_close`), so the probed claimant is drawn among connected ones. A probe of a
+    claimant whose connection closes before the verdict gets none, neither a pass nor a penalty: its
+    answer can no longer come, and its promise went with the connection (`protocol.md` §8.1). The
+    deferral then ends, and the member's own repair is reconsidered at the duty's own time, at once
+    if that has passed (`reconsider`, which rebuilds unless the group is whole in the subnet's view
+    or the repair reached it): the claim, unverified, returns the duty to its own time, or to the
+    close if that time has passed, so the members a departed claimant claimed to do not all rebuild
+    at the same instant.
+    As after any deferral, the member does not then take the one wait for the other axis (R4), so
+    its rebuild can come up to one window sooner than with no claim. No second claimant is probed:
+    one deferral per group, as before.
   - *Measured* in the toy's rows (60 nodes, three blocks, seeds 7 to 9, `--send-buffer 0`), in five
     cells: honest; a fifth of the nodes lying (`--fault claim20`); the same with 16 subnets and half
     the columns withheld; a fifth hoarding (`--fault hoard20`) with 16 subnets and half withheld;
-    and the liars' withheld cell with 5 % supernodes (three of 60). Judged by the claimant's own
-    copy without the mark and the kept WANT, 3 of 1 289 verdicts on honest or hoarding claimants
-    failed, all three honest ones in the hoarders' cell; with them, none of 1 299 did. Liars passed
-    their probe 3, 1 and 61 times in the three liar cells, over the three seeds, each time on a copy
-    the liar pushed (a toy liar answers no ask); when any peer's copy passed the claimant, at least
-    57, 115 and 558 did. The mark cost 9 duplicate cells in 2 434 probes: exempt answers written
-    over a holding the asker had sent. Against the earlier rule's runs (the lowest index, any peer's
-    copy passing), copies stayed within 0.03 in 12 of 15 runs; they were 0.03 to 0.04 lighter in the
-    hoarders' cell at seed 8, and 0.08 lighter at two seeds of the supernodes' cell, almost all of
-    it data, not traced further.
-  - *The random index's cost, and what is not measured.* Against the lowest index the random one let
-    liars pass a little more often (3, 1 and 61 against 0, 0 and 49). In six traced runs, which hold
-    all 65 such passes, the liar had by then already sent the member the lowest lacked cell in 45
-    and held it unsent in 20; in none had it neither. The excess fits the draw choosing a cell
-    already on its way, but that is not proven. The toy's liars do not aim at the cell they expect
-    to be asked, so these runs measure the draw's side effects, not its purpose; nor does any fault
-    send marked asks, which the cap bounds to one exempt answer per asker and group.
-  - *Open in this version, to be fixed after it.* Three cases the rule does not yet handle. None
-    arose in the runs above: asks waited at most 679 ms in a queue against the 1 s window, no
-    claimant left, and the toy's decode takes 5 ms.
-    - *A probe that reaches a claimant still decoding.* The claimant has claimed every index but
-      has not stored the probed cell. `resolve` finds nothing, and the probe, which is not standing,
-      is dropped; nothing answers it when the decode ends, so an honest claimant whose decode
-      outlasts the probe's round trip is penalised. The fix keeps a first marked ask of a claimed
-      index until the cell is stored, rebuilt cells included, and answers it then with its exemption.
-    - *A probe never written, or written late.* The probe's promise and verdict start when the probe
-      is decided, not when its WANT is written, and `send`'s result is not read. A WANT a full queue
-      refuses, or one written later than `DEFER_WINDOW`, therefore parks and penalises a claimant
-      that never received it, against `protocol.md` §6.1's rule that a promise starts at the write.
-      The fix starts the probe's promise at its write, for `DEFER_WINDOW`, and gives no verdict on a
-      probe never written.
-    - *A claimant that has left.* `claims` is not pruned at a close, so a claimant whose connection
-      has closed can be drawn, parked and penalised, while a connected one beside it is never
-      probed; a close also leaves the probe's promise and verdict behind. The fix drops a peer's
-      claims at its close, draws among connected claimants, and cancels the verdict at a close.
+    and the liars' withheld cell with 5 % supernodes (three of 60). With the rules of 2026-11-16,
+    none of 1 298 verdicts on honest or hoarding claimants failed, and every probe got a verdict:
+    none was still unwritten when its window ran out, and no probe reached a claimant still
+    decoding (the toy's queues refuse nothing, and these cells close no connection). One probe, in
+    the supernodes' cell at seed 8, passed before it was written, on a copy the liar pushed. Liars
+    passed their probe 3, 1 and 61 times in the three liar cells, over the three seeds, each time on
+    a copy the liar pushed (a toy liar answers no ask). The mark cost 9 duplicate cells in 2 428
+    probes: exempt answers written over a holding the asker had sent. A probe was written when it
+    was decided, at the median; the longest wait was 101 ms, against a `DEFER_WINDOW` of 1 s.
+    Starting the probe's wait at its write left the copies as they were in 14 of the 15 runs, and
+    0.03 lighter in one, the supernodes' cell at seed 8, not traced. One run, the 16-subnet liars'
+    cell at seed 9, delivers no block to 58 of its 60 nodes, as it did before 2026-11-16, and
+    decides 3 probes; the figures include it. These runs predate four later fixes (a probe settled
+    while queued, a kept probe answered once, the duty's own time, a settled probe's promise), and
+    none of the first three changes them: they act on a probe given no verdict, kept while
+    decoding, refused or closed, of which there was none, and on a probe passed before its write,
+    whose WANT the earlier filter dropped too (`held`). The fourth acts only on a later ask of the
+    probed cell to the claimant, after the verdict. After a pass the member holds the cell; after a
+    failure the claimant was parked for the group when its promise broke, so only an ask after its
+    park ends, which an offer of the claimant's brings, could reach it (the last resort does not
+    ask in a group that has stopped pulling, `protocol.md` §6.1). These runs did not count such
+    asks, so whether the fourth fix would change their events, copies or verdict counts is not
+    shown; it changes no verdict once given.
+  - *Measured before 2026-11-16*, and before v0.10's order of the announcers beyond the list
+    (`protocol.md` §6.1), which moves the supernodes' cell at seed 8 and, bracketed but not run at
+    that change, at seed 9, in the same five cells: judged by the
+    claimant's own copy without the mark and the kept WANT, 3 of 1 289 verdicts on honest or
+    hoarding claimants failed, all three honest ones in the hoarders' cell; with them, none of
+    1 299 did. When any peer's copy passed the claimant, liars passed at least 57, 115 and 558
+    times. Against the earlier rule's runs (the lowest index, any peer's copy passing), copies
+    stayed within 0.03 in 12 of 15 runs; they were 0.03 to 0.04 lighter in the hoarders' cell at
+    seed 8, and 0.08 lighter at two seeds of the supernodes' cell, almost all of it data, not
+    traced further.
+  - *The random index's cost, and what is not measured.* Against the lowest index, measured before
+    2026-11-16, the random one let liars pass a little more often (3, 1 and 61 against 0, 0 and
+    49). In six traced runs, which hold all 65 such passes, the liar had by then already sent the
+    member the lowest lacked cell in 45 and held it unsent in 20; in none had it neither. The
+    excess fits the draw choosing a cell already on its way, but that is not proven. The toy's
+    liars do not aim at the cell they expect to be asked, so these runs measure the draw's side
+    effects, not its purpose; nor does any fault send marked asks, which the cap bounds to one
+    exempt answer per asker and group.
   - Figures in this section measured before 2026-11-15 ran with the lowest index, without the mark
     and the kept WANT, and with any peer's copy passing the claimant, unless they say otherwise.
 - **The verdict, by what the node can see** (R5: re-arm "if the cells do not follow"; decided
@@ -1752,7 +1883,8 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
     that cell's row, at the column's index, to a member of the row's subnet among its links. While
     the cell is missing it asks another member every `ALARM_NEXT`, up to `ALARM_MAX`.
   - *The member.* A member that deferred on a verified claim asks that claimant for the index once,
-    with the probe's promise (`DEFER_WINDOW`). A broken promise counts against the claimant, and the
+    with the probe's promise (`DEFER_WINDOW`), started in the toy at the decision, not at the write
+    (§4.6 since 2026-11-16; not measured again). A broken promise counts against the claimant, and the
     member rebuilds the row and repairs it as after any decode. Nothing new goes on the wire: the
     alarm is a standing WANT.
   - *Its wait* is stated by its bound: above the honest custodians' tail on the network, or it fires
@@ -2158,6 +2290,7 @@ def on_heartbeat():
     ihave_rpcs.clear(); ihave_asked.clear()                   # §4.3's limits start again, and the
     for a in held_back.values(): retry_offer(a)               #   retry runs for what they held back,
     held_back.clear()                                         #   which they do not count
+    drop_stale_waits()                                        # protocol.md §4.2: copies and ties past their window
     ids = gossip_history.gossip_ids()                         # stock: ids of the last 3 heartbeats
     for T in joined_types(): keep_floor(T)                    # §4.1, links for the floor per family
     for T in joined_types(): maintain_relations(T)            # §4.1
@@ -2542,7 +2675,9 @@ IWANT_WINDOW = IWANT_WINDOW * ask_scale()      # 200 ms at 50 Mbps and above, 1 
 | §1 the payload, the code, the commitment | the payload object type's `verify`, `decode`, `header_of` | the leaf rule unchanged in this version; a fraud proof would change it (`[D6]`, §8) |
 | §3 the three levels | level 1 = `T.verify`, level 2 = `T.decode`, level 3 = the application | per object type (I7) |
 | §4.1 `respond` | called from §4's `on_rpc` | asks ride on the first answer; an answer a full queue refuses is owed (v0.5) |
-| §4.2 `defer`, `tie`, `on_block_installed`, the bounded store | §4.2 | the gate is the type's (`authenticable`; `defer` here waits for it, and `on_header_validated` releases a block's cells and their ties); a copy that waits, kept or refused, and another copy of one that waits, tie their senders to the root they name (v0.8), no longer an offer (v0.5) |
+| §4.2 `defer`, `tie`, `on_block_installed`, the bounded store | §4.2 | the gate is the type's (`authenticable`; `defer` here waits for it, and `on_header_validated` releases a block's cells and their ties); a copy that waits, kept or refused, and another copy of one that waits, tie their senders to the root they name (v0.8), no longer an offer (v0.5); v0.10's bounds on what waits in this document's own `defer`, `fill` (`drop_beyond`), `on_heartbeat` (`drop_stale_waits`) and `on_header_validated` (an index the group has not, `tie_slot`), since 2026-11-16 |
+| §3 level 1's slot check (v0.10) | §1's table, `verify` of each type | a payload copy's slot is its block's (`validate_chunk`), a cell's its header's (since 2026-11-16) |
+| §4.4 an IHAVE's bitmap held to a HAVE's limits (v0.10) | §4.3 `on_offer` | an offer's bitmap, ignored and counted beyond them (since 2026-11-16) |
 | §4.4 gossipsub's IHAVE limits (v0.7): `over_ihave_limits`, `ihave_rpcs`, `ihave_asked`, `held_back` | §4 `on_rpc`, §4.3 `on_offer`, §4.8 | counted per offer-bearing RPC and per ask in reply to offers, per peer over every object type; what they hold back is retried at the next heartbeat (since 2026-10-27) |
 | §4.6 `drop_group` | §4.6 | plus evidence `[D6]` |
 | §5.1 batch order, striping, the cap, the paced source HAVE [P4] | §4.7 | candidates filtered by interest; P4 per group, its claims with the bitmap; v0.7's single offer (since 2026-11-04) |
@@ -3001,19 +3136,24 @@ answers it whatever the asker's holdings say, once per asker and group, the exem
 answer and spent when it is written; the asker's queue keeps its marked WANT while the probe waits;
 and the probed cell is drawn at random among those the member lacks. In the toy's rows (60 nodes,
 three blocks, `--send-buffer 0`), over five cells and three seeds, no honest or hoarding claimant
-failed its probe (3 of 1 289 verdicts failed without the mark and the kept WANT), and liars passed
-3, 1 and 61 times in the three liar cells. Three cases are left open for after this version (§4.6):
-a probe that reaches a claimant still decoding, a probe never written or written late, and a
-claimant that has left. Not taken: any peer's copy passing the claimant, which let liars pass
-whenever another peer brought the cell (at least 57, 115 and 558 times in the same cells); hiding
-the probed cell from the claimant in the asker's holdings while the probe waits, which changes what
-a node announces and cannot hide a cell already named before the probe; and the lowest lacked index,
-which a claimant can read from the member's holdings. The random index's purpose, against a claimant
-that keeps only the cell it expects to be asked, is not measured: the toy's liars do not aim. The
-standalone binding carries `standing` and `probe` in one `Bitvector[8]`, its other bits zero when
-sent and ignored when received, so that a later flag fits without breaking older readers (§7). Not
-taken there: a byte of its own for the mark, which every WANT would pay, and a message of its own
-for the probe, which every binding would have to carry.
+failed its probe (none of 1 298 verdicts with the rules of 2026-11-16; before them, 3 of 1 289
+failed without the mark and the kept WANT), and liars passed 3, 1 and 61 times in the three liar
+cells. Since 2026-11-16, the probe's wait starts at its write, a probe not written when the duty
+next fires gets no verdict unless the claimant's own copy came first, and is not written later, a
+claimant still decoding keeps the first probe per asker and group and answers it once when the cell
+is stored, and a claimant that leaves before the verdict gets none; without a verdict, the member's
+own repair is reconsidered at the duty's own time, at once if that has passed; and once the probe
+is settled, a promise under its key is a plain ask's, which any copy closes. Not taken: any peer's
+copy passing the claimant, which let liars pass whenever another peer brought the cell (at least 57,
+115 and 558 times in the same cells, measured before 2026-11-16); hiding the probed cell from the
+claimant in the asker's holdings while the probe waits, which changes what a node announces and
+cannot hide a cell already named before the probe; and the lowest lacked index, which a claimant can
+read from the member's holdings. The random index's purpose, against a claimant that keeps only the
+cell it expects to be asked, is not measured: the toy's liars do not aim. The standalone binding
+carries `standing` and `probe` in one `Bitvector[8]`, its other bits zero when sent and ignored when
+received, so that a later flag fits without breaking older readers (§7). Not taken there: a byte of
+its own for the mark, which every WANT would pay, and a message of its own for the probe, which
+every binding would have to carry.
 
 **The repair's options** `[D4]` (decided 2026-11-01). The repair sample and rebuilt cells marked
 seen stay options. They are on together where a node defends against hoarding claimants, and the

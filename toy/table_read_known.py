@@ -2,6 +2,7 @@
 """Known answers for §8.1's rule in the toy's tables: "reading it allocates nothing".
 
     python3 table_read_known.py
+    python3 table_read_known.py --doc v2     # and the tables protocol-v2.md adds, on a node of its own
 
 The document reads its per-peer and per-group tables as maps whose missing entries are empty, and some of its
 decisions go by whether an entry is there at all (the writer's `if owed_answers[p]`, for one). Each table
@@ -27,6 +28,7 @@ import sys
 from pathlib import Path
 
 SEED, NODE, P = 7, 2, 1
+V2 = sys.argv[1:] == ["--doc", "v2"]
 G = bytes([0x55]) * 32                                      # a group the node knows nothing of
 
 
@@ -53,7 +55,8 @@ def main():
     from bits import Bits, popcount
     got = {}
     run.run = lambda cfg, out=sys.stdout: got.setdefault("sim", S.Sim(cfg))
-    run.main(["--nodes", "5", "--degree", "4", "--msgs", "1", "--payload", "16384", "--seed", str(SEED)])
+    run.main(["--nodes", "5", "--degree", "4", "--msgs", "1", "--payload", "16384", "--seed", str(SEED)]
+             + (["--doc", "v2"] if V2 else []))
     ns = got["sim"].nodes[NODE].ns
     bad = 0
 
@@ -88,12 +91,41 @@ def main():
          lambda t: setattr(t[P][G], "bits", Bits(1)), P),
         ("pushed", lambda t: (G in t[P], t[P][G].has(0), t[P][G].first_push), lambda t: t[P][G].set(0), P),
     ]
-    line("the tables are the toy's lazy ones (a check that the node uses them)",
-         sorted(n for n, *_ in cases if type(ns[n]).__name__ == "LazyDict"), sorted(n for n, *_ in cases))
     wrote = {"owed": {G: [3]}, "owed_answers": {G: [3]}, "queue": ([], [entry]), "tried": {P: 1.0},
              "offered": {G: [0]}, "asked_parked": {P}, "park": {G: 1.0}, "pending": [(P, None)],
              "chunks": {0: "a chunk"}, "known_id": {0: b"an id"}, "received": [0], "mine": [0], "holders": {0: {P}},
              "sent_to": {G: [0]}, "unwanted": {b"an id"}, "serve_count": {G: 1}, "peer_has": {G: [0]}, "pushed": {G: [0]}}
+    if V2:                          # protocol-v2.md's own tables (§3), read as its code reads them
+        T, fam, c = "column", 5, 0                          # an object type, a family and a colour
+        PV = 99                                             # a peer the node holds nothing for (peer 1 has JOINed)
+        rel = (lambda t: (c in t[PV][T][fam], len(t[PV][T][fam]), list(t[PV][T])), lambda t: t[PV][T][fam].add(c), PV)
+        cases += [
+            ("rebuilt", lambda t: (t[G].has(0), popcount(t[G])), lambda t: t[G].set(0), G),
+            ("served", lambda t: (t[PV][G], list(t[PV])), lambda t: t[PV].__setitem__(G, t[PV][G] + 1), PV),
+            ("want_p", lambda t: (t[PV].get(G), G in t[PV]), lambda t: t[PV].__setitem__(G, "a want"), PV),
+            ("join_recv", lambda t: (t[PV].get(T), T in t[PV]), lambda t: t[PV].__setitem__(T, "a join"), PV),
+            ("join_sent", lambda t: (t[PV].get(T), T in t[PV]), lambda t: t[PV].__setitem__(T, "a join"), PV),
+            ("push_out", *rel), ("push_in", *rel), ("grafted_out", *rel), ("grafted_in", *rel),
+            ("owed_relations", lambda t: (list(t[PV]), bool(t[PV])), lambda t: t[PV].append("a JOIN"), PV),
+            ("backoff", lambda t: (t[PV][T][fam].get(c), c in t[PV][T][fam]),
+             lambda t: t[PV][T][fam].__setitem__(c, 1.0), PV),
+            ("standing", lambda t: (P in t[G][0], t[G].get(0, ()), list(t[G])), lambda t: t[G][0].add(P), G),
+            ("claims", lambda t: (P in t[G], len(t[G])), lambda t: t[G].add(P), G),
+            ("probe_served", lambda t: (t[PV][G], G in t[PV]), lambda t: t[PV].__setitem__(G, True), PV),
+            ("probe_answers", lambda t: (t[PV][G].has(0), list(t[PV])), lambda t: t[PV][G].set(0), PV),
+            ("probe_waiting", lambda t: (PV in t[G], t[G].get(PV), list(t[G])), lambda t: t[G].__setitem__(PV, 0), G),
+            ("rsample", lambda t: (list(t[G]), len(t[G]), 0 in t[G]), lambda t: t[G].append(0), G),
+            ("rsample_asked", lambda t: (P in t[G][0], list(t[G])), lambda t: t[G][0].add(P), G),
+            ("sampled_from", lambda t: (P in t[G], len(t[G])), lambda t: t[G].add(P), G),
+            ("held_samples", lambda t: (list(t[G]), bool(t[G])), lambda t: t[G].append((G, 0)), G),
+        ]
+        wrote.update({"rebuilt": [0], "served": {G: 1}, "want_p": {G: "a want"}, "join_recv": {T: "a join"},
+                      "join_sent": {T: "a join"}, "owed_relations": ["a JOIN"], "backoff": {T: {fam: {c: 1.0}}},
+                      "standing": {0: {P}}, "claims": {P}, "probe_served": {G: True}, "probe_answers": {G: [0]}, "probe_waiting": {PV: 0},
+                      "rsample": [0], "rsample_asked": {0: {P}}, "sampled_from": {P}, "held_samples": [(G, 0)]})
+        wrote.update({n: {T: {fam: {c}}} for n in ("push_out", "push_in", "grafted_out", "grafted_in")})
+    line("the tables are the toy's lazy ones (a check that the node uses them)",
+         sorted(n for n, *_ in cases if type(ns[n]).__name__ == "LazyDict"), sorted(n for n, *_ in cases))
     for name, read, write, key in cases:
         t = ns[name]
         before = shape(t)

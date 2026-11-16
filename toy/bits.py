@@ -6,8 +6,8 @@ all: card 16's guard asks whether a peer sent any HAVE for a group (`g not in pe
 note_push starts a clock at the first push, an installation releases the ties it finds (`tied`),
 and the writer takes an owed answer for each group it finds (`owed_answers`). LazyMap and LazyDict
 give both: a missing key reads as a fresh, detached entry, which inserts itself into the map the
-first time it is written to. Every table of protocol.md's is one of them, or a DefaultMap. AutoMap,
-which creates an entry on a read, is left to the tables protocol-v2.md adds, which are its own.
+first time it is written to. Every table of protocol.md's and of protocol-v2.md's is one of them, or a
+DefaultMap. AutoMap, which creates an entry on a read, no longer holds any of them.
 """
 
 
@@ -523,6 +523,17 @@ def lazy(leaf):
 def lazy2(leaf):
     """key -> key -> leaf(home, key): a two-level table."""
     return LazyDict(lambda home, k: LazyDict(leaf, home, k))
+
+
+def lazy3(leaf):
+    """key -> key -> key -> leaf(home, key): a three-level table (protocol-v2.md's relations, by peer, type and
+    family)."""
+    return LazyDict(lambda h1, k1: LazyDict(lambda h2, k2: LazyDict(leaf, h2, k2), h1, k1))
+
+
+def false(home, k):
+    """A flag leaf: reads as False; setting it writes it through the map."""
+    return False
 
 
 def lazy_dict(home, k):

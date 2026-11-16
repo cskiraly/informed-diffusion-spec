@@ -18,7 +18,7 @@ import bits as B
 import scenario
 import wire as Wm
 from bits import (AutoMap, Bits, DefaultMap, HaveEntry, LazyBits, LazyList, LazyMap, LazySet, OfferMap, PushEntry,
-                  _join, all_bits, bitmap, lazy, lazy2, lazy_dict, popcount, tie_table, zero)
+                  _join, all_bits, bitmap, false, lazy, lazy2, lazy3, lazy_dict, popcount, tie_table, zero)
 from extract import DOC, generate
 
 SPEC_SRC = generate()
@@ -291,7 +291,7 @@ class Node:
         node, sim, c = self, self.sim, self.cfg
         ROW, Want = self._types["row"], ns["Want"]
         doc_on_want, Ask = ns["on_want"], ns["Ask"]
-        asked = AutoMap(set)                            # row group -> indices asked of the claimant on an alarm
+        asked = lazy(LazySet)                           # row group -> indices asked of the claimant on an alarm
         alarms = set()                                  # (row group, index, peer): standing asks kept as alarms
 
         def alarm_check(root, k):
@@ -1184,7 +1184,8 @@ class Node:
             COL.name = COL.id = "column"
             COL.index_count = lambda h: h.count          # the blob count
             COL.threshold = lambda h: h.count            # K = N: no code within a column
-            COL.verify = lambda f, h: ACCEPT             # the cell's KZG proof, assumed to check (honest chunks only, as v0.3's Merkle proof here)
+            COL.verify = lambda f, h: (REJECT if f.slot != sim.blocks[h.block].slot   # the copy's slot is its header's (§1)
+                                       else ACCEPT)      # the cell's KZG proof, assumed to check (honest chunks only, as v0.3's Merkle proof here)
             COL.decode = lambda fr, h: dict(fr)          # the cells present, if all are; nothing rebuilt within a column
             COL.header_of = lambda f: f.descriptor       # the header rides with the chunk (P2)
             if keeps_rows:                               # (R4) a cell is index b of column c and index c of row b
@@ -1231,7 +1232,7 @@ class Node:
                 ROW.name = ROW.id = "row"
                 ROW.index_count = lambda h: h.count      # 128 cells
                 ROW.threshold = lambda h: ns["K"](h)     # 64: any half of a row rebuilds it
-                ROW.verify = lambda f, h: ACCEPT
+                ROW.verify = COL.verify                  # the same slot check, the KZG proof assumed to check
                 ROW.decode = lambda fr, h: sim.rebuild_row(fr, h)   # recover_cells_and_kzg_proofs, as the source's chunks
                 ROW.header_of = lambda f: f.descriptor
                 ROW.project = COL.project                # the same chunk, the same two groups
@@ -1274,21 +1275,18 @@ class Node:
             def __missing__(self, g):
                 return node.own_interest_bits(g)
 
-        ns.update(PAYLOAD=P, hdr=ns["desc"], T_of={}, rebuilt=AutoMap(Bits), interest=InterestMap(),
-                  known_at=DefaultMap(0.0), served=AutoMap(lambda: AutoMap(int)), want_p=AutoMap(dict),
-                  join_recv=AutoMap(dict), join_sent=AutoMap(dict),
-                  push_out=AutoMap(lambda: AutoMap(lambda: AutoMap(set))),
-                  push_in=AutoMap(lambda: AutoMap(lambda: AutoMap(set))),
-                  grafted_out=AutoMap(lambda: AutoMap(lambda: AutoMap(set))),
-                  grafted_in=AutoMap(lambda: AutoMap(lambda: AutoMap(set))), owed_relations=AutoMap(list),
-                  backoff=AutoMap(lambda: AutoMap(lambda: AutoMap(dict))),
-                  standing=AutoMap(lambda: AutoMap(set)),
-                  claims=AutoMap(set), reconsider_at={}, deferred=DefaultMap(False), waited=DefaultMap(False), probe={}, probed={},
-                  probe_asks=set(), probe_ok={}, probe_served=AutoMap(lambda: DefaultMap(False)),
-                  probe_answers=AutoMap(lambda: AutoMap(Bits)), rsample=AutoMap(list), rsample_step=DefaultMap(0),
-                  rsample_asked=AutoMap(lambda: AutoMap(set)), rsample_final=DefaultMap(False),
-                  sampled_from=AutoMap(set), samples_in_flight=DefaultMap(0),
-                  held_samples=AutoMap(list), forwarded=DefaultMap(0))   # [D12] §4.10's and §4.5's
+        ns.update(PAYLOAD=P, hdr=ns["desc"], T_of={}, rebuilt=lazy(LazyBits), interest=InterestMap(),   # §8.1: a read
+                  known_at=DefaultMap(0.0), served=lazy2(zero), want_p=lazy(lazy_dict),               #   creates nothing
+                  join_recv=lazy(lazy_dict), join_sent=lazy(lazy_dict),
+                  push_out=lazy3(LazySet), push_in=lazy3(LazySet), grafted_out=lazy3(LazySet), grafted_in=lazy3(LazySet),
+                  owed_relations=lazy(LazyList), backoff=lazy3(lazy_dict), standing=lazy2(LazySet),
+                  claims=lazy(LazySet), reconsider_at={}, deferred=DefaultMap(False), duty_at={}, waited=DefaultMap(False),
+                  probe={}, probed={},
+                  probe_asks=set(), probe_sent=set(), probe_ok={}, probe_served=lazy2(false),
+                  probe_answers=lazy2(LazyBits), probe_waiting=lazy(lazy_dict), rsample=lazy(LazyList), rsample_step=DefaultMap(0),
+                  rsample_asked=lazy2(LazySet), rsample_final=DefaultMap(False),
+                  sampled_from=lazy(LazySet), samples_in_flight=DefaultMap(0),
+                  held_samples=lazy(LazyList), forwarded=DefaultMap(0))   # [D12] §4.10's and §4.5's
         Ask = Wm.WantIndex
         chunk_id = ns["message_id"]
         spec_open_group = ns["open_group"]
@@ -1302,8 +1300,9 @@ class Node:
             return _doc_authenticable(g) if type_of_group(g) is P else True   # with it (P2)
 
         def filter_entry(p, entry):                     # v0.5 §7.2 starts an ask's promise at its write; a
-            fresh = [(a, p) for m in entry.iwants() if getattr(m, "want", False)   # WANT starts none (§4.5)
-                     for a in m.ids if (a, p) not in ns["promises"]]
+            fresh = [(a, p) for m in entry.iwants() if getattr(m, "want", False)   # WANT starts none (§4.5),
+                     for a in m.ids if (a, p) not in ns["promises"]   # but the probe, whose promise starts at
+                     and not ns["probe_waits"](a, p)]   #   its write (R5, §4.6)
             out = _doc_filter_entry(p, entry)
             for k in fresh:
                 ns["promises"].pop(k, None)             # its timer finds no promise and does nothing
@@ -1597,8 +1596,8 @@ class Node:
                 g, T = gi.group, type_of_group(gi.group)
                 e = ns["peer_has"].get(p, {}).get(g)
                 mid = None
-                if e is not None and e.has(gi.index):
-                    why = "claimed"
+                if e is not None and e.has(gi.index) and not ns["probe_of_claim"](p, gi):
+                    why = "claimed"                     #   (a marked probe of a claimed index is answered anyway, R5)
                 elif ns["served"].get(p, {}).get(g, 0) >= T.params.SERVE_LIMIT:
                     why = "limit"
                 elif (mid := ns["resolve"](a)) is None:
@@ -1812,16 +1811,42 @@ class Node:
             self.sim.after(self, 0.0, self._write, p)
 
     def drop_peer(self, q):
-        """--churn: protocol-v2.md §3's lifetimes at a close (sim.close_link). Per-peer entries, the
-        relations, our unanswered GRAFTs and anything owed end; asks and promises to q stay, so their
-        timers treat q as a silent peer (v0.3 §6.1)."""
+        """--churn: a connection's close (sim.close_link), by protocol-v2.md §3's lifetimes, which are v0.3 §8.1's.
+        Per-connection entries end: holdings, pushes, the relations, our unanswered GRAFTs, anything owed, the
+        queue and the asks in it, the IHAVE counters, the probe's entries for q (its probe kept while we decode
+        included), q's offers (in every ordered
+        list, by the counted removal that keeps `listed`, and in `offered`), its tries, its places in the last
+        resort's counts, its promises (the retry, whose timer is per ask, moves on without parking q) and its
+        ties with their slot. Its claims go through the document's `claims_close` (R5). Kept: q's park, across
+        reconnections as scores are, and the deferred copies with their reservations, kept by block root."""
         ns = self.ns
         for name in ("join_recv", "join_sent", "push_out", "push_in", "grafted_out", "grafted_in",
                      "owed_relations", "backoff", "peer_has", "pushed", "sent_to", "served", "want_p", "forwarded",
-                     "park", "queue"):
+                     "queue", "owed", "owed_answers", "unwanted", "serve_count", "ihave_rpcs", "ihave_asked",
+                     "probe_served", "probe_answers", "offered"):
             m = ns.get(name)
             if m is not None and q in m:
                 del m[q]
+        offers = ns["offers"]
+        for a in [a for a in list(offers) if q in offers[a]]:
+            offers[a].remove(q)
+            if not offers[a]:
+                del offers[a]
+        for a in [a for a in list(ns["tried"]) if q in ns["tried"][a]]:
+            del ns["tried"][a][q]
+        for s in ns["asked_parked"].values():
+            s.discard(q)
+        for k in [k for k in ns["promises"] if k[1] == q]:
+            del ns["promises"][k]
+        for w in ns["probe_waiting"].values():      # a probe of q's kept while we decode (R5)
+            w.pop(q, None)
+        tied = ns["tied"]
+        for root in list(tied):
+            tied[root].pop(q, None)
+            ns["tie_slot"].pop((root, q), None)
+            if not tied[root]:
+                tied.pop(root, None)
+        ns["claims_close"](q)
         for name in ("holders", "standing"):
             for idx in ns[name].values():
                 for s in idx.values():
