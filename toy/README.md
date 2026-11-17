@@ -53,6 +53,9 @@ The thirteenth cell, `ihave-limits` (2026-10-27), sets stock gossipsub's two IHA
   (`protocol.md` §4.4).
 - In `protocol.md`'s run, 26 799 asks are held back. The warm median goes from the `push` cell's
   427 ms to 512 ms, and every node completes.
+- At `protocol.md`'s reference values (§8.3, `--ihave-limits 4096,5000`) no cell holds an ask back,
+  with or without `--doc v2`: every other cell gives its recorded digest, and this cell, run at
+  those values instead, gives the `push` cell's (2026-11-18).
 
 The fourteenth cell, `late-block` (2026-11-15), is the one cell where a block installs after its
 chunks arrive (`--late-block 30,400`): 18 of the 60 nodes install each block 400 ms after its
@@ -243,7 +246,8 @@ What the toy adds to the document, and nothing else:
   deferred or asked for at installation, except under `--late-block` (the `late-block` cell,
   above); groups do not expire; connections do not close; the
   queues have no limit but the loss above, and neither IHAVE limit is set (§8.2) but in the
-  `ihave-limits` cell, so elsewhere nothing is held back to the next heartbeat (§4.4). The
+  `ihave-limits` cell, so elsewhere nothing is held back to the next heartbeat (§4.4); set to §8.3's
+  reference values, they would hold nothing back either ("Checking a change"). The
   document's rules for the other cases are not exercised here.
 
 ## The network

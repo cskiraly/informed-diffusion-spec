@@ -7,9 +7,10 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 
 ## After v0.10.2, not yet released
 
-`protocol.md` sorts its constants into limits, bounds and defaults and calls what a peer writes on its
-stream a frame, with no value and nothing the code does changed; its §1 says what the open choice of
-where the descriptor travels decides. The next version's draft carries v0.10's rules where it has
+`protocol.md` sorts its constants into limits, bounds and defaults, gives gossipsub's two IHAVE limits
+reference values, and calls what a peer writes on its stream a frame, with none of the values it gave
+before and nothing the code does changed; its §1 says what the open choice of where the descriptor
+travels decides. The next version's draft carries v0.10's rules where it has
 functions of its own, follows §8.1's lifetimes at a connection's close, and settles the probe of a
 claim's open cases; its figures are measured again.
 
@@ -31,6 +32,11 @@ claim's open cases; its figures are measured again.
   its value, 32 KiB, so that a builder's `UNIT` does not change it: the one code line this changes.
   §8.1's tombstone without a slot counts on the peer's `HAVE_TTL`, and §6.1's six asks are at the
   default `PROMISE`. `UNIT`'s reason names the post's variant A, which is not §1's design A.
+- **Reference values for gossipsub's two IHAVE limits** (§8.3): 4096 IHAVE-bearing frames and 5000 ids
+  asked, per peer and heartbeat, where §8.3 gave none: the numbers the measurements ran with, on a
+  handler that counted every control-bearing frame (§9). They stay each node's own, and a limit still
+  delays asks and loses no offer (§4.4); §4.4 and §8.2 point to them. At these values the toy's
+  recorded cells hold back no ask.
 - **"Frame", not "RPC",** for what a peer writes on its stream: one gossipsub `RPC`, with the messages
   and control fields it carries, and not a frame of the layers below (§2, and the glossary). `RPC`
   stays only for the protobuf type. `on_rpc` becomes `on_frame`, its parameter `frame`, and
@@ -96,6 +102,8 @@ The toy:
   nothing", since the toy keeps an entry for each missing key read until the key is written. §8.1 rules
   that out for a node, where IWANTs naming groups never admitted would make such state grow without
   bound; the toy's runs send no such IWANT, and no outcome depends on the kept entries.
+- **The IHAVE limits at `protocol.md`'s reference values hold back no ask** in any recorded cell,
+  with or without `--doc v2`: each cell runs as it does with no limit (`toy/README.md`).
 - **Known answers** for each change: `toy/v2_carried_known.py`, `toy/close_known.py`,
   `toy/refusal_report_known.py`, `toy/probe_decode_known.py`, `toy/probe_write_known.py` and
   `toy/probe_settle_known.py`; `toy/deferral_rules_known.py` and `toy/table_read_known.py` also run the

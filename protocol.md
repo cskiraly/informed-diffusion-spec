@@ -736,7 +736,7 @@ node would ask of it is held back to the next heartbeat. The heartbeat runs the 
 any ask, with the retry's checks (§6.4, §6.1). Only asks in reply to IHAVEs count against the
 limits: the retry, the last resort and the asks at installation do not. Every entry of an IHAVE is
 read, where a stock implementation may stop after `MAX_IHAVE_LENGTH` ids of one IHAVE. The limits'
-values are the client's (§8.2).
+values are the client's (§8.2), and §8.3 gives reference values.
 
 **Over a limit a node may read an IHAVE's bitmaps without the loop above.** Their indices join
 `offered`, for a group not expired and within §8.2's limits on offers, and `held_back`, for a group
@@ -1995,8 +1995,8 @@ A node checks a message's shape before it allocates state for it.
 | per-peer queue | client-chosen, shared by both lanes | a new entry is dropped, urgent control included: urgency orders dispatch, not admission. A dropped HAVE costs its window slot a timeout |
 
 `MAX_PENDING_GROUPS`, the deferred store's sizes and the two IHAVE limits are the client's to set,
-and so are the offers' 16 and 256, whose defaults §8.3 gives; what this document fixes is the
-behaviour at the limit. Every offer for an admitted group is kept
+and so are the offers' 16 and 256. §8.3 gives defaults for the IHAVE limits and the offers; what
+this document fixes is the behaviour at the limit. Every offer for an admitted group is kept
 (§6.1): per peer at most (`MAX_PENDING_GROUPS` + the live groups) × 1 KiB of `offered`, the same
 order as `peer_has`.
 Chunks are deduplicated by id and, once accepted, by index: only one content per index can pass
@@ -2065,7 +2065,7 @@ resort's count last.
 | `CHUNK_BYTES` | ≈ 12 KB | 14 | the encoded chunk at 1 MiB and the default `UNIT` |
 | `WINDOW_TIMEOUT` | 500 ms | 14 | a lost acknowledgement frees its slot |
 | pace tick | heartbeat / 16 = 43.75 ms | 15 | one announcement per tick |
-| `MAX_IHAVE_MESSAGES`, `MAX_IHAVE_LENGTH` | the client's (§8.2) | 3, 7 | a limit delays asks and loses no offer (§4.4). One below what a peer sends within a heartbeat, up to an IHAVE-bearing frame per chunk it announces and as many asks, holds some of its asks back to the next heartbeat: stock gossipsub's 10 frames would hold back most of a group's announcements, which come one per chunk, and its 5000 ids count every topic's asks. Batching a peer's announcements keeps the frame count low |
+| `MAX_IHAVE_MESSAGES`, `MAX_IHAVE_LENGTH` | 4096 frames, 5000 ids, per peer and heartbeat | 3, 7 | a limit delays asks and loses no offer (§4.4). The values are those the measurements ran with, 5000 being stock gossipsub's; §9 says where the measured handler differs. At these values the toy's recorded cells hold back no ask (`toy/README.md`). A limit below what a peer sends within a heartbeat, up to an IHAVE-bearing frame per chunk it announces and as many asks, holds some of its asks back to the next heartbeat: stock gossipsub's 10 frames would hold back most of a group's announcements, which come one per chunk. Its 5000 ids are kept, although in a router shared with other topics they count every topic's asks. Batching a peer's announcements keeps the frame count low |
 | `D_LAZY`, `GOSSIP_FACTOR` | 6, 0.25 | – | stock gossipsub |
 | `HAVE_TTL` | 3 heartbeats after the peer's last HAVE for the group | 7 | stock IDONTWANT expiry; where groups have no slot, a peer's `TOMBSTONE_TTL` has to outlast it (§8.1) |
 | `PUSH_TTL` | 6 heartbeats after the last push | 16 | the message cache's length |
