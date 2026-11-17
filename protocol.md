@@ -28,7 +28,8 @@ and §8's state, limits and helpers.
 must agree on. Sections 4 to 7 combine each node's local scheduling with the meaning of the messages
 it exchanges: what a HAVE, an ask, a decode claim and an acknowledgement promise. A client may
 schedule differently without breaking interoperability, provided those meanings hold. The
-measurements are of the scheduling written here.
+measurements are of the scheduling written here. Of §8.3's constants, only the limits are shared by
+every node; a node sets the others itself, the bounds within what §8.3 states.
 
 **Reading it.** An implementer can read §1 to §7 in order, with §8 at hand for the state, limits and
 constants each section uses. Where a section has code, its prose says what the code does, a rule to
@@ -121,7 +122,7 @@ descriptor that its bid commits to:
 UNIT = 16 * 1024                # target segment size, uncompressed               [c1]
 MAX_CHUNKS = 256                # codec limit on data + parity chunks             [c6]
 MAX_PLAIN_CHUNKS = 8192         # every group fits one HAVE bitmap (§2)           [c1]
-MAX_SEGMENT_SIZE = 2 * UNIT     # above snappy's worst-case expansion             [c1]
+MAX_SEGMENT_SIZE = 32 * 1024    # above snappy's worst case at the default UNIT   [c1]
 
 class SegmentDescriptor(Container):     # committed in the bid                    [c1]
     version: uint8          # 2 = coded (compress first, then Reed–Solomon); 1 = plain
@@ -200,11 +201,19 @@ def build_group(body: bytes) -> Tuple[SegmentDescriptor, List[Shard]]:     # at 
 
 - **The code** [c6]: systematic Reed–Solomon over GF(2⁸) (polynomial 0x11d), with evaluation points
   0..N−1. Chunks 0..K−1 are the compressed bytes themselves and K..N−1 are parity, so any K distinct
-  chunks rebuild the payload. At 1 MiB this gives K = 64 and N = 128, chunks of about 12 KB.
+  chunks rebuild the payload. At 1 MiB and the default `UNIT` this gives K = 64 and N = 128, chunks
+  of about 12 KB.
 - **The tree** [c1]: leaves `sha256(0x00 ‖ chunk data)`, nodes `sha256(0x01 ‖ left ‖ right)`,
   padded to a power of two with zero digests. A proof is log₂ of that width: 7 digests at N = 128.
 - **Decoding** is the second level of validation (§3): take any K chunks, recover the data chunks,
   re-encode the parity, rebuild the tree, and require the committed root.
+- **The cut** [c1]: `UNIT` is the builder's (§8.3). It sets K, and so whether the group fits the
+  code. Receivers check the group a cut gives, as §3 does any group, and not `UNIT`: its descriptor
+  passes `valid_descriptor`, or every chunk of the group fails level 1 (§3). Not every `UNIT` gives
+  a valid group. A large one can give chunks above `MAX_SEGMENT_SIZE`. A small one can give a large
+  payload more chunks than `MAX_PLAIN_CHUNKS`, or leave a coded group's last data chunks empty where
+  the payload compresses well, so that its count is not twice the K a receiver derives. At the
+  default `UNIT` none of these happens to a body of up to 128 MiB.
 
 ### Rationale
 
@@ -244,8 +253,8 @@ the new layout (§0).
 *What a chunk carries.* Under A each of the group's N chunks carries the descriptor, 51 bytes as
 serialized (§2). Under B no chunk carries it, and each bid that commits the group carries its 51
 bytes in place of the 32-byte group id. At these chunk sizes the bytes do not decide it: 51 bytes
-against a chunk of about 12 KB at 1 MiB is under half a percent, and the share grows as chunks get
-smaller.
+against a chunk of about 12 KB, at 1 MiB and the default `UNIT`, is under half a percent, and the
+share grows as chunks get smaller.
 
 ## 2. The wire [c1, c7]
 
@@ -1193,8 +1202,11 @@ most of its neighbours' pushes and pass none on. Drawn within the lower half, it
 longer wins every contested push.
 
 **The guard** is for a peer that takes pushes and never reports at all.
-`GUARD_GRACE` is about one round trip, so that honest peers are not demoted (§8.3). At the source the
-plain ranking is what spreads card 13's stripes evenly over its connections (§5.1).
+`GUARD_GRACE` allows for the first push to leave the node and the peer's first HAVE to come back,
+about one round trip where queues are short (§8.3). An honest peer can still be demoted while its
+copies wait for their block, or if its HAVE is dropped at a full queue, until its first HAVE comes.
+At the source the plain ranking is what spreads card 13's stripes evenly over its connections
+(§5.1).
 *Segmented payload diffusion, card by card* (2026, card 16) gives what each form costs against
 under-reporters, as measured.
 
@@ -1444,8 +1456,8 @@ and index, whichever form names the chunk. An ask is counted once the queue has 
 ask that a full queue refuses spends nothing. `asked_parked` lives as `tried` does, and a closed
 connection resets its announcer's count. Against announcers that never answer, the last resort
 adds at most one ask per announcer and chunk while its count is kept. While no count is reset, the
-doubling waits allow at most six such asks for a chunk within the 30 s an offer lives. The retry
-is unchanged by it.
+doubling waits allow at most six such asks for a chunk within the 30 s an offer lives, at the
+default `PROMISE`. The retry is unchanged by it.
 
 **An answer can still wait for a block** at a node that asks only once its block is installed
 (§3), when the answer names another root. That root is a forgery's or, when the proposer signed
@@ -1863,10 +1875,11 @@ This document decides at the moment of sending, so it needs the backlog to be in
 - **Without a slot.** Where groups carry no slot, which no group of this document does, there is no
   window, and the tombstone is kept for `TOMBSTONE_TTL` after the expiry instead. It must outlast
   the node's claims of the group: longer than a HAVE already queued can wait, plus the time an RPC
-  takes to reach the peer and be handled, plus `HAVE_TTL` and one heartbeat. This document bounds
-  neither of the first two, so a deployment that relies on this fallback states both; discarding the
-  group's queued HAVEs at its expiry removes the first. Once the tombstone has gone, the group can be
-  taken up again: a late announcement can make the node pull it a second time.
+  takes to reach the peer and be handled, plus the peer's `HAVE_TTL` and one of its heartbeats. This
+  document bounds neither of the first two and leaves the third to each node, so a deployment that
+  relies on this fallback states all three; discarding the group's queued HAVEs at its expiry
+  removes the first. Once the tombstone has gone, the group can be taken up again: a late
+  announcement can make the node pull it a second time.
 - **At a group's expiry** its pull state goes with it: its offers, `tried`, `asked_at`,
   `asked_parked`, promises, what is owed of it, and its queued chunks, IHAVEs and IWANTs
   (`discard_queued`, as at `drop_group`). Its chunks leave the gossip history and its paced jobs go
@@ -1976,8 +1989,9 @@ A node checks a message's shape before it allocates state for it.
 | IHAVE handling | `MAX_IHAVE_MESSAGES` IHAVE-bearing RPCs per peer and heartbeat, and `MAX_IHAVE_LENGTH` ids asked of the peer in reply to its IHAVEs per heartbeat | the peer's further announcements are recorded, and what the node would ask of it waits for the next heartbeat (§4.4) |
 | per-peer queue | client-chosen, shared by both lanes | a new entry is dropped, urgent control included: urgency orders dispatch, not admission. A dropped HAVE costs its window slot a timeout |
 
-`MAX_PENDING_GROUPS`, the deferred store's sizes and the two IHAVE limits are the client's to set;
-what this document fixes is the behaviour at the limit. Every offer for an admitted group is kept
+`MAX_PENDING_GROUPS`, the deferred store's sizes and the two IHAVE limits are the client's to set,
+and so are the offers' 16 and 256, whose defaults §8.3 gives; what this document fixes is the
+behaviour at the limit. Every offer for an admitted group is kept
 (§6.1): per peer at most (`MAX_PENDING_GROUPS` + the live groups) × 1 KiB of `offered`, the same
 order as `peer_has`.
 Chunks are deduplicated by id and, once accepted, by index: only one content per index can pass
@@ -1985,40 +1999,97 @@ the proof, so a forged variant costs one proof check and counts against its send
 
 ### 8.3 Constants
 
+The constants are of three kinds, by what they leave to a node:
+- **Limits** are the same at every node: they cap what §1 and §2 accept, and a descriptor, chunk
+  or bitmap beyond one is invalid. Changing a limit changes the protocol. §8.2 says what a node does
+  at each, and which limits on its own state are the client's to set.
+- **Bounds** are each node's to set, within a bound that another node, or a property of this
+  document, needs. Each is given with its bound and with what needs it.
+- **Defaults** are each node's own. Nodes with other values work together: a value changes how the
+  payload spreads, how fast and at what cost, not whether a node follows the protocol.
+
+The values given are this document's reference values. Most are those of the implementation the
+measurements ran on, and §9 says where the measured runs differ. A value measured on one network is
+not shown to carry over to another.
+
+**Limits.** Every node also shares what §1 to §3 fix besides these, among them the descriptor's
+versions and code, N = 2K for a coded group, the tree and the ids.
+
 | name | value | card | why |
 |---|---|---|---|
-| `UNIT` | 16 KiB | 1 | the unit where A's latency reached its floor (*What segmented payload diffusion is made of*) |
-| `MAX_CHUNKS` | 256 | 6 | codec limit; above 2 MiB of SSZ the group is plain |
+| `MAX_CHUNKS` | 256 | 6 | codec limit; above 2 MiB of SSZ, at the default `UNIT`, the group is plain |
 | `MAX_PLAIN_CHUNKS` | 8192 | 1 | every group fits one HAVE bitmap |
-| `MAX_SEGMENT_SIZE` | 32 KiB | 1 | twice `UNIT`, above snappy's worst-case expansion |
+| `MAX_SEGMENT_SIZE` | 32 KiB | 1 | twice the default `UNIT`, above snappy's worst-case expansion; a builder's own `UNIT` does not change it |
 | `MAX_HAVE_BYTES` | 1024 | 7 | 8192 indices |
-| `R` | 2 | 3, 11 | the coded group needs less fan-in; 3 without the code at 1 MiB |
-| `R_FAST`, `FAST_UPLINK` | 6, 500 Mbps | 17 | the knee: receivers' downlinks bind beyond 6 |
+
+**Bounds.**
+
+| name | bound | value | card | why |
+|---|---|---|---|---|
+| `R`, `R_FAST` | at least 1 | 2, 6 | 3, 11, 17 | a source that pushes nothing offers its mesh no chunk, since §5.1's offers wait for a copy known to exist elsewhere: only a peer that joins its mesh (§5.4), or heartbeat gossip outside it (§6.4), is offered anything, so the group's diffusion may never start. §5.3's guard also reads the first push to a peer, which a budget of 0 never makes. 2: the coded group needs less fan-in; 3 without the code at 1 MiB. 6: the knee, beyond which receivers' downlinks bind |
+| `GUARD_GRACE` | longer than a push takes to leave this node's queue and reach the peer, plus the peer's first HAVE coming back: about the round trip to the peer where queues are short | 200 ms | 16 | so that an honest peer is not demoted before its first HAVE can arrive (§5.3). A peer whose copies wait for their block sends no HAVE until it installs (§4.2), and one whose queue to this node is full can drop its HAVE (§8.2): either can be demoted meanwhile, until its first HAVE |
+| `GOSSIP_RETRANSMISSION` | at least 3 | 3, stock gossipsub | – | while its park and the last resort's count last, §6.1's rules ask a provider for a chunk at most twice before the root its copies name installs, and leave its third answer for after the switch to that block (§6.1's Rationale) |
+| `GROUP_TTL` | at least 7 heartbeats and the seen cache's lifetime, after the group's last chunk or its completion | not fixed | – | so that a group outlives its diffusion. That is not assured: a decode, which this document does not bound, can outlast the group (§4.6), as can what is still queued for it (§7.2), and the live window can end the group sooner (§8.1) |
+| `LIVE_WINDOW` | more slots than a group needs to reach every honest node from the start of its slot (the block's propagation, the group's diffusion, the clock disparity), and no more than a node can keep groups, tombstones and deferred chunks for (§8.2 bounds the groups not yet tied to a block) | not fixed | – | diffusion's deadline; an expired group never comes back (§8.1) |
+| `TOMBSTONE_TTL` | only where groups have no slot: more than a queued HAVE can wait, plus an RPC's time to its peer, plus the peer's `HAVE_TTL` and one of its heartbeats, after the expiry; a deployment that relies on it states these (§8.1) | not fixed | – | the tombstone outlasts the node's claims (§8.1) |
+
+**Defaults.** `UNIT` is the builder's: receivers check the group a cut gives, not the value (§1).
+The others are each node's. They are values, and the rules they enter stay rules (§4 to §7). Three
+of §6.1's could be read as values:
+- one broken promise parks a peer, for its group only;
+- every offer for an admitted group is kept;
+- the last resort asks each parked announcer once more per chunk, after `PROMISE` × 2ⁿ for the n-th.
+  At the default `PROMISE` that allows at most six such asks for a chunk within the 30 s an offer
+  lives, while no count is reset.
+
+`GOSSIP_RETRANSMISSION`'s bound counts on the first and the third, while a park and the last
+resort's count last.
+
+| name | value | card | why |
+|---|---|---|---|
+| `UNIT` | 16 KiB | 1 | the unit where variant A's latency reached its floor (*What segmented payload diffusion is made of*) |
+| `FAST_UPLINK` | 500 Mbps | 17 | the configured uplink from which a node pushes `R_FAST` (§5.2) |
 | `STRIPE_UPLINK` | 1 Gbps (configured uplink) | 13 | where striping's gain is measured; the first hop suggests it starts near eight times the peers' uplink, 400 Mbps in the all-home network |
 | `IWANT_WINDOW` | 200 ms | 5 | one ask in flight per id, then move on |
 | `RETRY_SLACK` | 5 ms | 5 | the retry looks just after the ask's window has closed |
-| `PROMISE` | 400 ms | 5 | a late answer is still taken; after this the peer is parked |
-| `PARK_K`, `PARK_TTL`, scope | 1, 30 s, per (peer, group) | 5 | bounds capture; a slow peer on one payload is not parked for the next |
-| offers | 16 per id tried in order, 256 lists per peer, every offer kept per connection and group, 30 s | 5 | bounded memory of who announced |
-| the last resort | each parked announcer once per chunk, after `PROMISE` × 2ⁿ for the n-th | 5 | at most six such asks for a chunk within the 30 s an offer lives, while no count is reset |
-| `GUARD_GRACE` | 200 ms | 16 | about one round trip, so honest peers are not demoted |
+| `PROMISE` | 400 ms | 5 | a late answer is still taken; after this the peer is parked, which affects only this node's asks of it (§6.1) |
+| `PARK_TTL` | 30 s | 5 | bounds capture; a park is per group, so a slow peer on one payload is not parked for the next |
+| offers | 16 per id tried in order, 256 lists per peer, 30 s after the announcer's last offer of the group | 5 | bounded memory of who announced |
 | `FAN_IN` | 2 | 12 | one other pusher assumed as fast as us |
 | `RTT_REF`, `TARGET` | 112 ms, 20 ms | 14 | the network's mean round trip, plus a small queue |
-| `CHUNK_BYTES` | ≈ 12 KB | 14 | the encoded chunk at 1 MiB |
+| `CHUNK_BYTES` | ≈ 12 KB | 14 | the encoded chunk at 1 MiB and the default `UNIT` |
 | `WINDOW_TIMEOUT` | 500 ms | 14 | a lost acknowledgement frees its slot |
 | pace tick | heartbeat / 16 = 43.75 ms | 15 | one announcement per tick |
 | `MAX_IHAVE_MESSAGES`, `MAX_IHAVE_LENGTH` | the client's (§8.2) | 3, 7 | a limit delays asks and loses no offer (§4.4). One below what a peer sends within a heartbeat, up to an IHAVE-bearing RPC per chunk it announces and as many asks, holds some of its asks back to the next heartbeat: stock gossipsub's 10 RPCs would hold back most of a group's announcements, which come one per chunk, and its 5000 ids count every topic's asks. Batching a peer's announcements keeps the RPC count low |
-| `D_LAZY`, `GOSSIP_FACTOR`, `GOSSIP_RETRANSMISSION` | 6, 0.25, 3 | – | stock gossipsub |
-| `HAVE_TTL` | 3 heartbeats after the peer's last HAVE for the group | 7 | stock IDONTWANT expiry |
+| `D_LAZY`, `GOSSIP_FACTOR` | 6, 0.25 | – | stock gossipsub |
+| `HAVE_TTL` | 3 heartbeats after the peer's last HAVE for the group | 7 | stock IDONTWANT expiry; where groups have no slot, a peer's `TOMBSTONE_TTL` has to outlast it (§8.1) |
 | `PUSH_TTL` | 6 heartbeats after the last push | 16 | the message cache's length |
-| `GROUP_TTL` | at least 7 heartbeats and the seen cache's lifetime, after the group's last chunk or its completion | – | a group outlives its diffusion |
-| `LIVE_WINDOW` | not fixed: more slots than a group needs to reach every honest node from the start of its slot (the block's propagation, the group's diffusion, the clock disparity), and no more than a node can keep groups, tombstones and deferred chunks for (§8.2 bounds the groups not yet tied to a block) | – | diffusion's deadline; an expired group never comes back (§8.1) |
-| `TOMBSTONE_TTL` | only where groups have no slot: more than a queued HAVE can wait, plus an RPC's time to its peer, plus `HAVE_TTL` and a heartbeat, after the expiry | – | the tombstone outlasts the node's claims (§8.1) |
 | heartbeat, mesh, cache | 700 ms, D = 8, 6 / 3 heartbeats | – | Prysm's gossipsub settings |
 
 **Open: the push degree against payload size.** R is 2 at 1 MiB. The rule should be keyed on K
 rather than on the uncompressed size, and is not yet fixed. §9 says which degrees the measurements
 used at other sizes.
+
+#### Rationale
+
+**Three kinds, not one table.** In one table, a node's own choice, measured on one network, reads
+as a rule of the protocol, as a limit does. Apart, a limit says what every node accepts, a bound
+says how far a node may go and what needs the bound, and a default says where a node is free and
+gives a reference value. A bound in place of a value also lets an argument hold for every value
+within it, each property needing only its side: reaching every honest node needs `LIVE_WINDOW`'s
+lower bound, bounded state its upper one, and the claim rule neither, only a window that moves
+forward (§8.1).
+
+**What makes a bound.** A constant is a bound when a guarantee of this document needs its value in a
+range. A peer's outcome can depend on it: `GUARD_GRACE` decides when a peer that has sent no HAVE is
+pushed last, and a peer's asks need the answers `GOSSIP_RETRANSMISSION` allows. So can the group's
+diffusion (`R` at the source, `GROUP_TTL`, `LIVE_WINDOW`), or the node's own state and standing
+with its peers (`LIVE_WINDOW`, `TOMBSTONE_TTL`). `PROMISE` and `PARK_TTL` are defaults, although
+they decide how a node treats a peer: a parked peer is only not asked, except once more per chunk
+by the last resort, and its pushes and the node's answers to it go on (§6.1). A promise that falls
+due too soon costs the node that sets it a provider for the group, and can bring the last resort's
+ask while the first answer is still on its way; `promise_due` penalises no one. A client that also
+scored peers by this promise would make it a bound.
 
 ## 9. As measured: where the research implementation differs
 
@@ -2043,8 +2114,8 @@ rerun does as this document does, the entry says so.
   `ExecutionPayloadSegmentBody`. The longer id inflates control bytes against the 56-byte id of
   section 2; HAVE and WANT strings have their own lengths. Each chunk carried the descriptor
   (design A).
-- *K was fixed at 64* rather than derived from `UNIT`. At 1 MiB both give 64. The codec allowed up
-  to 16384 chunks, more than a HAVE bitmap can name; §1 caps a group at 8192.
+- *K was fixed at 64* rather than derived from `UNIT`. At 1 MiB and the default `UNIT` both give 64.
+  The codec allowed up to 16384 chunks, more than a HAVE bitmap can name; §1 caps a group at 8192.
 - *No decode.* Completion was counted at K distinct received chunks, where the decode claim went
   out, as in this document (§4.6). Decoding, re-encoding, decompression and the application's checks
   did not run, so delivery's latency is not in the numbers; optimised implementations decode and
@@ -2229,6 +2300,9 @@ The document's terms, each with the section that defines it.
   §4.2).
 - **level 1, 2, 3**: the three levels of validation: a chunk's authenticity, the code's
   consistency, the application's checks (§3).
+- **limit**: two kinds. §8.3's limits are the same at every node: a descriptor, chunk or bitmap
+  beyond one is invalid. §8.2's limits on a node's own state are the client's to set, and the
+  document fixes what a node does at them.
 - **live window**: the slots a node works on; a group whose slot has left it is out for good (§8.1).
 - **owed**: an offer that a full queue refused, or one that takes the place of a push that was
   skipped or refused, which the next write to the peer carries; or an answer that a full queue
