@@ -136,8 +136,10 @@ where one has a control that must come out the other way, it is named:
 - `late_draw_known.py`: `--late-block`'s draw and its argument.
 - `bid_gate_known.py`: a late node cannot read the group a block's bid commits before the block
   installs; after, it can.
-- `table_read_known.py`: §8.1's "reading it allocates nothing", table by table; one write through
-  the same reads must leave exactly the entry it wrote. Held reads share one entry, a held read
+- `table_read_known.py`: that a read creates no entry the tables show (no `in`, `len` or
+  iteration sees it), table by table; one write through the same reads must leave exactly the
+  entry it wrote. It does not test §8.1's "reading it allocates nothing": the toy keeps an entry
+  for each missing key read, until it is written (`bits.py`). Held reads share one entry, a held read
   written after a set fails, the collections' own writes join, and an offer list refuses what
   would bypass `listed`. And the writer after a read of an owed answer. With `--doc v2` it also
   reads the tables `protocol-v2.md` adds (§3: the relations, JOINs, backoffs, standing asks,

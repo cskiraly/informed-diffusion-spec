@@ -350,14 +350,20 @@ class DefaultMap(dict):
         return self._default
 
 
-# ---- §8.1's rule for the rest of the tables: a read creates nothing, at any level, and a write through a read
-# creates what it writes. A missing key reads as a detached entry (or a constant), which joins its map at its
+# ---- §8.1's rule for the rest of the tables, as the tables show it: a read creates no entry, at any level, and a
+# write through a read creates what it writes. A missing key reads as a detached entry (or a constant), which joins its map at its
 # first write; the map, if it is itself such an entry of another, joins that one then, and so on up. Two reads
 # of one missing key give the same detached entry until it joins or its key is set (a cache, which no `in`,
 # `len` or iteration sees), so that a caller holding one sees what another writes through the other. The cache
 # keeps an entry nobody holds: one not written is empty, as a new one would be, and a weak cache made and
 # dropped an entry at most reads of a missing key. A detached entry written after another value was set under
 # its key would lose a write: that fails (`_adopt`).
+#
+# So the toy keeps one entry for each missing key read, until the key is written. §8.1's "reading it allocates
+# nothing" rules that out for a node: a peer can name groups never admitted (on_iwant reads `peer_has[p][g]`
+# before any check of the group, and §8.2's limit counts only HAVEs, IHAVEs and deferred chunks), and a node that
+# kept state for each such read would grow without bound. The toy's runs send no such reads, so no outcome
+# depends on it; the cache is the toy's, not the document's.
 
 def _join(e):
     home = e._home
