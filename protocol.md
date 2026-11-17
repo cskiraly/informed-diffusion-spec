@@ -173,7 +173,7 @@ the group id is only its hash. Two designs work, and the choice is not made:
 - **B, descriptor in the bid:** the bid carries the descriptor itself instead of its hash, and
   chunks carry only the key.
 
-At these chunk sizes the bytes do not decide it. Section 3 is written for either.
+Section 3 is written for either. What the choice decides is in the Rationale below.
 
 The builder makes the group at bid time:
 
@@ -211,6 +211,41 @@ def build_group(body: bytes) -> Tuple[SegmentDescriptor, List[Shard]]:     # at 
 **The slot in the group's key.** An honest builder never commits one descriptor at two slots, since
 the payload carries its slot's timestamp. A dishonest one could. With the slot in the key, its
 commitment at a later slot names a new group, so it cannot make a group that has expired live again.
+
+**Where the descriptor travels.** The choice between design A, the descriptor in the chunk, and
+design B, the descriptor in the bid (open above), decides the four things below. It does not decide
+when a chunk is accepted: under either design only the installed block's bid says which group is
+committed, so a copy waits for its block in both (§3, §4.2).
+
+*When a node knows a group's shape.* The descriptor gives the group's chunk count, the chunks' size
+and the code. Every limit set by a group's count (on bitmaps, ids and ties: §2, §4.2, §4.4, §8.2)
+holds once a node has the descriptor; before, the same limits use `MAX_PLAIN_CHUNKS`, what any group
+can have. This document's code gives a receiver the descriptor when the group's first chunk passes
+level 1, under either design (`open_group`, §4.2), and the source has it from `publish` (§5.1).
+Under B the installed block's bid holds the descriptor, so a node could apply these limits from the
+installation, without waiting for any of the group's chunks. Under A it could apply them from the
+group's first copy, even one that waits for its block, once that copy's descriptor is checked
+against the key it names (below).
+
+*What a copy shows before its block.* Under A a copy carries the descriptor, and an honest copy's
+key is that descriptor's hash at the copy's slot (`group_key`). A node could therefore check a copy
+that waits: its descriptor against its key, and its index, length and proof against its descriptor.
+These checks do not authenticate: a group made up whole passes them, and only the block tells it
+apart. Under B a copy that waits carries nothing to check it against. This document's level 1 does
+none of this before the block (§3).
+
+*What the bid fixes.* Either design adds one field to the bid (above). Under A it is a 32-byte group
+id whatever the descriptor holds: a field added to the descriptor later changes `Chunk`, which
+carries the descriptor (§2), and not the bid's layout. Under B the descriptor's layout is part of
+the bid's, so a field added to it changes `ExecutionPayloadBid`, a consensus container, and no
+chunk. Under both it changes what `group_id` hashes, and so the groups' keys, and every node needs
+the new layout (§0).
+
+*What a chunk carries.* Under A each of the group's N chunks carries the descriptor, 51 bytes as
+serialized (§2). Under B no chunk carries it, and each bid that commits the group carries its 51
+bytes in place of the 32-byte group id. At these chunk sizes the bytes do not decide it: 51 bytes
+against a chunk of about 12 KB at 1 MiB is under half a percent, and the share grows as chunks get
+smaller.
 
 ## 2. The wire [c1, c7]
 

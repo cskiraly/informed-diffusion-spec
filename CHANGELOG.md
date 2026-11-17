@@ -7,9 +7,17 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 
 ## After v0.10.2, not yet released
 
-`protocol.md` unchanged: the next version's draft carries v0.10's rules where it has functions of its
-own, follows §8.1's lifetimes at a connection's close, and settles the probe of a claim's open cases;
-its figures are measured again.
+`protocol.md`'s rules unchanged; its §1 says what the open choice of where the descriptor travels
+decides. The next version's draft carries v0.10's rules where it has functions of its own, follows
+§8.1's lifetimes at a connection's close, and settles the probe of a claim's open cases; its figures
+are measured again.
+
+`protocol.md`:
+- **§1 says what the descriptor's placement decides**, in its Rationale, under "Where the descriptor
+  travels": when a node knows a group's shape, what a copy shows before its block, what the bid fixes
+  and what a chunk carries, with the descriptor in the chunk (design A) or in the bid (design B). The
+  choice stays open; the "Open:" paragraph points to the Rationale, and its sentence on the bytes
+  moves there.
 
 The draft of SEACAST's next version (`protocol-v2.md`), changed since v0.10:
 - **v0.10's rules in the draft's own functions.** Its `defer` ignores a copy beyond its sender's limit
@@ -59,7 +67,8 @@ The toy:
   `toy/refusal_report_known.py`, `toy/probe_decode_known.py`, `toy/probe_write_known.py` and
   `toy/probe_settle_known.py`; `toy/deferral_rules_known.py` and `toy/table_read_known.py` also run the
   draft (`--doc v2`).
-- **Unchanged:** `protocol.md`, and every recorded cell's digest in `golden.txt` and `golden-v2.txt`.
+- **Unchanged:** `protocol.md`'s rules and code, and every recorded cell's digest in `golden.txt` and
+  `golden-v2.txt`.
 
 ## v0.10.2, 2026-11-16
 
