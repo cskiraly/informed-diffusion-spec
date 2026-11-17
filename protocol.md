@@ -576,7 +576,7 @@ def send_have(p, g):                                 # [c7] always the whole bit
     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=have_bits(g))), urgent=True)
 
 def have_bits(g):                                    # what our HAVE says of g: what we hold, or, for a
-    return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what is known to have arrived [P4]
+    return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what is acknowledged (§5.1) [P4]
 ```
 
 **The path of a chunk** (`on_chunk`, `on_validated`). A copy of a chunk the node stored before is
@@ -995,7 +995,7 @@ def publish(block, d, shards):
         store(g, s.index, f); mark_seen(message_id(f))
         gossip_history.put(f)                         # stock: heartbeat gossip may announce it (§6.4)
     mine[g] = all_bits(N(d)); state[g] = COMPLETE; stop_pull[g] = True
-    origin[g] = bitmap(set())               # [P4] our HAVE names only chunks we have sent: none yet
+    origin[g] = bitmap(set())               # [P4] our HAVE names the chunks acknowledged so far (§5.1): none yet
     plan = []
     for i in range(N(d)):                   # index order; each chunk's targets see earlier plans
         f = chunks[g][i]
@@ -1014,8 +1014,8 @@ def publish(block, d, shards):
     planned[g] = {f.index: set(targets) for f, targets in plan}    # [c3] the mesh peers not chosen to be
                                             #   pushed a chunk are announced it at its acknowledgement
 
-def origin_acked(g, i):                     # [c3, P4] a chunk of a group we publish is known to have
-    if origin[g].has(i): return             #   arrived somewhere: a peer's HAVE names it (§4.3), or its
+def origin_acked(g, i):                     # [c3, P4] a chunk of a group we publish is acknowledged:
+    if origin[g].has(i): return             #   a peer's HAVE names it (§4.3), or its
     origin[g].set(i)                        #   first copy's slot timed out (§7.1). It joins our HAVE, which
     for q in mesh: send_have(q, g)          #   goes to the mesh as a forwarding node's does when a chunk
     for p in mesh:                          #   arrives (§4.2), and the mesh peers not chosen to be pushed
@@ -1048,15 +1048,15 @@ queue refuses is offered instead (§5.2).
   announcement from this step, though heartbeat gossip may announce to them later (§6.4).
 - The source pushes each chunk to R = 2 peers. It never uses the fast-class degree of card 17.
 - **The source announces at the acknowledgement** [c3] (`origin_acked`). The mesh peers not chosen
-  to be pushed a chunk are announced it once a copy of it is known to exist elsewhere: at the first
-  HAVE naming it, from any peer (§4.3), or, if none comes, when its first copy's window slot times
-  out (§7.1). The offers trail the pushes by about a round trip.
-- **The source's HAVE is paced** [P4], for the source's privacy. It names only chunks known to have
-  arrived somewhere: a chunk joins it at the same acknowledgement, and the HAVE then goes to the
-  mesh, as a forwarding node's does when a chunk arrives. A peer the source pushes to gets a HAVE
-  naming its first chunk just ahead of it, as a forwarding node's HAVE precedes its pushes. HAVEs to
-  the mesh that would leave together may be merged into one, as the research implementation merges
-  those of the chunks sent between two of its router's turns.
+  to be pushed a chunk are announced it at its acknowledgement: at the first HAVE naming it, from
+  any peer (§4.3), or, if none comes, when its first copy's window slot times out (§7.1). The offers
+  trail the pushes by about a round trip.
+- **The source's HAVE is paced** [P4], for the source's privacy. It names the chunks acknowledged so
+  far: a chunk joins it at its acknowledgement, and the HAVE then goes to the mesh, as a forwarding
+  node's does when a chunk arrives. A peer the source pushes to also gets a HAVE naming its first
+  chunk, just ahead of it, as a forwarding node's HAVE precedes its pushes. HAVEs to the mesh that
+  would leave together may be merged into one, as the research implementation merges those of the
+  chunks sent between two of its router's turns.
 
 #### Rationale
 
@@ -1673,8 +1673,9 @@ chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue
   `WINDOW_TIMEOUT` (500 ms) after sending, or the peer's queue closing. A writer that holds a slot
   and finds no chunk to send gives it back too (`release_unused_slot`).
 - **What bypasses it:** urgent control (HAVEs, acknowledgements, decode claims) never waits.
-- **At the source,** a slot's return or timeout also releases the chunk's announcements and its
-  place in the source's HAVE (§5.1).
+- **At the source,** the first HAVE naming a chunk, from any peer, or else its first copy's window
+  timeout, is the chunk's acknowledgement: its announcements go out and it joins the source's HAVE
+  (§5.1).
 - **A second copy** of a chunk still in flight to the same peer waits for a slot like any chunk, but
   returns it at once: the window counts chunks a peer is not yet known to hold, not bytes on the
   wire.
@@ -2030,7 +2031,7 @@ versions and code, N = 2K for a coded group, the tree and the ids.
 
 | name | bound | value | card | why |
 |---|---|---|---|---|
-| `R`, `R_FAST` | at least 1 | 2, 6 | 3, 11, 17 | a source that pushes nothing offers its mesh no chunk, since §5.1's offers wait for a copy known to exist elsewhere: only a peer that joins its mesh (§5.4), or heartbeat gossip outside it (§6.4), is offered anything, so the group's diffusion may never start. §5.3's guard also reads the first push to a peer, which a budget of 0 never makes. 2: the coded group needs less fan-in; 3 without the code at 1 MiB. 6: the knee, beyond which receivers' downlinks bind |
+| `R`, `R_FAST` | at least 1 | 2, 6 | 3, 11, 17 | a source that pushes nothing offers its mesh no chunk, since §5.1's offers wait for a chunk's acknowledgement: only a peer that joins its mesh (§5.4), or heartbeat gossip outside it (§6.4), is offered anything, so the group's diffusion may never start. §5.3's guard also reads the first push to a peer, which a budget of 0 never makes. 2: the coded group needs less fan-in; 3 without the code at 1 MiB. 6: the knee, beyond which receivers' downlinks bind |
 | `GUARD_GRACE` | longer than a push takes to leave this node's queue and reach the peer, plus the peer's first HAVE coming back: about the round trip to the peer where queues are short | 200 ms | 16 | so that an honest peer is not demoted before its first HAVE can arrive (§5.3). A peer whose copies wait for their block sends no HAVE until it installs (§4.2), and one whose queue to this node is full can drop its HAVE (§8.2): either can be demoted meanwhile, until its first HAVE |
 | `GOSSIP_RETRANSMISSION` | at least 3 | 3, stock gossipsub | – | while its park and the last resort's count last, §6.1's rules ask a provider for a chunk at most twice before the root its copies name installs, and leave its third answer for after the switch to that block (§6.1's Rationale) |
 | `GROUP_TTL` | at least 7 heartbeats and the seen cache's lifetime, after the group's last chunk or its completion | not fixed | – | so that a group outlives its diffusion. That is not assured: a decode, which this document does not bound, can outlast the group (§4.6), as can what is still queued for it (§7.2), and the live window can end the group sooner (§8.1) |
@@ -2282,8 +2283,8 @@ The document's terms, each with the section that defines it.
   wire (§1, §2).
 - **claim**: a node's statement, in its HAVE, that it holds a chunk. A chunk it receives is claimed
   only once it passes level 1 (§4.2); the **decode claim** names all N chunks of a group at the K-th
-  chunk received, before decoding (§4.6). A source's HAVE names only the chunks known to have
-  arrived somewhere (§5.1).
+  chunk received, before decoding (§4.6). A source's HAVE names the chunks acknowledged so far
+  (§5.1).
 - **deferred**: a copy of a chunk whose block is not installed yet; it waits in a bounded store, or
   is refused, and within §8.2's limits ties its sender either way (§4.2).
 - **descriptor**: the `SegmentDescriptor` a bid commits to, which says how the payload was cut and

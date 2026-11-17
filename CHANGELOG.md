@@ -38,6 +38,14 @@ claim's open cases; its figures are measured again.
   Quint model, whose own `onRpc` keeps its name. §7.2 says that the writer writes each entry as one
   frame, and that a client may merge entries' control into one, as §5.1, §5.4, §6.4 and §8.3 already
   allowed; §7.3 says that its "yamux frames" are the multiplexer's. No rule or value changes.
+- **What the source's HAVE names, and when it announces, said as the code does it.** A chunk is
+  acknowledged at the first HAVE naming it, from any peer, or at its first copy's window timeout (§5.1,
+  §7.1, and the glossary's "acknowledgement"). The source's HAVE names the chunks acknowledged so far,
+  and its announcements wait for the acknowledgement; a pushed peer's first HAVE also names its first
+  chunk, as before. Two comments, §5.1's bullet on the HAVE and the glossary said "known to have
+  arrived", and `publish`'s comment "chunks we have sent"; §5.1's bullet on the announcements
+  and §8.3's `R` row had the offers wait for "a copy known to exist elsewhere", and §7.1 named only a
+  slot's return or timeout. Wording and comments only.
 
 The draft of SEACAST's next version (`protocol-v2.md`), changed since v0.10:
 - **v0.10's rules in the draft's own functions.** Its `defer` ignores a copy beyond its sender's limit
@@ -83,6 +91,11 @@ The toy:
   marked probe as claimed.
 - **A connection's close (`--churn`)** drops what §8.1's rows say and keeps the peer's park, which it
   deleted before.
+- **The lazy tables' text says what they do** (`toy/README.md`, `toy/bits.py`): `table_read_known.py`
+  checks that a read creates no entry the tables show. It does not check §8.1's "reading it allocates
+  nothing", since the toy keeps an entry for each missing key read until the key is written. §8.1 rules
+  that out for a node, where IWANTs naming groups never admitted would make such state grow without
+  bound; the toy's runs send no such IWANT, and no outcome depends on the kept entries.
 - **Known answers** for each change: `toy/v2_carried_known.py`, `toy/close_known.py`,
   `toy/refusal_report_known.py`, `toy/probe_decode_known.py`, `toy/probe_write_known.py` and
   `toy/probe_settle_known.py`; `toy/deferral_rules_known.py` and `toy/table_read_known.py` also run the
