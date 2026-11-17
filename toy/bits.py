@@ -361,9 +361,10 @@ class DefaultMap(dict):
 #
 # So the toy keeps one entry for each missing key read, until the key is written. §8.1's "reading it allocates
 # nothing" rules that out for a node: a peer can name groups never admitted (on_iwant reads `peer_has[p][g]`
-# before any check of the group, and §8.2's limit counts only HAVEs, IHAVEs and deferred chunks), and a node that
-# kept state for each such read would grow without bound. The toy's runs send no such reads, so no outcome
-# depends on it; the cache is the toy's, not the document's.
+# for any unexpired group an IWANT names, with no check that the group was admitted, and §8.2's limit counts only
+# HAVEs, IHAVEs and deferred chunks), and a node that kept state for each such read would grow without bound. The
+# toy's runs send no such IWANT, so the case does not arise there; and no outcome depends on the cache, which no
+# `in`, `len` or iteration sees. The cache is the toy's, not the document's.
 
 def _join(e):
     home = e._home
