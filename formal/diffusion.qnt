@@ -515,7 +515,7 @@ module diffusion {
       answers.fold(nd, (acc, i) =>
         enqueue(acc, p, { ...chunkEntry(i, true), iwant: if (i == first) asks else Set() }, false))
     }
-  // on_rpc (§4.1): chunks, IHAVE, IWANT, IDONTWANT, then the response
+  // on_frame (§4.1): chunks, IHAVE, IWANT, IDONTWANT, then the response
   pure def onRpc(st: State, n: int, p: int, e: Entry, tgt: Set[int], admit: bool): State = {
     val nd0 = st.nodes.get(n)
     if (ADV.contains(n)) st     // an adversarial node takes what it gets and does nothing with it

@@ -400,7 +400,7 @@ as the payload's name; under the group's key their exact values move as any rena
 
 [`protocol-v2.md`](../protocol-v2.md) is run on top of `protocol.md`: `extract.py` pulls both
 documents' blocks, v0.3's are executed first and the next version's after them in the same namespace, so
-the next version redefines what it changes (`on_rpc`, `on_chunk`, `forward`, `announce`, the holding and
+the next version redefines what it changes (`on_frame`, `on_chunk`, `forward`, `announce`, the holding and
 offer handlers, `on_want`, completion and repair, `publish`, the heartbeat) and keeps what it says
 carries over (the ask discipline, `choose_push`; the window and the writer as its §4.11 and §4.12 adapt them). `node.py` supplies what
 the next version leaves to the environment under its tier 4 setting (its §6.1): the payload object type

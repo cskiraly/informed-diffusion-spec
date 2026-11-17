@@ -258,8 +258,10 @@ share grows as chunks get smaller.
 
 ## 2. The wire [c1, c7]
 
-Nothing here adds a protobuf field or an RPC type. Chunks travel as gossipsub messages on one
-topic, and the bitmaps as message-id strings inside existing control fields.
+Nothing here adds a protobuf field or a control type. Chunks travel as gossipsub messages on one
+topic, and the bitmaps as message-id strings inside existing control fields. A *frame* is one
+gossipsub `RPC`: the protobuf a peer writes on its stream, with the messages and control fields it
+carries. It is not a frame of the layers below, QUIC's or a stream multiplexer's.
 
 ```python
 class Chunk(Container):                 # gossipsub Message.data, snappy-compressed SSZ   [c1]
@@ -420,19 +422,19 @@ cannot be checked yet.
 
 ### 4.1 The order of handling
 
-A node handles each RPC from a peer in a fixed order: its chunks, its IHAVEs, its IWANTs, GRAFT and
-PRUNE, and its HAVEs last. It then sends one response.
+A node handles each frame from a peer in a fixed order: its chunks, its IHAVEs, its IWANTs, GRAFT
+and PRUNE, and its HAVEs last. It then sends one response.
 
 ```python
-def on_rpc(p, rpc):
-    for f in rpc.chunks: on_chunk(p, f)                       # §4.2
-    asks = on_ihave(p, rpc.ihave)                              # §4.4
-    answers = on_iwant(p, rpc.iwant)                           # §4.5
-    prunes = handle_graft_prune(p, rpc)                        # stock
-    for h in rpc.idontwant: on_have(p, h)                      # §4.3 (stock ids go to unwanted[p])
+def on_frame(p, frame):
+    for f in frame.chunks: on_chunk(p, f)                     # §4.2
+    asks = on_ihave(p, frame.ihave)                            # §4.4
+    answers = on_iwant(p, frame.iwant)                         # §4.5
+    prunes = handle_graft_prune(p, frame)                      # stock
+    for h in frame.idontwant: on_have(p, h)                    # §4.3 (stock ids go to unwanted[p])
     respond(p, asks, answers, prunes)
 
-def respond(p, asks, answers, prunes):                         # one response per RPC handled
+def respond(p, asks, answers, prunes):                         # one response per frame handled
     control = IWANT(asks) + PRUNE(prunes) if asks or prunes else None   # an empty part is left out
     if not answers:
         if control: enqueue(p, Entry(control=control), urgent=False)
@@ -443,7 +445,7 @@ def respond(p, asks, answers, prunes):                         # one response pe
             owed_answers[p][f.group].set(f.index)              #   queued once there is room (§7.2)
 ```
 
-So an ask and a HAVE in the same RPC are handled ask first, and the asks and answers one RPC
+So an ask and a HAVE in the same frame are handled ask first, and the asks and answers one frame
 produces leave together, the control riding on the first answer. An answer that a full queue
 refuses is owed: the writer queues it once there is room (§7.2), so the queue cannot turn an honest
 answer into the asker's broken promise. Validation (§3) runs off this path, on the router's event
@@ -671,7 +673,7 @@ act, by index, so a HAVE that arrives before its chunk's id is known still count
 
 ```python
 def on_ihave(p, ih):                                                  # returns the asks (§4.1)
-    if ih.ids: ihave_rpcs[p] += 1                                     # IHAVE-bearing RPCs (§8.2)
+    if ih.ids: ihave_frames[p] += 1                                   # IHAVE-bearing frames (§8.2)
     candidates = []
     for entry in ih.ids:
         if is_have_bitmap(entry) and not valid_have(entry):           # a bitmap is held to a HAVE's
@@ -693,7 +695,7 @@ def on_ihave(p, ih):                                                  # returns 
     return asks
 
 def over_ihave_limits(p):                                             # §8.2, per peer and heartbeat
-    return ihave_rpcs[p] > MAX_IHAVE_MESSAGES or ihave_asked[p] >= MAX_IHAVE_LENGTH
+    return ihave_frames[p] > MAX_IHAVE_MESSAGES or ihave_asked[p] >= MAX_IHAVE_LENGTH
 
 def valid_id(a):                                                      # a chunk's structured id (§2): its
     if len(a) != 56: return False                                     #   56 bytes, and an index its group
@@ -724,17 +726,17 @@ an index at or beyond the group's count, once its descriptor is known, is ignore
 the sender, as a HAVE is. An entry that is not a bitmap is a chunk's structured id (§2), or it is
 ignored (`valid_id`). An id is valid if it has the id's 56 bytes and names an index its group can
 have: below `MAX_PLAIN_CHUNKS`, and below the group's count where its descriptor is known. Any other
-id leaves no offer, no ask and no penalty. Either way the RPC still counts as one that bears an
+id leaves no offer, no ask and no penalty. Either way the frame still counts as one that bears an
 IHAVE (§8.2). The id's last 20 bytes, the content id, cannot be checked before the chunk is held.
 
 **Gossipsub's two IHAVE limits** delay asks here, and lose no offer. Beyond `MAX_IHAVE_MESSAGES`
-IHAVE-bearing RPCs from a peer within a heartbeat, or once the peer has been asked `MAX_IHAVE_LENGTH`
-ids in reply to its IHAVEs, its announcements are still recorded, and what the node would ask of it
-is held back to the next heartbeat. The heartbeat runs the retry for it as for any ask, with the
-retry's checks (§6.4, §6.1). Only asks in reply to IHAVEs count against the limits: the retry, the
-last resort and the asks at installation do not. Every entry of an IHAVE is read, where a stock
-implementation may stop after `MAX_IHAVE_LENGTH` ids of one IHAVE. The limits' values are the
-client's (§8.2).
+IHAVE-bearing frames from a peer within a heartbeat, or once the peer has been asked
+`MAX_IHAVE_LENGTH` ids in reply to its IHAVEs, its announcements are still recorded, and what the
+node would ask of it is held back to the next heartbeat. The heartbeat runs the retry for it as for
+any ask, with the retry's checks (§6.4, §6.1). Only asks in reply to IHAVEs count against the
+limits: the retry, the last resort and the asks at installation do not. Every entry of an IHAVE is
+read, where a stock implementation may stop after `MAX_IHAVE_LENGTH` ids of one IHAVE. The limits'
+values are the client's (§8.2).
 
 **Over a limit a node may read an IHAVE's bitmaps without the loop above.** Their indices join
 `offered`, for a group not expired and within §8.2's limits on offers, and `held_back`, for a group
@@ -770,7 +772,7 @@ which nothing here brings about.
 
 ```python
 def on_iwant(p, iw):                                  # returns the answers (§4.1)
-    answers = {}                                      # by id: one answer per id per RPC
+    answers = {}                                      # by id: one answer per id per frame
     for a in iw.ids:
         gi = group_index(a)                           # from a WantIndex or a structured id
         if gi and expired(gi.group): continue         # past its active lifetime: ignored, no penalty
@@ -790,9 +792,9 @@ An ask for a chunk of an expired group is ignored, without penalty. An ask for a
 claimed counts against the asker, and is dropped (below). Otherwise the node answers with its copy
 of the chunk at that index, received or rebuilt (`resolve`), unless it holds none, the asker said
 it does not want that id (stock IDONTWANT), or the asker has already made `GOSSIP_RETRANSMISSION`
-(3) asks for that id that the node could answer (`serve_count`, which counts a repeat within one RPC
-too). One RPC draws at most one answer per id. `resolve` returns nothing for a group the node
-dropped (§4.6).
+(3) asks for that id that the node could answer (`serve_count`, which counts a repeat within one
+frame too). One frame draws at most one answer per id. `resolve` returns nothing for a group the
+node dropped (§4.6).
 
 **An ask for a chunk the asker claimed is dropped: the claim wins.** On a live connection an honest
 ask always arrives before the claim it would contradict (Rationale), so an ask after the claim is a
@@ -808,7 +810,7 @@ new connection, with no claims.
 **Why an honest ask comes before the claim.** Claims are made only for chunks that passed level 1,
 and within a group's active lifetime (§8.1) a node's holdings only grow. Both lanes of a peer's
 queue feed one ordered writer, the asker drops its queued asks for chunks it holds just before
-writing them (§7.2), and RPCs are handled in stream order, with IWANT before IDONTWANT within one
+writing them (§7.2), and frames are handled in stream order, with IWANT before IDONTWANT within one
 (§4.1).
 
 **Why an expired group stays expired.** A node's claims of the group can outlive the expiry: a HAVE
@@ -1235,7 +1237,7 @@ def on_mesh_join(p):                                  # p joins our mesh: by our
   announced again. A closed connection leaves the mesh, so a reconnection is announced again once
   the two graft each other again.
 - **Its cost** is one IHAVE bitmap per stored group and join (the bitmap 16 bytes at N = 128, up to
-  1 KiB at `MAX_PLAIN_CHUNKS`, plus the group id and framing), several groups' bitmaps in one RPC
+  1 KiB at `MAX_PLAIN_CHUNKS`, plus the group id and framing), several groups' bitmaps in one frame
   where they fit, and the asks they draw. At the receiver they count as any IHAVE does: its IHAVE
   limits delay the asks, not the reading of the bitmaps nor the retries (§4.4), and its offers are
   kept within §8.2's limits on admitted groups.
@@ -1562,7 +1564,7 @@ Answers are ordinary chunks and go through §4.2.
 
 ```python
 def on_heartbeat():
-    ihave_rpcs.clear(); ihave_asked.clear()                   # §4.4's limits start again, and the
+    ihave_frames.clear(); ihave_asked.clear()                 # §4.4's limits start again, and the
     for a in held_back.values(): retry_offer(a)               #   retry runs for what they held back,
     held_back.clear()                                         #   which they do not count
     drop_stale_waits()                                        # §4.2's copies and ties past their window
@@ -1682,10 +1684,12 @@ chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue
 
 ### 7.2 Choosing what to send, at the moment of sending [c8, c9, c12, c14]
 
-One writer per peer. A queue entry carries at most one chunk, and may also carry control. Each time
-the previous write to that peer has completed, and whenever the writer is woken (a slot freed for
-it, or an urgent entry arrived), it calls `next_to_send`: an entry to write, `None` when there is
-nothing to send, or `WAIT` when it waits in line for a slot.
+One writer per peer. A queue entry carries at most one chunk, and may also carry control; the writer
+writes it as one frame (§2). A client may merge the control of several entries into one frame, as
+§5.1 (HAVEs), §5.4 and §8.3 (announcements) and §6.4 (asks) allow. Each time the previous write to
+that peer has completed, and whenever the writer is woken (a slot freed for it, or an urgent entry
+arrived), it calls `next_to_send`: an entry to write, `None` when there is nothing to send, or
+`WAIT` when it waits in line for a slot.
 
 ```python
 def next_to_send(p):
@@ -1808,11 +1812,11 @@ This document decides at the moment of sending, so it needs the backlog to be in
   not yet sent.
 - **Per transport.** quic-go's stream write blocks until all but one packet of its data is packed, so
   a node on it keeps the rule as it is. Over TCP the kernel's send buffer takes several chunks ahead
-  of the link, and go-libp2p's yamux returns a stream write once its frame is in a channel of 64
-  frames above the socket: keeping the rule there takes `TCP_NOTSENT_LOWAT` at about `CHUNK_BYTES`,
-  or a poll of the socket's unsent bytes, together with a multiplexer whose write waits for the
-  socket. A stack that offers neither a blocking write nor a count of its unsent bytes cannot keep
-  the rule, and runs with the backlog below the queue.
+  of the link, and go-libp2p's yamux returns a stream write once its yamux frame is in a channel of
+  64 yamux frames above the socket: keeping the rule there takes `TCP_NOTSENT_LOWAT` at about
+  `CHUNK_BYTES`, or a poll of the socket's unsent bytes, together with a multiplexer whose write
+  waits for the socket. A stack that offers neither a blocking write nor a count of its unsent bytes
+  cannot keep the rule, and runs with the backlog below the queue.
 - **For operators,** not a rule of this protocol: the queue at the access link decides what sits
   below the socket. A deep FIFO, as older modems and a Linux gateway's default transmit queue have,
   holds hundreds of milliseconds to a second of a slow uplink, lets the congestion window fill it,
@@ -1839,7 +1843,7 @@ This document decides at the moment of sending, so it needs the backlog to be in
 | `asked_parked` | chunk (group and index) and announcer | 30 s, as `tried` | as `tried` |
 | `last_resort_armed` | chunk | one timer, until it fires | — |
 | the secret of `own_order` (§6.1) | node | while the node runs | never sent; a restart draws another |
-| `ihave_rpcs`, `ihave_asked` | connection | one heartbeat | at the next heartbeat, or when the connection closes |
+| `ihave_frames`, `ihave_asked` | connection | one heartbeat | at the next heartbeat, or when the connection closes |
 | `held_back` | chunk (group and index) of an admitted group | until the next heartbeat | at that heartbeat, which runs the retry for it (the retry checks expiry, §6.1) |
 | promises | ask and peer | `PROMISE` | when a copy that passes level 1 arrives, the peer's copy waits for its block (a tie, §4.2), the peer's offers of the chunk are dropped (`drop_offer`, §6.1), the group completes or expires, or the peer's connection closes |
 | `owed`, `owed_answers` | connection and group | until they leave | when the peer claims the chunk, when the group is dropped or expires, or when the connection closes |
@@ -1874,7 +1878,7 @@ This document decides at the moment of sending, so it needs the backlog to be in
   not yet tied to a block. Nodes need not agree on `LIVE_WINDOW` or on the current slot.
 - **Without a slot.** Where groups carry no slot, which no group of this document does, there is no
   window, and the tombstone is kept for `TOMBSTONE_TTL` after the expiry instead. It must outlast
-  the node's claims of the group: longer than a HAVE already queued can wait, plus the time an RPC
+  the node's claims of the group: longer than a HAVE already queued can wait, plus the time a frame
   takes to reach the peer and be handled, plus the peer's `HAVE_TTL` and one of its heartbeats. This
   document bounds neither of the first two and leaves the third to each node, so a deployment that
   relies on this fallback states all three; discarding the group's queued HAVEs at its expiry
@@ -1986,7 +1990,7 @@ A node checks a message's shape before it allocates state for it.
 | deferred chunks | a bounded store with per-peer reservations | the peer's further deferred chunks are dropped, neither claimed nor forwarded; each ties the peer to the root it names, as a kept one does (§4.2) |
 | ties (§4.2) | per peer, at most `MAX_PENDING_GROUPS` roots and groups not yet installed; an index below `MAX_PLAIN_CHUNKS`, and below N where the group's descriptor is known | a copy beyond them ties nothing, and is kept or refused as any deferred copy |
 | offers | 16 announcers per id in the ordered list, an announcer in at most 256 lists; one `offered` bitmap per connection and admitted group, of at most `MAX_HAVE_BYTES` | an announcer's further ids are not listed, and its offers of them are kept in `offered` only; a peer's offers for groups beyond `MAX_PENDING_GROUPS` are ignored, as its HAVEs are |
-| IHAVE handling | `MAX_IHAVE_MESSAGES` IHAVE-bearing RPCs per peer and heartbeat, and `MAX_IHAVE_LENGTH` ids asked of the peer in reply to its IHAVEs per heartbeat | the peer's further announcements are recorded, and what the node would ask of it waits for the next heartbeat (§4.4) |
+| IHAVE handling | `MAX_IHAVE_MESSAGES` IHAVE-bearing frames per peer and heartbeat, and `MAX_IHAVE_LENGTH` ids asked of the peer in reply to its IHAVEs per heartbeat | the peer's further announcements are recorded, and what the node would ask of it waits for the next heartbeat (§4.4) |
 | per-peer queue | client-chosen, shared by both lanes | a new entry is dropped, urgent control included: urgency orders dispatch, not admission. A dropped HAVE costs its window slot a timeout |
 
 `MAX_PENDING_GROUPS`, the deferred store's sizes and the two IHAVE limits are the client's to set,
@@ -2031,7 +2035,7 @@ versions and code, N = 2K for a coded group, the tree and the ids.
 | `GOSSIP_RETRANSMISSION` | at least 3 | 3, stock gossipsub | – | while its park and the last resort's count last, §6.1's rules ask a provider for a chunk at most twice before the root its copies name installs, and leave its third answer for after the switch to that block (§6.1's Rationale) |
 | `GROUP_TTL` | at least 7 heartbeats and the seen cache's lifetime, after the group's last chunk or its completion | not fixed | – | so that a group outlives its diffusion. That is not assured: a decode, which this document does not bound, can outlast the group (§4.6), as can what is still queued for it (§7.2), and the live window can end the group sooner (§8.1) |
 | `LIVE_WINDOW` | more slots than a group needs to reach every honest node from the start of its slot (the block's propagation, the group's diffusion, the clock disparity), and no more than a node can keep groups, tombstones and deferred chunks for (§8.2 bounds the groups not yet tied to a block) | not fixed | – | diffusion's deadline; an expired group never comes back (§8.1) |
-| `TOMBSTONE_TTL` | only where groups have no slot: more than a queued HAVE can wait, plus an RPC's time to its peer, plus the peer's `HAVE_TTL` and one of its heartbeats, after the expiry; a deployment that relies on it states these (§8.1) | not fixed | – | the tombstone outlasts the node's claims (§8.1) |
+| `TOMBSTONE_TTL` | only where groups have no slot: more than a queued HAVE can wait, plus a frame's time to its peer, plus the peer's `HAVE_TTL` and one of its heartbeats, after the expiry; a deployment that relies on it states these (§8.1) | not fixed | – | the tombstone outlasts the node's claims (§8.1) |
 
 **Defaults.** `UNIT` is the builder's: receivers check the group a cut gives, not the value (§1).
 The others are each node's. They are values, and the rules they enter stay rules (§4 to §7). Three
@@ -2060,7 +2064,7 @@ resort's count last.
 | `CHUNK_BYTES` | ≈ 12 KB | 14 | the encoded chunk at 1 MiB and the default `UNIT` |
 | `WINDOW_TIMEOUT` | 500 ms | 14 | a lost acknowledgement frees its slot |
 | pace tick | heartbeat / 16 = 43.75 ms | 15 | one announcement per tick |
-| `MAX_IHAVE_MESSAGES`, `MAX_IHAVE_LENGTH` | the client's (§8.2) | 3, 7 | a limit delays asks and loses no offer (§4.4). One below what a peer sends within a heartbeat, up to an IHAVE-bearing RPC per chunk it announces and as many asks, holds some of its asks back to the next heartbeat: stock gossipsub's 10 RPCs would hold back most of a group's announcements, which come one per chunk, and its 5000 ids count every topic's asks. Batching a peer's announcements keeps the RPC count low |
+| `MAX_IHAVE_MESSAGES`, `MAX_IHAVE_LENGTH` | the client's (§8.2) | 3, 7 | a limit delays asks and loses no offer (§4.4). One below what a peer sends within a heartbeat, up to an IHAVE-bearing frame per chunk it announces and as many asks, holds some of its asks back to the next heartbeat: stock gossipsub's 10 frames would hold back most of a group's announcements, which come one per chunk, and its 5000 ids count every topic's asks. Batching a peer's announcements keeps the frame count low |
 | `D_LAZY`, `GOSSIP_FACTOR` | 6, 0.25 | – | stock gossipsub |
 | `HAVE_TTL` | 3 heartbeats after the peer's last HAVE for the group | 7 | stock IDONTWANT expiry; where groups have no slot, a peer's `TOMBSTONE_TTL` has to outlast it (§8.1) |
 | `PUSH_TTL` | 6 heartbeats after the last push | 16 | the message cache's length |
@@ -2219,14 +2223,14 @@ rerun does as this document does, the entry says so.
   runs have no blocks, no expiry within a payload's lifetime and no disconnects, so the others do
   nothing there. Against the same runs without these rules, the times and bytes stayed within the
   spread between runs, and honest nodes parked honest peers less often.
-- *The IHAVE limits.* The measured handler allowed 4096 control-bearing RPCs per peer per heartbeat,
-  a counter that also counts RPCs carrying other control, and asked a peer for at most the stock
-  5000 ids a heartbeat; as in stock gossipsub, an IHAVE that arrived over either limit was ignored,
-  and so were the ids of one IHAVE after its 5000th. This document counts only IHAVE-bearing RPCs,
-  reads every entry, and records an IHAVE over either limit and retries its asks at the next
-  heartbeat (§4.4), so the two differ only in a heartbeat in which a peer reaches a limit, or for an
-  IHAVE of more than 5000 ids. The rerun's source announces a chunk only to the mesh peers it did
-  not choose for a push, as §5.1 does.
+- *The IHAVE limits.* The measured handler allowed 4096 control-bearing frames per peer per
+  heartbeat, a counter that also counts frames carrying other control, and asked a peer for at most
+  the stock 5000 ids a heartbeat; as in stock gossipsub, an IHAVE that arrived over either limit was
+  ignored, and so were the ids of one IHAVE after its 5000th. This document counts only
+  IHAVE-bearing frames, reads every entry, and records an IHAVE over either limit and retries its
+  asks at the next heartbeat (§4.4), so the two differ only in a heartbeat in which a peer reaches a
+  limit, or for an IHAVE of more than 5000 ids. The rerun's source announces a chunk only to the
+  mesh peers it did not choose for a push, as §5.1 does.
 - *The live window and the group's key* (§8.1, §1) came after the implementation measured, its
   rerun included. The measured runs have no blocks and no expiry within a payload's lifetime, so
   neither would act there: in those runs the key only renames groups, which in the toy moves the
@@ -2289,6 +2293,8 @@ The document's terms, each with the section that defines it.
   slot, which this document does not have, keep a tombstone for `TOMBSTONE_TTL` instead.
 - **forward**: to pass on a chunk a node has stored at an index it had not received: push it to some
   mesh peers and announce it to the others (§5.2).
+- **frame**: one gossipsub `RPC`, the protobuf a peer writes on its stream, with the messages and
+  control fields it carries (§2). Not a frame of the layers below.
 - **group**: the N chunks of one payload, named in diffusion by its **key**, the group id at the
   block's slot (§1).
 - **HAVE**: a bitmap of the chunks of one group a node holds, carried in an IDONTWANT (§2, §4.3).

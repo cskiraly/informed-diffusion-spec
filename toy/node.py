@@ -586,7 +586,7 @@ class Node:
             "asked_at": {}, "tried": lazy(lazy_dict), "offers": OfferMap(), "promises": {},
             "offered": lazy2(LazyBits), "asked_parked": lazy(LazySet),
             "last_resort_armed": set(),
-            "ihave_rpcs": DefaultMap(0), "ihave_asked": DefaultMap(0), "held_back": {},
+            "ihave_frames": DefaultMap(0), "ihave_asked": DefaultMap(0), "held_back": {},
             "owed": lazy2(LazyBits), "owed_answers": lazy2(LazyBits),
             "park": lazy(lazy_dict), "gossip_history": GossipHistory(), "pace_queue": [],
             "pending": lazy(LazyList), "pending_ids": set(),
@@ -719,7 +719,7 @@ class Node:
         def penalise(p):
             node.penalties += 1
 
-        def handle_graft_prune(p, rpc):
+        def handle_graft_prune(p, frame):
             return []
 
         def enqueue(p, x, urgent=False):    # the queues here have no limit: every entry is admitted
@@ -1558,26 +1558,26 @@ class Node:
             finally:
                 ns["sample_without_replacement"] = draw
         ns["keep_floor"] = keep_floor
-        doc_on_rpc = ns["on_rpc"]
+        doc_on_frame = ns["on_frame"]
 
-        def on_rpc(p, rpc):                             # v0.3's RPC read as v2's messages
+        def on_frame(p, frame):                         # v0.3's RPC read as v2's messages
             haves = []
-            for hb in rpc.ihave.ids:
+            for hb in frame.ihave.ids:
                 if isinstance(hb, Wm.HaveBitmap):
                     haves.append(Have(group=hb.group, bits=hb.bits, offer=True, claim_all=False, complete=False))
-            for hb in rpc.idontwant:
+            for hb in frame.idontwant:
                 if isinstance(hb, Wm.HaveBitmap):
                     d = ns["desc"].get(hb.group) or node.sim.ghdr.get(hb.group)   # a column's header is known from its id
                     full = d is not None and hb.bits.v == all_bits(ns["N"](d)).v
                     haves.append(Have(group=hb.group, bits=hb.bits, offer=False,
                                       claim_all=full or hb.claim_all, complete=full or hb.complete))
-            for j in rpc.join:                          # --upkeep on: a JOIN first, as on the wire (§4.1)
+            for j in frame.join:                        # --upkeep on: a JOIN first, as on the wire (§4.1)
                 ns["on_join"](p, j)
             r = Obj()
-            r.chunks, r.haves, r.asks = rpc.chunks, haves, list(rpc.iwant.ids)
-            r.grafts, r.prunes = list(rpc.graft), [x for x in rpc.prune if hasattr(x, "family")]
-            return doc_on_rpc(p, r)
-        ns["on_rpc"] = on_rpc
+            r.chunks, r.haves, r.asks = frame.chunks, haves, list(frame.iwant.ids)
+            r.grafts, r.prunes = list(frame.graft), [x for x in frame.prune if hasattr(x, "family")]
+            return doc_on_frame(p, r)
+        ns["on_frame"] = on_frame
         doc_check = ns["check_completion"]
 
         def check_completion(g):                        # the measurement point: completion at K
@@ -1822,7 +1822,7 @@ class Node:
         ns = self.ns
         for name in ("join_recv", "join_sent", "push_out", "push_in", "grafted_out", "grafted_in",
                      "owed_relations", "backoff", "peer_has", "pushed", "sent_to", "served", "want_p", "forwarded",
-                     "queue", "owed", "owed_answers", "unwanted", "serve_count", "ihave_rpcs", "ihave_asked",
+                     "queue", "owed", "owed_answers", "unwanted", "serve_count", "ihave_frames", "ihave_asked",
                      "probe_served", "probe_answers", "offered"):
             m = ns.get(name)
             if m is not None and q in m:

@@ -25,7 +25,7 @@ them; §5 lists what carries over.*
   changed only its §9.*
 - *v0.7 (2026-10-25):*
   - *The live window and the group's key apply as written; §6.1 gives how the cells moved.*
-  - *Gossipsub's IHAVE limits are carried since 2026-10-27 (§4 `on_rpc`, §4.3 `on_offer`,
+  - *Gossipsub's IHAVE limits are carried since 2026-10-27 (§4 `on_frame`, §4.3 `on_offer`,
     §4.8).*
   - *Its single offer at the source (`protocol.md` §5.1) is carried since 2026-11-04 (§4.7
     `publish`): a chunk is offered only to the relation peers not chosen to be pushed it, so a
@@ -589,15 +589,15 @@ chunks, then offers (which produce asks), then asks (which produce answers), the
 then holdings, then the response.
 
 ```python
-def on_rpc(p, rpc):
-    for f in rpc.chunks: on_chunk(p, f)                              # §4.2
-    offers = [h for h in rpc.haves if h.offer]
-    if offers: ihave_rpcs[p] += 1                                     # offer-bearing RPCs, for §4.3's limits
+def on_frame(p, frame):
+    for f in frame.chunks: on_chunk(p, f)                            # §4.2
+    offers = [h for h in frame.haves if h.offer]
+    if offers: ihave_frames[p] += 1                                   # offer-bearing RPCs, for §4.3's limits
     asks = [a for h in offers for a in on_offer(p, h)]                # §4.3
-    answers = on_want(p, rpc.asks)                                    # §4.5
-    for gr in rpc.grafts: on_graft(p, gr)                             # §4.1: it sends its own answers
-    for pr in rpc.prunes: on_prune(p, pr)
-    for h in rpc.haves:
+    answers = on_want(p, frame.asks)                                  # §4.5
+    for gr in frame.grafts: on_graft(p, gr)                           # §4.1: it sends its own answers
+    for pr in frame.prunes: on_prune(p, pr)
+    for h in frame.haves:
         if not h.offer: on_holding(p, h)                              # §4.3
     respond(p, asks, answers, [])                                     # v0.3 §4.1; a GRAFT's answer goes on its own
 ```
@@ -1183,7 +1183,7 @@ touch `peer_has`, `holders`, cancel or the window; holdings never feed the offer
 
 **Gossipsub's two IHAVE limits** (`protocol.md` §4.4, v0.7) apply to offers. They delay asks and
 lose no offer.
-- `MAX_IHAVE_MESSAGES` counts the offer-bearing RPCs from a peer within a heartbeat (`on_rpc`, §4).
+- `MAX_IHAVE_MESSAGES` counts the offer-bearing RPCs from a peer within a heartbeat (`on_frame`, §4).
   `MAX_IHAVE_LENGTH` counts the asks made of the peer in reply to its offers.
 - Over either limit, the peer's offers are still recorded. What the node would ask of it is held
   back to the next heartbeat (§4.8), which runs `protocol.md`'s retry for it, with the retry's
@@ -2287,7 +2287,7 @@ The source's offers are card 3 at the source, and they cost a home builder bytes
 
 ```python
 def on_heartbeat():
-    ihave_rpcs.clear(); ihave_asked.clear()                   # §4.3's limits start again, and the
+    ihave_frames.clear(); ihave_asked.clear()                 # §4.3's limits start again, and the
     for a in held_back.values(): retry_offer(a)               #   retry runs for what they held back,
     held_back.clear()                                         #   which they do not count
     drop_stale_waits()                                        # protocol.md §4.2: copies and ties past their window
@@ -2674,11 +2674,11 @@ IWANT_WINDOW = IWANT_WINDOW * ask_scale()      # 200 ms at 50 Mbps and above, 1 
 |---|---|---|
 | §1 the payload, the code, the commitment | the payload object type's `verify`, `decode`, `header_of` | the leaf rule unchanged in this version; a fraud proof would change it (`[D6]`, §8) |
 | §3 the three levels | level 1 = `T.verify`, level 2 = `T.decode`, level 3 = the application | per object type (I7) |
-| §4.1 `respond` | called from §4's `on_rpc` | asks ride on the first answer; an answer a full queue refuses is owed (v0.5) |
+| §4.1 `respond` | called from §4's `on_frame` | asks ride on the first answer; an answer a full queue refuses is owed (v0.5) |
 | §4.2 `defer`, `tie`, `on_block_installed`, the bounded store | §4.2 | the gate is the type's (`authenticable`; `defer` here waits for it, and `on_header_validated` releases a block's cells and their ties); a copy that waits, kept or refused, and another copy of one that waits, tie their senders to the root they name (v0.8), no longer an offer (v0.5); v0.10's bounds on what waits in this document's own `defer`, `fill` (`drop_beyond`), `on_heartbeat` (`drop_stale_waits`) and `on_header_validated` (an index the group has not, `tie_slot`), since 2026-11-16 |
 | §3 level 1's slot check (v0.10) | §1's table, `verify` of each type | a payload copy's slot is its block's (`validate_chunk`), a cell's its header's (since 2026-11-16) |
 | §4.4 an IHAVE's bitmap held to a HAVE's limits (v0.10) | §4.3 `on_offer` | an offer's bitmap, ignored and counted beyond them (since 2026-11-16) |
-| §4.4 gossipsub's IHAVE limits (v0.7): `over_ihave_limits`, `ihave_rpcs`, `ihave_asked`, `held_back` | §4 `on_rpc`, §4.3 `on_offer`, §4.8 | counted per offer-bearing RPC and per ask in reply to offers, per peer over every object type; what they hold back is retried at the next heartbeat (since 2026-10-27) |
+| §4.4 gossipsub's IHAVE limits (v0.7): `over_ihave_limits`, `ihave_frames`, `ihave_asked`, `held_back` | §4 `on_frame`, §4.3 `on_offer`, §4.8 | counted per offer-bearing RPC and per ask in reply to offers, per peer over every object type; what they hold back is retried at the next heartbeat (since 2026-10-27) |
 | §4.6 `drop_group` | §4.6 | plus evidence `[D6]` |
 | §5.1 batch order, striping, the cap, the paced source HAVE [P4] | §4.7 | candidates filtered by interest; P4 per group, its claims with the bitmap; v0.7's single offer (since 2026-11-04) |
 | §5.3 `choose_push`, `guard_fails`, `note_push` | §4.4, §4.7 | candidates come from the relation |

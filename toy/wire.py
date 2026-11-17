@@ -245,7 +245,7 @@ class Entry:
 
 
 class RPC:
-    """What a receiver's on_rpc sees: the entry's chunk and its control, grouped by kind (§4.1)."""
+    """What a receiver's on_frame sees: the entry's chunk and its control, grouped by kind (§4.1)."""
     __slots__ = ("chunks", "ihave", "iwant", "idontwant", "prune", "graft", "join")
 
     def __init__(self, entry):

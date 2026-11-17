@@ -52,7 +52,7 @@ def main():
              (f"the control: 56 bytes, index {n2 - 1} of the group known to have {n2}", chunk_id(G2, n2 - 1), True)]
 
     def state():
-        return (ns["ihave_rpcs"][PEER], sum(len(o) for o in ns["offers"].values()),
+        return (ns["ihave_frames"][PEER], sum(len(o) for o in ns["offers"].values()),
                 sum(len(list(b)) for groups in ns["offered"].values() for b in groups.values()), node.penalties)
 
     bad = 0

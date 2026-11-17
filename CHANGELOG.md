@@ -7,10 +7,11 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 
 ## After v0.10.2, not yet released
 
-`protocol.md` sorts its constants into limits, bounds and defaults, with no value and nothing the code
-does changed; its §1 says what the open choice of where the descriptor travels decides. The next
-version's draft carries v0.10's rules where it has functions of its own, follows §8.1's lifetimes at a
-connection's close, and settles the probe of a claim's open cases; its figures are measured again.
+`protocol.md` sorts its constants into limits, bounds and defaults and calls what a peer writes on its
+stream a frame, with no value and nothing the code does changed; its §1 says what the open choice of
+where the descriptor travels decides. The next version's draft carries v0.10's rules where it has
+functions of its own, follows §8.1's lifetimes at a connection's close, and settles the probe of a
+claim's open cases; its figures are measured again.
 
 `protocol.md`:
 - **§1 says what the descriptor's placement decides**, in its Rationale, under "Where the descriptor
@@ -27,9 +28,16 @@ connection's close, and settles the probe of a claim's open cases; its figures a
   one value each are bounds: `R` and `R_FAST`, at least 1; `GUARD_GRACE`, longer than an honest peer's
   first HAVE takes, which a peer still waiting for its block does not send (§5.3 says so too); and
   `GOSSIP_RETRANSMISSION`, at least 3, which §6.1's rules count on. `MAX_SEGMENT_SIZE` is written as
-  its value, 32 KiB, so that a builder's `UNIT` does not change it: the one code line that changes.
+  its value, 32 KiB, so that a builder's `UNIT` does not change it: the one code line this changes.
   §8.1's tombstone without a slot counts on the peer's `HAVE_TTL`, and §6.1's six asks are at the
   default `PROMISE`. `UNIT`'s reason names the post's variant A, which is not §1's design A.
+- **"Frame", not "RPC",** for what a peer writes on its stream: one gossipsub `RPC`, with the messages
+  and control fields it carries, and not a frame of the layers below (§2, and the glossary). `RPC`
+  stays only for the protobuf type. `on_rpc` becomes `on_frame`, its parameter `frame`, and
+  `ihave_rpcs` `ihave_frames`, here, in `protocol-v2.md`'s code, in the toy and in a comment of the
+  Quint model, whose own `onRpc` keeps its name. §7.2 says that the writer writes each entry as one
+  frame, and that a client may merge entries' control into one, as §5.1, §5.4, §6.4 and §8.3 already
+  allowed; §7.3 says that its "yamux frames" are the multiplexer's. No rule or value changes.
 
 The draft of SEACAST's next version (`protocol-v2.md`), changed since v0.10:
 - **v0.10's rules in the draft's own functions.** Its `defer` ignores a copy beyond its sender's limit
@@ -79,8 +87,9 @@ The toy:
   `toy/refusal_report_known.py`, `toy/probe_decode_known.py`, `toy/probe_write_known.py` and
   `toy/probe_settle_known.py`; `toy/deferral_rules_known.py` and `toy/table_read_known.py` also run the
   draft (`--doc v2`).
-- **Unchanged:** every recorded cell's digest in `golden.txt` and `golden-v2.txt`. The one code line
-  `protocol.md` changes, `MAX_SEGMENT_SIZE`, keeps its value.
+- **Unchanged:** every recorded cell's digest in `golden.txt` and `golden-v2.txt`. Of the code lines
+  `protocol.md` changes, `MAX_SEGMENT_SIZE` keeps its value, and the others only take the new names
+  (`on_frame`, `frame`, `ihave_frames`) or a reworded comment.
 
 ## v0.10.2, 2026-11-16
 

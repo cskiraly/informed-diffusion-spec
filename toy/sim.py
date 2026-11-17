@@ -426,7 +426,7 @@ class Sim:
         nd.rx_ctrl += ctrl
         if self.inv is not None:
             self.inv.deliver(src, dst, e)
-        nd.ns["on_rpc"](src, Wm.RPC(e))
+        nd.ns["on_frame"](src, Wm.RPC(e))
 
     # ---- the heartbeat (stock duties the pseudocode assumes, then §6.4)
 
