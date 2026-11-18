@@ -103,7 +103,7 @@ needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting
 takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Thirty scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Thirty-one scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -113,6 +113,11 @@ where one has a control that must come out the other way, it is named:
   1025 bytes) is ignored and penalised, also where the group's count is not known (§2, §8.2), in both
   documents; at 1024 bytes, the controls, both are taken. The count's check stays: in a group known
   to have 4 chunks, a HAVE of index 4 is ignored and penalised, one of index 3 taken.
+- `id_parse_known.py`: an ask by id names a group and an index only as a structured id, of exactly
+  56 bytes (§2, `group_index`), in both documents: IWANTs of 36, 40, 55 and 57 bytes that begin as a
+  held chunk's id get no answer, and one from a peer that claimed the chunk counts nothing against
+  it. The controls: the chunk's id and a WantIndex of it are answered, a 20-byte id is not, and the
+  claimant's ask of the chunk's id counts against it.
 - `tie_read_known.py`: a peer that was only asked about has no tie; the tied peer beside it must
   lose its park.
 - `tie_helpers_known.py`: `tie_room`, `drop_offer`, and `close_promises` with `of`, by the values

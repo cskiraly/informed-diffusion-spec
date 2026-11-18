@@ -670,10 +670,10 @@ class Node:
         def live(slot):
             return True                 # a run lasts one slot, well inside the live window
 
-        def group_index(a):
-            if isinstance(a, Wm.WantIndex):
+        def group_index(a):             # a WantIndex, or a structured id: 32 + 4 + 20 bytes (§2); any other
+            if isinstance(a, Wm.WantIndex):     #   id names no group and index
                 return a
-            if isinstance(a, bytes) and len(a) >= 36:
+            if isinstance(a, bytes) and len(a) == 56:
                 return GroupIndex(*parse_id(a))
             return None
 
