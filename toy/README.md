@@ -212,15 +212,21 @@ where one has a control that must come out the other way, it is named:
   (`push_rebuilt`) sends nothing under a dropped column; the control, the column live, sends.
 - `dropped_dup_known.py`: after a node drops a group, a copy of a chunk it stored before is still
   acknowledged with a HAVE, since `accepted` is "the id was stored" (§4.2, §8.1), in both documents.
-  The controls: a copy before the drop is acknowledged, and a copy of a chunk whose first copy came
-  after the drop, seen and not stored, is not.
+  The group is dropped after its decode claim, as the documents drop one: by a decode that finds no
+  codeword (level 2, put in by hand: the toy's decode always succeeds), and by the application's check
+  failing (level 3); the HAVE then names every index. The controls: a copy after the claim and before
+  the drop is acknowledged the same way, and a copy of a chunk whose first copy came after the drop,
+  seen and not stored, is not.
 - `discard_queued_known.py`: `drop_group` takes the group's chunks, IHAVEs and IWANTs out of both
   lanes of every queue, by index and by id, with what is owed of it, and keeps its HAVEs (§4.6, §8.1),
   in both documents. Where an entry carries another group's part too (an answer with the frame's asks
   and PRUNE, the IHAVEs of what is owed), that part stays, and the entry with it; the controls are
   the other group's pushes, asks, IHAVEs and owed bits, which stay. An entry kept without its chunk
   is no longer an answer, so with `--doc v2` §4.12's `choose` under `ANSWERS_FIRST` takes the other
-  group's answer; the other group's answer keeps its mark.
+  group's answer; the other group's answer keeps its mark. Three entries are queued by hand in shapes
+  the documents' code does not queue here, each named in the script: `with_owed`'s entry with an IHAVE
+  of each group, built by `with_owed` itself, which builds it only at the write; an IHAVE by id, as a
+  peer without card 7 sends, with the ask by id it brings; and an urgent HAVE with an IHAVE beside it.
 - `discard_paced_known.py`: after `drop_group`, the pace ticks (card 15, §6.4) announce the group to
   nobody, in both documents: its ids leave every paced job, and a job that named it alone goes (§4.6,
   §8.1). The controls: the other group's ids in the same jobs are still announced, and a job that was
