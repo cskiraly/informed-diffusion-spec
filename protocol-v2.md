@@ -10,7 +10,7 @@ name since 2026-10-19; v0.4 was published as Informed Diffusion, which now names
 part (§0, "The parts").*
 
 *Draft 1, 2026-10-07. A sibling of [`protocol.md`](protocol.md), which it contains as one
-setting (§6.1). That was draft v0.3 when this was written and is v0.10.2 since 2026-11-16, with
+setting (§6.1). That was draft v0.3 when this was written and is v0.10.3 since 2026-11-18, with
 the same section numbers; "v0.3" below means that document.*
 
 *Each later version of `protocol.md` comes in the same way. Its changes to functions this
@@ -71,6 +71,11 @@ them; §5 lists what carries over.*
 - *v0.10.1 (2026-11-15) and v0.10.2 (2026-11-16): `protocol.md`'s prose and comments rewritten,
   its code the same, and the toy's tables made faster, the recorded cells' digests the same;
   nothing to carry.*
+- *v0.10.3 (2026-11-18): `protocol.md`'s constants in three kinds, reference values for
+  gossipsub's two IHAVE limits, "frame" for what a peer writes on its stream, the source's HAVE
+  said as "acknowledged", and the source's choice of when it announces (`SOURCE_OFFERS`). This
+  draft has taken the rename (`on_frame`, `frame`, `ihave_frames`); it carries the rest in its
+  next step.*
 
 *This draft defines the notions, the messages, the state and the event handlers; the scheduling
 that tier 4 measured carries over unchanged where §5 says so. Every design decision is marked

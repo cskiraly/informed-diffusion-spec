@@ -5,7 +5,7 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
-## After v0.10.2, not yet released
+## v0.10.3, 2026-11-18
 
 `protocol.md` sorts its constants into limits, bounds and defaults, gives gossipsub's two IHAVE limits
 reference values, calls what a peer writes on its stream a frame, and lets a source announce its
@@ -127,7 +127,7 @@ The toy:
   default `ACK`, and the others only take the new names (`on_frame`, `frame`, `ihave_frames`) or a
   reworded comment.
 
-## v0.10.2, 2026-11-16
+## v0.10.2, 2026-11-16 (`f08a90b`)
 
 No rule changes: the toy's runs of the next version's draft no longer slowed by its lazy tables, the
 last resort named as `protocol.md` names it in the toy and the Veil proofs, and this changelog easier to

@@ -50,9 +50,10 @@ SEACAST diffuses.
 
 ## Where SEACAST stands
 
-- **The latest release is [v0.10.2](https://github.com/cskiraly/informed-diffusion-spec/tree/v0.10.2)**, 2026-11-16:
-  `protocol.md` at version 0.10.2, v0.10's rules with the text rewritten for readers, the toy (its
-  lazy tables made fast again in v0.10.2) and its recorded cells, the next version's draft with its
+- **The latest release is [v0.10.3](https://github.com/cskiraly/informed-diffusion-spec/tree/v0.10.3)**, 2026-11-18:
+  `protocol.md` at version 0.10.3, v0.10's rules with the text rewritten for readers, its constants
+  in three kinds, reference values for gossipsub's two IHAVE limits, and the source's choice of when
+  it announces (`SOURCE_OFFERS`); the toy and its recorded cells, the next version's draft with its
   decisions taken, and the proofs in `formal/veil/`, which are of v0.8's rules.
   [`CHANGELOG.md`](CHANGELOG.md) says what each release changed; changes after the latest tag are on
   `main`, and the changelog's first entry names them.
