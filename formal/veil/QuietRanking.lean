@@ -7,7 +7,7 @@ public import LentilApplications.RelationalRanking.Util
 
 /-! # Going quiet by a ranking (Q3's general step)
 
-The general step of the `Q3` proofs (`../../plans/fv-q3.md`). An execution whose every step is an
+The general step of the `Q3` proofs. An execution whose every step is an
 own step, an environment step or a stutter, in which every own step lowers a well-founded ranking,
 a stutter changes nothing, the environment eventually takes no step, and each family of own
 actions is weakly fair, eventually has no own action enabled, for good: after the environment's

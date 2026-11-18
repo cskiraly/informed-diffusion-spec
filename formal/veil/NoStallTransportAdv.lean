@@ -8,7 +8,7 @@ set_option veil.smt.trust false
 -- Lean's grind first (kernel-checked as it is), the SMT solver where grind fails
 set_option veil.solver "grind+smt"
 
-/-- Q3's per-step facts (`../../plans/fv-q3-adv.md`, as `NoStallTransport.lean`'s): Veil's reduction
+/-- Q3's per-step facts (as `NoStallTransport.lean`'s): Veil's reduction
 of a one-step temporal goal to first-order form, the enum axioms' distinctness as inequalities, then
 Lean's `grind`, which the kernel checks. `veil_solve_temporal` ends in the SMT solver instead, whose
 translation or proof reconstruction fails on most of these goals in Veil v4.35.0. -/
@@ -26,7 +26,7 @@ set_option veil.smt.timeout 300
 
 /-! # No stall, the transport part, with malicious peers, for any number of nodes
 
-`NoStallTransport.lean` with adversaries (plans/fv-robustness.md W3). The adversaries (`adv`, any
+`NoStallTransport.lean` with adversaries. The adversaries (`adv`, any
 set of nodes but the source) are part of the environment: they send an authentic copy of the chunk
 if they hold it, at any time and to anyone (a push or an answer); they announce it whether they
 hold it or not; they claim it whether they hold it or not (a HAVE: which only keeps honest nodes
@@ -183,7 +183,7 @@ ghost relation undelivered :=
   ¬ work ∧ ∃ M N, ¬ adv M ∧ ¬ adv N ∧ installed N ∧ rcv M ∧ mesh M N ∧ ¬ holds N ∧ ¬ stop N ∧
     ¬ offered N M
 
--- Q3 with malicious peers (`../../plans/fv-q3-adv.md`): the honest transport's ranking
+-- Q3 with malicious peers: the honest transport's ranking
 -- (`NoStallTransport.lean`), every node's elements counted, adversaries' too. Ten levels, highest
 -- first, each a relation on pairs of nodes: the unpublished source; nodes that have not received the
 -- chunk; forwarding due; repair due; queued pushes; queued announcements; owed offers; chunks in
@@ -868,7 +868,7 @@ sat trace [adv_offer_left] {
 -- each proof as a theorem in the environment, which Lean's kernel checks as it adds it
 #gen_theorems
 
-/-! ## Q3 with malicious peers: the honest transport goes quiet (`../../plans/fv-q3-adv.md`)
+/-! ## Q3 with malicious peers: the honest transport goes quiet
 
 The ranking's facts, per own action and case: its witness element is at its level before the step
 (`…Pre`) and not after (`…Post`), and no level down to its own gains an element (`…Keep_j`). Then

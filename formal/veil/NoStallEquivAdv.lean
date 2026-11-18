@@ -8,7 +8,7 @@ set_option veil.smt.trust false
 -- Lean's grind first (kernel-checked as it is), the SMT solver where grind fails
 set_option veil.solver "grind+smt"
 
-/-- Q3's per-step facts (`../../plans/fv-q3-adv.md`, as `NoStallEquiv.lean`'s): Veil's reduction of a
+/-- Q3's per-step facts (as `NoStallEquiv.lean`'s): Veil's reduction of a
 one-step temporal goal to first-order form, the enum axioms' distinctness as inequalities, then
 Lean's `grind`, which the kernel checks. `veil_solve_temporal` ends in the SMT solver instead, whose
 translation or proof reconstruction fails on most of these goals in Veil v4.35.0. -/
@@ -24,7 +24,7 @@ macro "fv_step" : tactic => `(tactic| (
 
 /-! # The asking under v0.8's rules, with malicious peers, for any number of nodes
 
-`NoStallEquiv.lean` with adversaries (`plans/fv-robustness.md` W3): v0.8's ties (§4.2) and rule
+`NoStallEquiv.lean` with adversaries: v0.8's ties (§4.2) and rule
 against a second ask of a peer (§6.1), with the proposer's other block or without it. **When no
 honest node's asking machinery has anything left to do, an honest node that has the builder's block
 holds every chunk an honest peer offered it, or has stopped pulling, whatever the other peers do.**
@@ -33,45 +33,45 @@ before the gate or after, claim anything, ask honest nodes (`advAsk`, numbered a
 answer or not; honest nodes' offers go to honest receivers (an adversary's own asking is not
 modelled); "nothing left to do" counts honest nodes' pending events only; the safety and the
 invariants about claims, offers, ties and an asker's numbered asks are for honest nodes, and those
-about a provider's asks before the builder's block and that B′'s count goes with an offer are for
-honest providers: an adversary's dropped tie drops its offers, not its count, and it may be asked
-again. Besides,
-§4.2's ties are by root: an adversary's copy that waits ties it to the root it names, its promise
-closed, either to the builder's, before that block installs at the node (`advTie`), released by the
-installation as any tie, or to another root, at any time (`advTieElse`, `tiedElse`), which the
-builder's installation leaves: the proposer's other block's, whose installation releases it
-(`releaseElse`: the park lifts, B′'s count clears, an offer again; at any time once the gate is
-open, any number of times, where §4.2 allows one per block), a root that never installs (the tie
-stays), or one whose bid commits another group (`dropTie`: dropped with the adversary's offers, the
-retry armed once the gate is open). A sender tied to any root is passed over (`tiedToRoot`, §4.2's
-`tied_to_root`). **F13**: v0.8's `drop_tie`, as first tagged, drops the sender's offers and leaves
-its asks; an ask still queued is written once the tie is gone, the retry, finding no announcer,
-ends, and the sender's next offer is recorded with nothing scheduled, the ask outstanding (§4.4);
-while it is, the last resort for a parked honest announcer returns at once (§6.1), and the promise
-falls due and only parks (`ka_drop_keeps_asks`). An offer's expiry, 30 s after the announcer's last
-offer of the group (§6.1, §8.1), leaves the ask the same way (`ka_expiry_keeps_asks`); an
-adversary's offers expire here at any time (`advExpire`), since it chooses when it last offers, and
-an honest announcer's outlast diffusion, as Q1 assumes. F13's rule, v0.8's `drop_offer` since
-2026-10-28: where a peer's offers of an index are dropped, by `drop_tie` or by their expiry, its
-queued asks of it go (`dropAsks`) and its promise for it closes (`dropPromises`); an ask written
-just before the expiry keeps the sender outstanding through its promise
-(`ka_expiry_keeps_promise`). **Under level 1 by group** (`byGroup`, the rule for F12,
-`plans/fv-bygroup.md`): a copy passes level 1 against either block, so the first installation of
-either is the node's installation (the `install` actions), a copy waits only before it, whatever root
-it names, and it releases every tie; the other block's gate alone does not arise. An adversary's tie
+about a provider's asks before the builder's block and that the last-resort count goes with an
+offer are for honest providers: an adversary's dropped tie drops its offers, not its count, and it
+may be asked again. Besides, §4.2's ties are by root: an adversary's copy that waits ties it to the
+root it names, its promise closed, either to the builder's, before that block installs at the node
+(`advTie`), released by the installation as any tie, or to another root, at any time (`advTieElse`,
+`tiedElse`), which the builder's installation leaves: the proposer's other block's, whose
+installation releases it (`releaseElse`: the park lifts, the last-resort count clears, an offer
+again; at any time once the gate is open, any number of times, where §4.2 allows one per block), a
+root that never installs (the tie stays), or one whose bid commits another group (`dropTie`: dropped
+with the adversary's offers, the retry armed once the gate is open). A sender tied to any root is
+passed over (`tiedToRoot`, §4.2's `tied_to_root`). **F13**: v0.8's `drop_tie`, as first tagged,
+drops the sender's offers and leaves its asks; an ask still queued is written once the tie is gone,
+the retry, finding no announcer, ends, and the sender's next offer is recorded with nothing
+scheduled, the ask outstanding (§4.4); while it is, the last resort for a parked honest announcer
+returns at once (§6.1), and the promise falls due and only parks (`ka_drop_keeps_asks`). An offer's
+expiry, 30 s after the announcer's last offer of the group (§6.1, §8.1), leaves the ask the same way
+(`ka_expiry_keeps_asks`); an adversary's offers expire here at any time (`advExpire`), since it
+chooses when it last offers, and an honest announcer's outlast diffusion, as Q1 assumes. F13's
+rule, v0.8's `drop_offer` since 2026-10-28: where a peer's offers of an index are dropped, by
+`drop_tie` or by their expiry, its queued asks of it go (`dropAsks`) and its promise for it closes
+(`dropPromises`); an ask written just before the expiry keeps the sender outstanding through its
+promise (`ka_expiry_keeps_promise`). **Under level 1 by group** (`byGroup`: a candidate rule, off
+for the spec's rules; one of the options `protocol.md` §4.6 lists for relabelled copies, F12, which
+it leaves open): a copy passes level 1 against either block, so the first installation of either is
+the node's installation (the `install` actions), a copy waits only before it, whatever root it
+names, and it releases every tie; the other block's gate alone does not arise. An adversary's tie
 after it (`advTieElse`), its release and its drop stay, as an over-approximation (under the rule's
-text such a copy, one whose slot is not its group's, is rejected: Codex R9). Offers then resolve at a node with either block
-(`offers_resolve_any`), and without the rule a node with only the other block stalls
-(`ka_other_block_stalls`). Relabelled copies need nothing more here: an answer, whatever root it
-names, passes level 1 at a node with either block, and the transport part
-(`NoStallTransportByGroup.lean`) shows that no copy waits there once it is quiet, so no answer is
-taken for a waiting copy: in the draft an installation takes every waiting copy of the group in, in
-the same handler and before the ledger is asked for, and no copy of the group waits after it, so this
-holds at every step after the installation, not only once the transport is quiet (Codex R10).
-Without the rule, excluded, as the honest model's assumption has it: an adversary's copy that names
-the proposer's other block and so validates at a node on it (a relabelled copy, F12,
-`notes/fv-results.md` §11a): every copy an honest node can take in names the builder's block, and a
-copy that names the other block's root fails its proof when that block installs.
+text such a copy, one whose slot is not its group's, is rejected). Offers then resolve at a node
+with either block (`offers_resolve_any`), and without the rule a node with only the other block
+stalls (`ka_other_block_stalls`). Relabelled copies need nothing more here: an answer, whatever root
+it names, passes level 1 at a node with either block, and a transport model under the rule, not in
+this folder, shows that no copy waits there once it is quiet, so no answer is taken for a waiting
+copy: where an installation takes every waiting copy of the group in, in the same handler and
+before the ledger is asked for, as a draft of the rule does, no copy of the group waits after it, so
+this holds at every step after the installation, not only once the transport is quiet. Without the
+rule, excluded, as the honest model's assumption has it: an adversary's copy that names the
+proposer's other block and so validates at a node on it (a relabelled copy, F12): every copy an
+honest node can take in names the builder's block, and a copy that names the other block's root
+fails its proof when that block installs.
 The offers from a parked announcer are split by case, and offers go to honest receivers, so that
 each condition's proof can be rebuilt for the kernel (as in `NoStallAskAdv.lean`).
 
@@ -92,14 +92,14 @@ reaches it waits for that block, kept by the deferred store or refused. The node
 builder's block later (fork choice: the switch), and only then does a copy validate (`installed`).
 
 F6: before the switch the providers' answers wait or are refused, their promises fall due and park
-them, B′'s ask once more is spent on them, and so are a provider's three answers per chunk and
+them, the last resort's ask is spent on them, and so are a provider's three answers per chunk and
 connection (`GOSSIP_RETRANSMISSION`); after the switch every announcer is parked and has been asked
 once more, or has no answer left, and the node stalls. The two rules, each a switch with a known
 answer:
 - `ROOT_TIED` (§4.2's ties): a copy that waits ties its sender to the root it names, for its index;
   the sender's promise closes, since it answered, and it is not asked for the index again until that
-  root installs. The installation releases the ties: each sender's park lifts, B′'s count for it
-  clears, and it is an offer again, asked for (§4.2's `on_block_installed`).
+  root installs. The installation releases the ties: each sender's park lifts, the last-resort count
+  for it clears, and it is an offer again, asked for (§4.2's `on_block_installed`).
 - `NO_REASK_OPEN` (§6.1): no announcer is asked for a chunk while an earlier ask of it to that announcer is
   outstanding, queued or promised; a retry or a last resort that finds every candidate outstanding
   waits, and the outstanding ask is pending work.
@@ -110,14 +110,15 @@ answers the first three, and may drop any later one (its count kept for the conn
 worst case of the stock lifetime).
 
 The rest is `NoStallAsk.lean`'s machinery: one ask per chunk in its window, the retry, promises that
-fall due at any time, B′, the writer's ask filter (which also drops a queued ask to a tied peer), the
-claim rule's drop, answers cancelled or owed, the ledger (C′), held-back offers (v0.7); and its
-environment, with the other block's installation and pushes that wait for the builder's block.
+fall due at any time, the last resort, the writer's ask filter (which also drops a queued ask to a
+tied peer), the claim rule's drop, answers cancelled or owed, the ledger (C′), held-back offers
+(v0.7); and its environment, with the other block's installation and pushes that wait for the
+builder's block.
 
 Connections close at any time, as in `NoStallAsk.lean`: what is between the two nodes is lost both
 ways, their promises close, and the state kept per connection goes, the asks' numbering (with the
-provider's serve count) and the ties among it (§8.1); B′'s counts with it are a switch with a known
-answer.
+provider's serve count) and the ties among it (§8.1); the last-resort counts with it are a switch
+with a known answer.
 
 Assumed: every honest copy names the builder's block, rebuilt ones included. v0.7's §4.6 let a
 rebuilt chunk name either installed block whose bid commits the group, so a node that installed
@@ -125,7 +126,9 @@ both blocks could rebuild a chunk naming the other one; at a node with only the 
 that copy waits for good, and its sender, which counted it, sends nothing more for the index.
 v0.8's §4.6 has a rebuilt chunk name the block the chunks it was rebuilt from name, where they all
 name one: the source publishes under one block, and forwarding and the rule keep it, so among
-honest nodes every copy names it. That argument is by inspection, not in this model.
+honest nodes every copy names it, while no node relabels a chunk under the other block's root
+(`protocol.md` §4.6, open: honest nodes forward such a copy and rebuild from it). That argument is
+by inspection, not in this model.
 
 Not modelled here: how offers come about (the transport), lifetimes, adversaries (so every tie is
 honest: a copy naming the builder's root, whose bid commits the group), and more than two blocks
@@ -150,22 +153,22 @@ enum kind = { askQ, askF, ansQ, ansOwed, ansF }
 -- an ask's number among n's asks to q for the chunk: the first, the second, the third, a later one
 enum ord = { o1, o2, o3, o4 }
 
-immutable individual lastResort : Bool     -- B′ (§6.1): every announcer parked, each asked once more
+immutable individual lastResort : Bool     -- §6.1: every announcer parked, each asked once more
 immutable individual owedAnswers : Bool    -- §4.1, §7.2: an answer a full queue refuses is owed
 immutable individual askLedger : Bool      -- C′ (§3, §4.2): what was offered before the block is asked
 -- §4.4, §6.4 (v0.7): an ask an IHAVE limit holds back is retried at the next heartbeat
 immutable individual heldBackRetry : Bool
 immutable individual rootTied : Bool       -- F6: ROOT_TIED (§4.2's ties, v0.8)
 immutable individual noReask : Bool        -- F6: NO_REASK_OPEN (§6.1, v0.8)
--- §6.1, §8.1: B′'s count for an announcer goes with its connection, as `tried` does
+-- §6.1, §8.1: the last-resort count for an announcer goes with its connection, as `tried` does
 immutable individual countsReset : Bool
 -- F13's rule (v0.8's `drop_offer`, 2026-10-28): where a peer's offers of the chunk are dropped (§4.2's
 -- `drop_tie`, or their expiry), its queued asks of it go, and its promise for it closes
 immutable individual dropAsks : Bool
 immutable individual dropPromises : Bool
--- the rule for F12, level 1 by group (`plans/fv-bygroup.md`): a copy passes level 1 against either
--- block, so the first installation of either is the node's installation, and the other block's
--- gate alone (`installOther`) does not arise
+-- level 1 by group, a candidate rule for F12 (`protocol.md` §4.6's relabelled copies, open), off for
+-- the spec's rules: a copy passes level 1 against either block, so the first installation of either
+-- is the node's installation, and the other block's gate alone (`installOther`) does not arise
 immutable individual byGroup : Bool
 -- the adversaries
 immutable relation adv (n : node) : Bool
@@ -179,9 +182,9 @@ relation offered (n : node) (q : node) : Bool      -- q offered the chunk to n
 relation ledger (n : node) (q : node) : Bool       -- q offered it before n's gate opened (§4.2)
 relation inWindow (n : node) : Bool                -- an ask of n's is in its window
 relation retryArmed (n : node) : Bool
-relation lrArmed (n : node) : Bool                 -- B′'s timer
+relation lrArmed (n : node) : Bool                 -- the last resort's timer
 relation parked (n : node) (q : node) : Bool       -- n parked q, for the group
-relation askedParked (n : node) (q : node) : Bool  -- B′'s count
+relation askedParked (n : node) (q : node) : Bool  -- the last-resort count
 relation promise (n : node) (q : node) : Bool      -- n's ask to q, written, open
 relation tied (n : node) (q : node) : Bool         -- q's copy waits at n for the builder's root
                                                    -- (under `byGroup`: for a block committing the group)
@@ -318,7 +321,8 @@ action offerParkedArm (n q : node) {
 -- from a parked offerer while the last resort is not due (`lrDue`), one action per reason (together
 -- `¬ lrDue n q`): the last resort is armed; another announcer is neither parked nor tied; every
 -- announcer not tied is parked and asked once more, this one too (it has offered already, so
--- nothing changes, except where B′'s count outlived a close: the known answer); no last resort
+-- nothing changes, except where the last-resort count outlived a close: the known answer); no
+-- last resort
 action offerParked (n q : node) {
   require n ≠ q ∧ ¬ adv n ∧ (got q ∨ adv q) ∧ ¬ got n ∧ ¬ stop n ∧ gate n ∧ parked n q ∧
     ¬ tiedToRoot n q ∧ lrArmed n
@@ -376,8 +380,8 @@ action installOther (n : node) {
 -- §3, §4.2: the builder's block installs at n, first or as the switch. Its handler takes the deferred
 -- copies in, then releases the ties (ROOT_TIED) and asks for what is offered, by the case: a copy of
 -- this chunk was waiting, and the chunk is held; the copies brought the group to K, and the decode
--- claim stopped the pull; or neither: each tied sender's park lifts, B′'s count for it clears, it is
--- an offer again, the ledger's offers join, and the retry is armed, which finds them
+-- claim stopped the pull; or neither: each tied sender's park lifts, the last-resort count for it
+-- clears, it is an offer again, the ledger's offers join, and the retry is armed, which finds them
 action installTakenIn (n : node) {
   require ¬ installed n
   if gate n then
@@ -465,8 +469,8 @@ action advTie (n a : node) {
 -- that never installs, or one whose bid commits another group (§4.2); with ROOT_TIED the adversary
 -- is tied to it, and its promise closes. Kept under level 1 by group, with `releaseElse` and
 -- `dropTie`, as an over-approximation: there a copy of the group waits only before n's
--- installation, whatever root it names, unless its slot is not its group's (Codex R9), which the
--- rule's text rejects
+-- installation, whatever root it names, unless its slot is not its group's, which the rule's text
+-- rejects
 action advTieElse (n a : node) {
   require adv a ∧ ¬ adv n ∧ n ≠ a
   if rootTied then
@@ -476,10 +480,10 @@ action advTieElse (n a : node) {
 
 -- §4.2: the root an adversary's tie names installs at n, its bid committing the group (the proposer's
 -- other block): the copy fails its proof (a relabelled one, which would validate, is excluded) and
--- the tie is released: the park lifts, B′'s count clears, and the adversary is an offer again, asked
--- for. At any time once the gate is open, any number of times (§4.2: once per block). An adversary
--- that another root still ties is this action followed at once by `advTieElse`, which changes nothing
--- else: a tied sender has no open promise, since no ask to it is written (Codex R6v)
+-- the tie is released: the park lifts, the last-resort count clears, and the adversary is an offer
+-- again, asked for. At any time once the gate is open, any number of times (§4.2: once per block).
+-- An adversary that another root still ties is this action followed at once by `advTieElse`, which
+-- changes nothing else: a tied sender has no open promise, since no ask to it is written
 action releaseElse (n a : node) {
   require tiedElse n a ∧ gate n
   tiedElse n a := false
@@ -491,10 +495,11 @@ action releaseElse (n a : node) {
 }
 
 -- §4.2's `drop_tie`: the root an adversary's tie names installs and its bid commits another group, a
--- forgery: the tie is dropped with the adversary's offers of the index (`drop_offer`; B′'s count is
--- left as it is; with F13's rule its queued asks go and its promise closes, which a tie has closed
--- already; without the rule both are left: F13), and the recovery goes on without it, the retry armed
--- once the gate is open; the adversary may stay tied to another root (`still`)
+-- forgery: the tie is dropped with the adversary's offers of the index (`drop_offer`; the
+-- last-resort count is left as it is; with F13's rule its queued asks go and its promise closes,
+-- which a tie has closed already; without the rule both are left: F13), and the recovery goes on
+-- without it, the retry armed once the gate is open; the adversary may stay tied to another root
+-- (`still`)
 action dropTie (n a : node) (still : Bool) {
   require tiedElse n a
   if still = false then
@@ -512,7 +517,8 @@ action dropTie (n a : node) (still : Bool) {
 -- §6.1, §8.1: an adversary's offers at n expire, 30 s after its last offer of the group, which it
 -- chooses, so at any time (an honest announcer's offers outlast diffusion, as Q1 assumes): its offers
 -- go, the ledger's too (`drop_offer`), and with F13's rule its queued asks of the chunk go and its
--- promise closes; nothing is armed, since the expiry calls no retry; B′'s count lives on its own
+-- promise closes; nothing is armed, since the expiry calls no retry; the last-resort count lives on
+-- its own
 action advExpire (n a : node) {
   require adv a ∧ ¬ adv n ∧ n ≠ a
   offered n a := false
@@ -552,8 +558,8 @@ action parkOther (n q : node) {
 
 -- §8.1: the connection between n and q closes: what is queued, owed or in flight between them is
 -- lost, both ways; their promises close (§6.1); the state kept per connection goes: offers (the
--- ledger's too), B′'s counts, the asks' numbering with the serve count, ties (§8.1) and claims;
--- parks, windows and timers stay
+-- ledger's too), the last-resort counts, the asks' numbering with the serve count, ties (§8.1) and
+-- claims; parks, windows and timers stay
 action close (n q : node) {
   require n ≠ q
   if ∃ J, stage askQ n q J ∨ stage askF n q J then
@@ -677,14 +683,14 @@ action retryParked (n : node) {
   retryArmed n := false
 }
 
--- §6.1 (B′): the last resort's timer: nothing to do
+-- §6.1: the last resort's timer: nothing to do
 action lrNoop (n : node) {
   require en_lrNoop n
   lrArmed n := false
 }
 
--- §6.1 (B′): an announcer unparked meanwhile, or else a parked one not asked once more, neither tied
--- nor outstanding; counted once the queue has taken the ask
+-- §6.1 (the last resort): an announcer unparked meanwhile, or else a parked one not asked once
+-- more, neither tied nor outstanding; counted once the queue has taken the ask
 action lrAsk (n q : node) (j : ord) (full : Bool) {
   require en_lrAsk n q ∧ nextAsk n q j
   lrArmed n := false
@@ -752,8 +758,8 @@ invariant [stage_made] (stage askQ N Q J → made N Q J) ∧ (stage askF N Q J �
 -- an ask outstanding goes to an announcer (with F13's rule, also where the offers were dropped)
 invariant [asked_offered] premises → (stage askQ N Q J → offered N Q ∨ got N) ∧
   (promise N Q → offered N Q ∨ got N)
--- F6: before the builder's block, an honest provider is asked at most twice, the second time by B′;
--- so its third answer is left for after the switch
+-- F6: before the builder's block, an honest provider is asked at most twice, the second time by the
+-- last resort; so its third answer is left for after the switch
 invariant [first_ask] premises → ¬ adv N → ¬ adv Q → ¬ installed N → made N Q o1 →
   (∃ J, stage askQ N Q J) ∨ promise N Q ∨ parked N Q ∨ tied N Q ∨ got N ∨ stop N
 invariant [second_ask] premises → ¬ adv N → ¬ adv Q → ¬ installed N → made N Q o2 →
@@ -782,7 +788,7 @@ invariant [asked_parked] premises → ¬ adv N → ¬ adv Q → askedParked N Q 
 ghost relation stalled :=
   ¬ work ∧ ∃ N Q, ¬ adv N ∧ ¬ adv Q ∧ installed N ∧ offered N Q ∧ ¬ got N ∧ ¬ stop N
 
--- Q3 with malicious peers (`../../plans/fv-q3-adv.md`): the honest asking's ranking
+-- Q3 with malicious peers: the honest asking's ranking
 -- (`NoStallEquiv.lean`), with ties by root: eleven levels, highest first, each a relation on (asker
 -- n, announcer q, ask number z), a level that names fewer holding of every value of the others: n's
 -- announcers not yet asked once more, while n neither holds the chunk nor has stopped; n's fresh
@@ -816,7 +822,7 @@ ghost relation cParked (n : node) (q : node) := parked n q
 -- an honest node: the machinery's fairness is assumed for its steps
 ghost relation hon (n : node) := ¬ adv n
 
-/-! ## F14 (`../../plans/fv-q3-adv.md`, step 1): a reconnecting adversary keeps the last resort away
+/-! ## F14: a reconnecting adversary keeps the last resort away
 
 An honest node n with the builder's block lacks the chunk. Its honest provider h offered the chunk
 while parked by another chunk, and is not asked once more. The adversary a offers, is asked, and
@@ -824,7 +830,8 @@ closes before its promise falls due, again and again: the close does not park it
 its new connection it is an announcer that is not parked, so the retry never finds every announcer
 parked, and the last resort never arms. The loop's four steps lead from a state `f14` back to one;
 the assertions say which of the honest nodes' machinery events are pending at each of the loop's
-states, so the run that repeats the loop is weakly fair. -/
+states, so the run that repeats the loop is weakly fair. F14 is open: `protocol.md` §6.1 names it
+("an announcer that is never parked holds the last resort off") and does not address it. -/
 
 -- the three roles, in an instance of three nodes
 ghost relation f14Roles (n : node) (h : node) (a : node) :=
@@ -1788,7 +1795,7 @@ sat trace [adv_withholds] {
 }
 
 -- an adversary tied to another root after the builder's block, while an honest provider's offer is
--- asked for and answered: the tie does not keep the honest offer from resolving (Codex R6)
+-- asked for and answered: the tie does not keep the honest offer from resolving
 sat trace [adv_tied_honest_resolves] {
   installTakenIn
   install
@@ -1896,10 +1903,10 @@ sat trace [ka_other_block_stalls] {
 }
 
 -- F6's first form, without ROOT_TIED: on the other block, the provider (parked by another chunk) is
--- asked once more by B′; the answer waits and its promise falls due; at the switch every announcer
--- is parked and has been asked once more, with nothing on its way, so no ask can follow: the retry
--- the installation arms finds them all parked and arms no last resort (the run to that quiet state
--- exceeds the simplifier's steps)
+-- asked once more by the last resort; the answer waits and its promise falls due; at the switch
+-- every announcer is parked and has been asked once more, with nothing on its way, so no ask can
+-- follow: the retry the installation arms finds them all parked and arms no last resort (the run to
+-- that quiet state exceeds the simplifier's steps)
 sat trace [ka_no_root_tied] {
   installTakenIn
   installOther
@@ -1953,8 +1960,9 @@ sat trace [ka_no_ledger] {
     stalled)
 }
 
--- B′'s count kept across a close: the last resort's ask is lost with the connection, the announcer
--- offers again on the new one, and it is never asked: its count says it was asked once more
+-- the last-resort count kept across a close: the ask it counted is lost with the connection, the
+-- announcer offers again on the new one, and it is never asked: its count says it was asked once
+-- more
 sat trace [ka_counts_kept] {
   installTakenIn
   install
@@ -2028,7 +2036,7 @@ sat trace [ka_expiry_keeps_promise] {
     dropAsks ∧ ¬ dropPromises ∧ stalled)
 }
 
-/-! ### F14's run (`../../plans/fv-q3-adv.md`, step 1) -/
+/-! ### F14's run -/
 
 -- F14's loop, under v0.8's rules (every rule on, level 1 by group off): h holds the chunk, n installs
 -- the builder's block with nothing to ask for, a offers and is asked, a slow answer on another chunk
@@ -2117,7 +2125,7 @@ sat trace [f14_control] {
 -- each proof as a theorem in the environment, which Lean's kernel checks as it adds it
 #gen_theorems
 
-/-! ## Q3 with malicious peers: the honest machinery goes quiet (`../../plans/fv-q3-adv.md`)
+/-! ## Q3 with malicious peers: the honest machinery goes quiet
 
 The ranking's facts, per action of the machinery and case: its witness element is at its level
 before the step (`…Pre`) and not after (`…Post`), and no level down to its own gains an element

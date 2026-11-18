@@ -11,7 +11,7 @@ set_option veil.smt.timeout 300
 
 /-! # No stall, the asking part, with malicious peers, for any number of nodes
 
-`NoStallAsk.lean` with adversaries (plans/fv-robustness.md W3): SEACAST, `protocol.md` v0.5 (§4.1,
+`NoStallAsk.lean` with adversaries: SEACAST, `protocol.md` v0.5 (§4.1,
 §4.4, §4.5, §6.1, §7.2), with v0.7's IHAVE limits (§4.4, §6.4) and connections that close (§8.1).
 **When no honest node's asking machinery has anything left to do, an honest node that has the block
 holds every chunk an honest peer offered it, or has stopped pulling the group, whatever the other
@@ -19,13 +19,13 @@ peers do.** The chunk is any one chunk of the group, so the result holds for eac
 
 The adversaries (`adv`, any set of nodes) are part of the environment: they offer the chunk whether
 they hold it or not, before the block or after, any number of times (an IHAVE, handled as an honest
-one is, so they also fill an honest node's offers and its B′); they claim the chunk whether or not
-they hold it (a HAVE, which only stops honest nodes answering them); they ask honest nodes for it at
-any time (an IWANT by full id or by index), which honest nodes answer within the serve limit; they
-answer or not, and an answer from one that holds the chunk is the chunk arriving (`recvAns`, or
-`arriveOther`), any other leaves the asker's promise open, to fall due; and they close their
-connections at any time, which the environment's `close` already allows for every pair. Their own
-pending events are not work: "nothing left to do" is about honest nodes only (asks queued or in
+one is, so they also fill an honest node's offers and its last resort); they claim the chunk
+whether or not they hold it (a HAVE, which only stops honest nodes answering them); they ask honest
+nodes for it at any time (an IWANT by full id or by index), which honest nodes answer within the
+serve limit; they answer or not, and an answer from one that holds the chunk is the chunk arriving
+(`recvAns`, or `arriveOther`), any other leaves the asker's promise open, to fall due; and they close
+their connections at any time, which the environment's `close` already allows for every pair. Their
+own pending events are not work: "nothing left to do" is about honest nodes only (asks queued or in
 flight to an honest node, answers queued or owed or in flight to one, an honest node's windows,
 retries, last resorts and promises), so an ask that waits at an adversary for good does not keep a
 state from being quiet. What this does not show: that a run gets quiet (an adversary that offers,
@@ -36,25 +36,26 @@ The rules as v0.7 writes them (no ties, no rule against a second ask: those are 
 withholds an ask can make a state quiet that was not. With one block, a tie binds only a copy that
 waits for a root, which here is an adversary's own, and passes over that adversary only; an ask
 withheld because one is outstanding leaves a queued entry or an open promise, honest work until it
-is written or falls due. A model of v0.8's asking with adversaries is left for later.
+is written or falls due. v0.8's asking with adversaries is `NoStallEquivAdv.lean`.
 
 What the adversary's powers stand for (the correspondence, by inspection): a stock per-id
 IDONTWANT, repeated IWANTs and malformed or repeated control in one RPC change only the sender's own
 connection (what it is sent, its serve count, its penalties); an ask by full id resolves, as one by
 index, to the holder's chunk of that group and index; the offer list's 16 announcers per id lose no
-honest announcer, since every offer is also kept in the connection's `offered` bitmap (B′), and the
-deferred store's reservations, the ties and the admission of groups are per peer (§8.2); an
-adversary's asks can take the node-wide send window, which the drain assumption covers, and the
-answers it draws are queued to it (`advAsk`).
+honest announcer, since every offer is also kept in the connection's `offered` bitmap (the last
+resort's), and the deferred store's reservations, the ties and the admission of groups are per peer
+(§8.2); an adversary's asks can take the node-wide send window, which the drain assumption covers,
+and the answers it draws are queued to it (`advAsk`).
 
 What the machinery does with an offer is modelled as the spec writes it: one ask per chunk in flight
 (its window ends at any time); the retry asks an unparked announcer, any one; a promise opens at the
 write and falls due at any time while open, parking its peer for the group; when every announcer is
-parked, each is asked once more (B′); the asker drops an ask for a chunk it holds or no longer pulls;
-the first ask a node receives for a chunk it holds is answered, later ones may be dropped (the serve
-limit, at its worst), and one from a peer that claimed the chunk is dropped; an answer is cancelled
-if the asker claimed the chunk meanwhile; a queue may refuse any entry (the group's other traffic
-can fill it): a refused ask is lost and its retry stays armed, a refused answer is owed (§4.1).
+parked, each is asked once more (the last resort); the asker drops an ask for a chunk it holds or no
+longer pulls; the first ask a node receives for a chunk it holds is answered, later ones may be
+dropped (the serve limit, at its worst), and one from a peer that claimed the chunk is dropped; an
+answer is cancelled if the asker claimed the chunk meanwhile; a queue may refuse any entry (the
+group's other traffic can fill it): a refused ask is lost and its retry stays armed, a refused
+answer is owed (§4.1).
 
 The rest of the protocol is the **environment**, events that may happen at any time and any number
 of times: an honest node holding the chunk offers it (an IHAVE, handled as §4.4 does: over one of
@@ -74,14 +75,14 @@ armed, and finds the offers). A node stops pulling, and takes a chunk in, only o
 A connection closes at any time (§8.1), also part of the environment: what is queued, owed or in
 flight between the two nodes is lost both ways; their promises close (§6.1: the ask or its answer
 went with the connection, and the retry, whose timer is per ask, stays armed); and the state kept
-per connection goes: the offers (the ledger's too), B′'s counts, the serve count and the claims.
-Parks stay, kept by peer id. The offers a new connection brings (F9's resync) are offers from
-honest holders, as above. Resetting B′'s counts is a switch with a known answer: kept across the
-close, an announcer whose last resort the close lost is never asked again.
+per connection goes: the offers (the ledger's too), the last-resort counts, the serve count and the
+claims. Parks stay, kept by peer id. The offers a new connection brings (F9's resync) are offers
+from honest holders, as above. Resetting the last-resort counts is a switch with a known answer:
+kept across the close, an announcer whose last resort the close lost is never asked again.
 
-Known answer for the adversaries: B′'s count kept per chunk instead of per announcer (§6.1's
-rationale names this case), the last resort is spent on an adversary that announced first, and an
-honest announcer parked by another chunk is never asked again.
+Known answer for the adversaries: the last-resort count kept per chunk instead of per announcer
+(§6.1's rationale names this case), the last resort is spent on an adversary that announced first,
+and an honest announcer parked by another chunk is never asked again.
 
 Not modelled here: how offers come about (the transport: `NoStallTransport.lean`), lifetimes. -/
 
@@ -98,14 +99,14 @@ type node
 -- a, owed by a, in flight)
 enum kind = { askQ, askF, ansQ, ansOwed, ansF }
 
-immutable individual lastResort : Bool     -- B′ (§6.1): every announcer parked, each asked once more
+immutable individual lastResort : Bool     -- §6.1: every announcer parked, each asked once more
 immutable individual owedAnswers : Bool    -- §4.1, §7.2: an answer a full queue refuses is owed
 immutable individual askLedger : Bool      -- C′ (§3, §4.2): what was offered before the block is asked
 -- §4.4, §6.4 (v0.7): an ask an IHAVE limit holds back is retried at the next heartbeat
 immutable individual heldBackRetry : Bool
--- §6.1, §8.1: B′'s count for an announcer goes with its connection, as `tried` does
+-- §6.1, §8.1: the last-resort count for an announcer goes with its connection, as `tried` does
 immutable individual countsReset : Bool
--- §6.1: B′'s count is kept per announcer and chunk (off: per chunk, the known answer)
+-- §6.1: the last-resort count is kept per announcer and chunk (off: per chunk, the known answer)
 immutable individual countPerAnnouncer : Bool
 -- the adversaries
 immutable relation adv (n : node) : Bool
@@ -118,9 +119,9 @@ relation offered (n : node) (q : node) : Bool      -- q offered the chunk to n
 relation ledger (n : node) (q : node) : Bool       -- q offered it before n's block (§4.2)
 relation inWindow (n : node) : Bool                -- an ask of n's is in its window
 relation retryArmed (n : node) : Bool
-relation lrArmed (n : node) : Bool                 -- B′'s timer
+relation lrArmed (n : node) : Bool                 -- the last resort's timer
 relation parked (n : node) (q : node) : Bool       -- n parked q, for the group
-relation askedParked (n : node) (q : node) : Bool  -- B′'s count
+relation askedParked (n : node) (q : node) : Bool  -- the last-resort count
 relation promise (n : node) (q : node) : Bool      -- n's ask to q, written, open
 relation served (q : node) (n : node) : Bool       -- q answered an ask of n's
 relation stage (k : kind) (a : node) (b : node) : Bool
@@ -233,7 +234,7 @@ action offerParkedArm (n q : node) {
 -- from a parked offerer while the last resort is not due (`lrDue`): one action per reason, so that
 -- each one's conditions are rebuilt into a proof (together they are `¬ lrDue n q`): the last resort
 -- is armed already; another announcer is not parked; every announcer is parked and asked once more,
--- this one too; or there is no last resort (B′ off, the known answer)
+-- this one too; or there is no last resort (`lastResort` off, the known answer)
 action offerParked (n q : node) {
   require n ≠ q ∧ ¬ adv n ∧ (got q ∨ adv q) ∧ ¬ got n ∧ ¬ stop n ∧ installed n ∧ parked n q ∧
     lrArmed n
@@ -247,7 +248,8 @@ action offerParkedUnparked (n q : node) {
 }
 
 -- an announcer asked once more has offered already (`askedparked_offered`): its offer changes
--- nothing; it is new only where B′'s count outlived a close (`countsReset` off, the known answer)
+-- nothing; it is new only where the last-resort count outlived a close (`countsReset` off, the
+-- known answer)
 action offerParkedAsked (n q : node) {
   require n ≠ q ∧ ¬ adv n ∧ (got q ∨ adv q) ∧ ¬ got n ∧ ¬ stop n ∧ installed n ∧ parked n q ∧
     ¬ lrArmed n ∧ (∀ Q, offered n Q → parked n Q ∧ askedParked n Q) ∧ askedParked n q ∧
@@ -348,7 +350,7 @@ action parkOther (n q : node) {
 
 -- §8.1: the connection between n and q closes: what is queued, owed or in flight between them is
 -- lost, both ways; their promises close (§6.1); the state kept per connection goes (offers, the
--- ledger's too, B′'s counts, the serve count, claims); parks, windows and timers stay
+-- ledger's too, the last-resort counts, the serve count, claims); parks, windows and timers stay
 action close (n q : node) {
   require n ≠ q
   if stage askQ n q ∨ stage askF n q then
@@ -449,14 +451,14 @@ action retryParked (n : node) {
     lrArmed n := true
 }
 
--- §6.1 (B′): the last resort's timer: nothing to do
+-- §6.1: the last resort's timer: nothing to do
 action lrNoop (n : node) {
   require en_lrNoop n
   lrArmed n := false
 }
 
--- §6.1 (B′): an announcer unparked meanwhile, or else a parked one not asked once more; counted once
--- the queue has taken the ask
+-- §6.1 (the last resort): an announcer unparked meanwhile, or else a parked one not asked once
+-- more; counted once the queue has taken the ask
 action lrAsk (n q : node) (full : Bool) {
   require en_lrAsk n q
   lrArmed n := false
@@ -642,8 +644,8 @@ sat trace [adv_withholds] {
 
 /-! ## Known answers: with any one rule off, an offer is never resolved -/
 
--- B′'s count kept per chunk: the last resort, armed by the adversary's offer, which came first, is
--- spent on it, and an honest announcer parked by another chunk is never asked again
+-- the last-resort count kept per chunk: the last resort, armed by the adversary's offer, which came
+-- first, is spent on it, and an honest announcer parked by another chunk is never asked again
 sat trace [ka_count_per_chunk] {
   install
   arriveOther
@@ -732,8 +734,9 @@ sat trace [ka_held_back_lost] {
     countPerAnnouncer ∧ stalled)
 }
 
--- B′'s count kept across a close: the last resort's ask is lost with the connection, the announcer
--- offers again on the new one, and it is never asked: its count says it was asked once more
+-- the last-resort count kept across a close: the ask it counted is lost with the connection, the
+-- announcer offers again on the new one, and it is never asked: its count says it was asked once
+-- more
 sat trace [ka_counts_kept] {
   install
   arriveOther

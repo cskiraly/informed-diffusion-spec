@@ -10,7 +10,7 @@ set_option veil.solver "grind+smt"
 -- the longer traces need more than the solver's 60 s on a loaded machine
 set_option veil.smt.timeout 300
 
-/-- Q3's per-step facts (`../../plans/fv-q3.md`): Veil's reduction of a one-step temporal goal to
+/-- Q3's per-step facts: Veil's reduction of a one-step temporal goal to
 first-order form, the enum axioms' distinctness as inequalities, then Lean's `grind`, which the
 kernel checks. `veil_solve_temporal` ends in the SMT solver instead, whose translation or proof
 reconstruction fails on most of these goals in Veil v4.35.0. -/
@@ -579,7 +579,7 @@ invariant [asked_parked] premises → askedParked N Q →
 -- a quiet state with an offer from an honest holder, to a node with the builder's block, unresolved
 ghost relation stalled := ¬ work ∧ ∃ N Q, installed N ∧ offered N Q ∧ ¬ got N ∧ ¬ stop N
 
--- Q3 (`../../plans/fv-q3.md`): a ranking that every step of the machinery that is not a refused
+-- Q3: a ranking that every step of the machinery that is not a refused
 -- ask lowers. Eleven levels, highest first, each a relation on (asker n, announcer q, ask number
 -- z), a level that names fewer holding of every value of the others: n's announcers not yet asked
 -- once more, while n neither holds the chunk nor has stopped; n's fresh asks (an offer from an
@@ -1532,7 +1532,7 @@ sat trace [ka_counts_kept] {
 -- each proof as a theorem in the environment, which Lean's kernel checks as it adds it
 #gen_theorems
 
-/-! ## Q3: the asking goes quiet (`../../plans/fv-q3.md`)
+/-! ## Q3: the asking goes quiet
 
 The ranking's facts, per action of the machinery and case: its witness element is at its level
 before the step (`…Pre`) and not after (`…Post`), and no level down to its own gains an element
