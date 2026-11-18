@@ -10,7 +10,7 @@ name since 2026-10-19; v0.4 was published as Informed Diffusion, which now names
 part (§0, "The parts").*
 
 *Draft 1, 2026-10-07. A sibling of [`protocol.md`](protocol.md), which it contains as one
-setting (§6.1). That was draft v0.3 when this was written and is v0.10.3 since 2026-11-18, with
+setting (§6.1). That was draft v0.3 when this was written and is v0.10.4 since 2026-11-18, with
 the same section numbers; "v0.3" below means that document.*
 
 *Each later version of `protocol.md` comes in the same way. Its changes to functions this
@@ -77,6 +77,10 @@ them; §5 lists what carries over.*
   said as "acknowledged", and the source's choice of when it announces (`SOURCE_OFFERS`). This
   draft carries them all: the rename (`on_frame`, `frame`, `ihave_frames`), §6.3's bounds in §8.3's
   kinds, the IHAVE values (§4.3, §6.3), "acknowledged" (§4.7), and `SOURCE_OFFERS` (§4.7, §6.3).*
+- *v0.10.4 (2026-11-18): `protocol.md` says what heartbeat gossip tells of the source, names a chunk
+  that is never acknowledged as open, and keeps an IDONTWANT entry that is not a HAVE bitmap as stock
+  gossipsub keeps an id (`on_frame`); the toy follows the documents at a dropped group and in its
+  reading of bitmaps and ids. This draft runs on the same toy; it carries the rest in its next step.*
 
 *This draft defines the notions, the messages, the state and the event handlers; the scheduling
 that tier 4 measured carries over unchanged where §5 says so. Every design decision is marked

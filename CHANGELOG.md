@@ -5,14 +5,15 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
-## After v0.10.3, not yet released
+## v0.10.4, 2026-11-18
 
 The repository is renamed `seacast-spec`, from `informed-diffusion-spec`, which GitHub redirects, and
 `protocol.md`'s title is now *SEACAST: the protocol in pseudocode*; the README's heading, its release
 link and its line on the old title follow. `protocol.md` also says what heartbeat gossip tells of the
 source and names a chunk that is never acknowledged as open; and its `on_frame` keeps an IDONTWANT
 entry that is not a HAVE bitmap as stock gossipsub keeps an id, where it handed every entry to
-`on_have`: the one code change, whose new branch no recorded cell reaches.
+`on_have`: the one code change, whose new branch no recorded cell reaches. The toy follows both
+documents at a dropped group, and in how it reads bitmaps and ids.
 
 The next version's draft carries `protocol.md` v0.10.3's changes, lets any source offer its chunks at publish,
 its own choice as in `protocol.md`, closes the probe's last open cases, and measures its probe and alarm
@@ -68,7 +69,7 @@ The draft's bindings, in a new document, `protocol-v2-bindings.md`:
 The draft of SEACAST's next version (`protocol-v2.md`), changed since v0.10.3:
 - **When a source offers is its own choice** (§4.7, §6.3's `SOURCE_OFFERS`): at the acknowledgement by
   default, as `protocol.md` has it, or at publish, its holding then growing at each chunk's first write
-  (`origin_written`) and an acknowledgement doing nothing. No other node depends on it. A fast source finishes sooner offering at publish, a
+  (`origin_written`) and an acknowledgement doing nothing. No rule at another node needs either setting. A fast source finishes sooner offering at publish, a
   slow one later, and offers at publish name the source. In the toy's custody cell a 1 Gbps proposer
   offering at publish completes 13 to 114 ms sooner and answers 4.7 to 12 times as many asks; copies move
   either way with the graph. `toy/run.py --source-offers publish` sets it; `toy/source_offers_known.py`.
@@ -140,9 +141,24 @@ The toy:
 - **`toy/idontwant_id_known.py`:** a stock id in an IDONTWANT is kept in `unwanted[p]`, with no penalty, and a
   HAVE bitmap beside it is read as a HAVE and not kept there; run on the document before, the toy stops in
   `on_have`, which the stock id reached.
+- **The toy follows the documents at a dropped group, and in how it reads bitmaps and ids** (`toy/node.py`,
+  on both documents):
+  - `discard_queued` takes a dropped group's IHAVEs and IWANTs out of both lanes of every queue, as §4.6
+    says, keeping the other groups' control that rides with them, where it took only the group's chunks;
+    an entry left with control only is no longer an answer (`toy/discard_queued_known.py`);
+  - `discard_paced` takes the group out of the paced jobs, where it did nothing, so a paced IHAVE of a
+    dropped group no longer goes out at the next tick (`toy/discard_paced_known.py`);
+  - `accepted` is "the id was stored", as §8.1 says, so a copy of a chunk that a dropped group stored is
+    acknowledged (`toy/dropped_dup_known.py`);
+  - `valid_have` checks a bitmap's length against `MAX_HAVE_BYTES`, as §8.2 says, also where the group's
+    count is not known (`toy/have_length_known.py`);
+  - an ask by id names a group and an index only as a structured id of exactly 56 bytes (§2,
+    `group_index`), where the toy read any id of 36 bytes or more as one (`toy/id_parse_known.py`).
+
+  No recorded cell drops a group or sends such a bitmap or id, so every digest stays.
 - **Unchanged:** every recorded cell's digest in `golden.txt` and `golden-v2.txt`.
 
-## v0.10.3, 2026-11-18
+## v0.10.3, 2026-11-18 (`afc85e8`)
 
 `protocol.md` sorts its constants into limits, bounds and defaults, gives gossipsub's two IHAVE limits
 reference values, calls what a peer writes on its stream a frame, and lets a source announce its
