@@ -6,6 +6,8 @@ public import Veil
 set_option veil.smt.trust false
 -- Lean's grind first (kernel-checked as it is), the SMT solver where grind fails
 set_option veil.solver "grind+smt"
+-- the longer traces need more than the solver's 60 s on a loaded machine
+set_option veil.smt.timeout 300
 
 /-! # No stall, the asking part (Q1's first piece), for any number of nodes
 
@@ -52,6 +54,9 @@ Not modelled here: how offers come about (the transport: `NoStallTransport.lean`
 adversaries. -/
 
 veil module NoStallAsk
+
+-- Veil v4.35.0's solver needs more than `veil module`'s 500,000 heartbeats on some conditions
+set_option maxHeartbeats 2000000
 
 -- the long traces' simplification needs more than the depth `veil module` sets (1024)
 set_option maxRecDepth 8192

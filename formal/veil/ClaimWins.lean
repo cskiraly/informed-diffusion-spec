@@ -68,6 +68,9 @@ window nor the assumption, or with a window that moves back, an honest node is p
 
 veil module ClaimWins
 
+-- Veil v4.35.0's solver needs more than `veil module`'s 500,000 heartbeats on some conditions
+set_option maxHeartbeats 2000000
+
 type node
 type group
 type index

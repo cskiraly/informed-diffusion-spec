@@ -4,6 +4,8 @@ public import Veil
 
 -- the SMT solver's unsat answers are not trusted: lean-smt rebuilds each proof for Lean's kernel
 set_option veil.smt.trust false
+-- the longer traces need more than the solver's 60 s on a loaded machine
+set_option veil.smt.timeout 300
 
 /-! # The sender's fault: A1's other two penalties, for any number of nodes, blocks and groups
 
@@ -60,6 +62,9 @@ none, §4.6): level 2's root check alone makes a rebuilt piece the committed one
 this property needs. No model check: the proof covers every size, and the traces the cases. -/
 
 veil module SenderFault
+
+-- Veil v4.35.0's solver needs more than `veil module`'s 500,000 heartbeats on some conditions
+set_option maxHeartbeats 2000000
 
 type node
 type root                                    -- a beacon block, by its root

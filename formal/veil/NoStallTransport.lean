@@ -1,11 +1,26 @@
 module
 
 public import Veil
+public import QuietRanking
 
 -- the SMT solver's unsat answers are not trusted: lean-smt rebuilds each proof for Lean's kernel
 set_option veil.smt.trust false
 -- Lean's grind first (kernel-checked as it is), the SMT solver where grind fails
 set_option veil.solver "grind+smt"
+
+/-- Q3's per-step facts (`../../plans/fv-q3.md`): Veil's reduction of a one-step temporal goal to
+first-order form, the enum axioms' distinctness as inequalities, then Lean's `grind`, which the
+kernel checks. `veil_solve_temporal` ends in the SMT solver instead, whose translation or proof
+reconstruction fails on most of these goals in Veil v4.35.0. -/
+macro "fv_step" : tactic => `(tactic| (
+  unveil_temporal
+  (try veil_cases_type* Or)
+  all_goals (
+    (try veil_destruct only [And, Exists])
+    veil_fol !
+    (try simp only [distinctN_pairwise_neq, List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false,
+      not_or, List.nodup_nil, and_true] at *)
+    grind)))
 
 /-! # No stall, the transport part (Q1's second piece), for any number of nodes
 
@@ -75,6 +90,9 @@ veil module NoStallTransport
 
 -- the long traces' simplification needs more than the depth `veil module` sets (1024)
 set_option maxRecDepth 8192
+-- Veil v4.35.0's solver takes longer on one condition (`writePush_delivered`) than `veil module`'s
+-- limit of 500,000 heartbeats allows
+set_option maxHeartbeats 2000000
 
 type node
 -- a queued push or announcement, an owed offer, and a chunk or announcement in flight, from a to b
@@ -139,6 +157,25 @@ ghost relation work :=
 -- neighbour received, has not stopped, and holds no offer of it from that neighbour
 ghost relation undelivered :=
   ¬ work ∧ ∃ M N, installed N ∧ rcv M ∧ mesh M N ∧ ¬ holds N ∧ ¬ stop N ∧ ¬ offered N M
+
+-- Q3 (`../../plans/fv-q3.md`): a ranking that every step of the transport lowers. Ten levels,
+-- highest first, each a relation on pairs of nodes: the unpublished source; nodes that have not
+-- received the chunk; forwarding due; repair due; queued pushes; queued announcements; owed offers;
+-- chunks in flight; deferred copies; announcements in flight. A step of the transport gains nothing
+-- at any level down to its own and loses an element there; one of the environment may raise it.
+ghost relation lv0 (_m : node) (_n : node) := ¬ published
+ghost relation lv1 (m : node) (_n : node) := ¬ rcv m
+ghost relation lv2 (m : node) (n : node) := pendingFwd m n
+ghost relation lv3 (m : node) (n : node) := repairDue m n
+ghost relation lv4 (m : node) (n : node) := pipe qPush m n
+ghost relation lv5 (m : node) (n : node) := pipe qIhave m n
+ghost relation lv6 (m : node) (n : node) := pipe owedOffer m n
+ghost relation lv7 (m : node) (n : node) := pipe fChunk m n
+ghost relation lv8 (m : node) (n : node) := pend m n
+ghost relation lv9 (m : node) (n : node) := pipe fIhave m n
+-- the two cases of `recvChunk` and of `resume`
+ghost relation cRecv (n : node) := installed n ∧ ¬ rcv n
+ghost relation cResume (n : node) := ¬ rcv n
 
 after_init {
   mesh N M := false
@@ -378,6 +415,10 @@ action repair (m n : node) (pushIt full : Bool) {
       pushed m n := true
 }
 
+-- Q3: nothing happens (a step of time: the runs a temporal proof considers take an action at every
+-- step)
+action stutter { pure () }
+
 -- when the transport is done, a node with its block holds every chunk a mesh neighbour received, has
 -- stopped pulling, or holds the neighbour's offer of it
 safety [delivered] premises → ¬ work → installed N → rcv M → mesh M N →
@@ -404,6 +445,209 @@ invariant [delivery] premises → rcv M → mesh M N →
 invariant [pushed_chain] premises → pushed M N →
   holds N ∨ stop N ∨ pipe qPush M N ∨ pipe fChunk M N ∨ (∃ P, pend N P) ∨ offered N M ∨
     peerHas M N
+
+-- Q3: with finitely many nodes, weakly fair transport actions and an environment that eventually
+-- stops, the transport eventually has nothing to do, for good. In a proof `⟨a⟩` says that a step
+-- has the effect of some execution of `a`, whatever action took it: a step that changes nothing is
+-- a `stopPull n` once n has stopped, and a transport step can have an environment action's effect
+-- (an announcement arriving at a node that holds the chunk, over a connection with nothing else on
+-- it and out of both meshes, has `close`'s). So "the environment stops" is stated as: from some
+-- point on, every step that changes the state has a transport action's effect or no environment
+-- action's
+temporal (only := verify) [quiet]
+  ⌞ ∃ l : List node, ∀ n : node, n ∈ l ⌟ ∧
+  𝒲ℱ publish ∧ 𝒲ℱ fwd ∧ 𝒲ℱ writePush ∧ 𝒲ℱ writeIhave ∧ 𝒲ℱ writeOwed ∧ 𝒲ℱ recvChunk ∧ 𝒲ℱ resume ∧ 𝒲ℱ recvIhave ∧ 𝒲ℱ repair ∧
+  ◇ □ (⟨stutter⟩ ∨ ⟨publish⟩ ∨ ⟨fwd⟩ ∨ ⟨writePush⟩ ∨ ⟨writeIhave⟩ ∨ ⟨writeOwed⟩ ∨ ⟨recvChunk⟩ ∨ ⟨resume⟩ ∨ ⟨recvIhave⟩ ∨ ⟨repair⟩ ∨ ⟨dropIhave⟩ ∨
+    (¬ ⟨install⟩ ∧ ¬ ⟨stopPull⟩ ∧ ¬ ⟨rebuild⟩ ∧ ¬ ⟨learnClaim⟩ ∧ ¬ ⟨answerArrives⟩ ∧ ¬ ⟨join⟩ ∧ ¬ ⟨leave⟩ ∧ ¬ ⟨close⟩)) →
+  ◇ □ ⌜ ¬ work ⌝
+temporal (only := verify) [workEnabled]
+  □ (⌜ work ⌝ → (∃ s, Enabled (publish s)) ∨ (∃ m, ∃ n, Enabled (fwd m n true false)) ∨
+    (∃ m, ∃ n, Enabled (writePush m n false)) ∨ (∃ m, ∃ n, Enabled (writeIhave m n)) ∨
+    (∃ m, ∃ n, Enabled (writeOwed m n)) ∨ (∃ n, ∃ m, Enabled (recvChunk n m true)) ∨
+    (∃ n, ∃ m, Enabled (resume n m)) ∨ (∃ n, ∃ m, Enabled (recvIhave n m)) ∨
+    (∃ m, ∃ n, Enabled (repair m n true false)))
+temporal (only := verify) [publishPre]
+  ∀ a, □ (⟨publish a⟩ → ⌜ lv0 a a ⌝)
+temporal (only := verify) [publishPost]
+  ∀ a, □ (⟨publish a⟩ → ¬ ◯ ⌜ lv0 a a ⌝)
+temporal (only := verify) [publishKeep_0]
+  ∀ a, ∀ x, ∀ y, □ (⟨publish a⟩ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [fwdPre]
+  ∀ m, ∀ n, ∀ p, ∀ f, □ (⟨fwd m n p f⟩ → ⌜ lv2 m n ⌝)
+temporal (only := verify) [fwdPost]
+  ∀ m, ∀ n, ∀ p, ∀ f, □ (⟨fwd m n p f⟩ → ¬ ◯ ⌜ lv2 m n ⌝)
+temporal (only := verify) [fwdKeep_0]
+  ∀ m, ∀ n, ∀ p, ∀ f, ∀ x, ∀ y, □ (⟨fwd m n p f⟩ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [fwdKeep_1]
+  ∀ m, ∀ n, ∀ p, ∀ f, ∀ x, ∀ y, □ (⟨fwd m n p f⟩ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [fwdKeep_2]
+  ∀ m, ∀ n, ∀ p, ∀ f, ∀ x, ∀ y, □ (⟨fwd m n p f⟩ → ◯ ⌜ lv2 x y ⌝ → ⌜ lv2 x y ⌝)
+temporal (only := verify) [writePushPre]
+  ∀ m, ∀ n, ∀ p, □ (⟨writePush m n p⟩ → ⌜ lv4 m n ⌝)
+temporal (only := verify) [writePushPost]
+  ∀ m, ∀ n, ∀ p, □ (⟨writePush m n p⟩ → ¬ ◯ ⌜ lv4 m n ⌝)
+temporal (only := verify) [writePushKeep_0]
+  ∀ m, ∀ n, ∀ p, ∀ x, ∀ y, □ (⟨writePush m n p⟩ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [writePushKeep_1]
+  ∀ m, ∀ n, ∀ p, ∀ x, ∀ y, □ (⟨writePush m n p⟩ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [writePushKeep_2]
+  ∀ m, ∀ n, ∀ p, ∀ x, ∀ y, □ (⟨writePush m n p⟩ → ◯ ⌜ lv2 x y ⌝ → ⌜ lv2 x y ⌝)
+temporal (only := verify) [writePushKeep_3]
+  ∀ m, ∀ n, ∀ p, ∀ x, ∀ y, □ (⟨writePush m n p⟩ → ◯ ⌜ lv3 x y ⌝ → ⌜ lv3 x y ⌝)
+temporal (only := verify) [writePushKeep_4]
+  ∀ m, ∀ n, ∀ p, ∀ x, ∀ y, □ (⟨writePush m n p⟩ → ◯ ⌜ lv4 x y ⌝ → ⌜ lv4 x y ⌝)
+temporal (only := verify) [writeIhavePre]
+  ∀ m, ∀ n, □ (⟨writeIhave m n⟩ → ⌜ lv5 m n ⌝)
+temporal (only := verify) [writeIhavePost]
+  ∀ m, ∀ n, □ (⟨writeIhave m n⟩ → ¬ ◯ ⌜ lv5 m n ⌝)
+temporal (only := verify) [writeIhaveKeep_0]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeIhave m n⟩ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [writeIhaveKeep_1]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeIhave m n⟩ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [writeIhaveKeep_2]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeIhave m n⟩ → ◯ ⌜ lv2 x y ⌝ → ⌜ lv2 x y ⌝)
+temporal (only := verify) [writeIhaveKeep_3]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeIhave m n⟩ → ◯ ⌜ lv3 x y ⌝ → ⌜ lv3 x y ⌝)
+temporal (only := verify) [writeIhaveKeep_4]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeIhave m n⟩ → ◯ ⌜ lv4 x y ⌝ → ⌜ lv4 x y ⌝)
+temporal (only := verify) [writeIhaveKeep_5]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeIhave m n⟩ → ◯ ⌜ lv5 x y ⌝ → ⌜ lv5 x y ⌝)
+temporal (only := verify) [writeOwedPre]
+  ∀ m, ∀ n, □ (⟨writeOwed m n⟩ → ⌜ lv6 m n ⌝)
+temporal (only := verify) [writeOwedPost]
+  ∀ m, ∀ n, □ (⟨writeOwed m n⟩ → ¬ ◯ ⌜ lv6 m n ⌝)
+temporal (only := verify) [writeOwedKeep_0]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeOwed m n⟩ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [writeOwedKeep_1]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeOwed m n⟩ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [writeOwedKeep_2]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeOwed m n⟩ → ◯ ⌜ lv2 x y ⌝ → ⌜ lv2 x y ⌝)
+temporal (only := verify) [writeOwedKeep_3]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeOwed m n⟩ → ◯ ⌜ lv3 x y ⌝ → ⌜ lv3 x y ⌝)
+temporal (only := verify) [writeOwedKeep_4]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeOwed m n⟩ → ◯ ⌜ lv4 x y ⌝ → ⌜ lv4 x y ⌝)
+temporal (only := verify) [writeOwedKeep_5]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeOwed m n⟩ → ◯ ⌜ lv5 x y ⌝ → ⌜ lv5 x y ⌝)
+temporal (only := verify) [writeOwedKeep_6]
+  ∀ m, ∀ n, ∀ x, ∀ y, □ (⟨writeOwed m n⟩ → ◯ ⌜ lv6 x y ⌝ → ⌜ lv6 x y ⌝)
+temporal (only := verify) [recvChunkPre1]
+  ∀ n, ∀ m, ∀ kp, □ (⟨recvChunk n m kp⟩ → ⌜ cRecv n ⌝ → ⌜ lv1 n n ⌝)
+temporal (only := verify) [recvChunkPost1]
+  ∀ n, ∀ m, ∀ kp, □ (⟨recvChunk n m kp⟩ → ⌜ cRecv n ⌝ → ¬ ◯ ⌜ lv1 n n ⌝)
+temporal (only := verify) [recvChunkKeep1_0]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ cRecv n ⌝ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [recvChunkKeep1_1]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ cRecv n ⌝ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [recvChunkPre2]
+  ∀ n, ∀ m, ∀ kp, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ⌜ lv7 m n ⌝)
+temporal (only := verify) [recvChunkPost2]
+  ∀ n, ∀ m, ∀ kp, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ¬ ◯ ⌜ lv7 m n ⌝)
+temporal (only := verify) [recvChunkKeep2_0]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [recvChunkKeep2_1]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [recvChunkKeep2_2]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ◯ ⌜ lv2 x y ⌝ → ⌜ lv2 x y ⌝)
+temporal (only := verify) [recvChunkKeep2_3]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ◯ ⌜ lv3 x y ⌝ → ⌜ lv3 x y ⌝)
+temporal (only := verify) [recvChunkKeep2_4]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ◯ ⌜ lv4 x y ⌝ → ⌜ lv4 x y ⌝)
+temporal (only := verify) [recvChunkKeep2_5]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ◯ ⌜ lv5 x y ⌝ → ⌜ lv5 x y ⌝)
+temporal (only := verify) [recvChunkKeep2_6]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ◯ ⌜ lv6 x y ⌝ → ⌜ lv6 x y ⌝)
+temporal (only := verify) [recvChunkKeep2_7]
+  ∀ n, ∀ m, ∀ kp, ∀ x, ∀ y, □ (⟨recvChunk n m kp⟩ → ⌜ ¬ cRecv n ⌝ → ◯ ⌜ lv7 x y ⌝ → ⌜ lv7 x y ⌝)
+temporal (only := verify) [resumePre1]
+  ∀ n, ∀ m, □ (⟨resume n m⟩ → ⌜ cResume n ⌝ → ⌜ lv1 n n ⌝)
+temporal (only := verify) [resumePost1]
+  ∀ n, ∀ m, □ (⟨resume n m⟩ → ⌜ cResume n ⌝ → ¬ ◯ ⌜ lv1 n n ⌝)
+temporal (only := verify) [resumeKeep1_0]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ cResume n ⌝ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [resumeKeep1_1]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ cResume n ⌝ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [resumePre2]
+  ∀ n, ∀ m, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ⌜ lv8 n m ⌝)
+temporal (only := verify) [resumePost2]
+  ∀ n, ∀ m, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ¬ ◯ ⌜ lv8 n m ⌝)
+temporal (only := verify) [resumeKeep2_0]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [resumeKeep2_1]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [resumeKeep2_2]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ◯ ⌜ lv2 x y ⌝ → ⌜ lv2 x y ⌝)
+temporal (only := verify) [resumeKeep2_3]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ◯ ⌜ lv3 x y ⌝ → ⌜ lv3 x y ⌝)
+temporal (only := verify) [resumeKeep2_4]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ◯ ⌜ lv4 x y ⌝ → ⌜ lv4 x y ⌝)
+temporal (only := verify) [resumeKeep2_5]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ◯ ⌜ lv5 x y ⌝ → ⌜ lv5 x y ⌝)
+temporal (only := verify) [resumeKeep2_6]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ◯ ⌜ lv6 x y ⌝ → ⌜ lv6 x y ⌝)
+temporal (only := verify) [resumeKeep2_7]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ◯ ⌜ lv7 x y ⌝ → ⌜ lv7 x y ⌝)
+temporal (only := verify) [resumeKeep2_8]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨resume n m⟩ → ⌜ ¬ cResume n ⌝ → ◯ ⌜ lv8 x y ⌝ → ⌜ lv8 x y ⌝)
+temporal (only := verify) [recvIhavePre]
+  ∀ n, ∀ m, □ (⟨recvIhave n m⟩ → ⌜ lv9 m n ⌝)
+temporal (only := verify) [recvIhavePost]
+  ∀ n, ∀ m, □ (⟨recvIhave n m⟩ → ¬ ◯ ⌜ lv9 m n ⌝)
+temporal (only := verify) [recvIhaveKeep_0]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [recvIhaveKeep_1]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [recvIhaveKeep_2]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv2 x y ⌝ → ⌜ lv2 x y ⌝)
+temporal (only := verify) [recvIhaveKeep_3]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv3 x y ⌝ → ⌜ lv3 x y ⌝)
+temporal (only := verify) [recvIhaveKeep_4]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv4 x y ⌝ → ⌜ lv4 x y ⌝)
+temporal (only := verify) [recvIhaveKeep_5]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv5 x y ⌝ → ⌜ lv5 x y ⌝)
+temporal (only := verify) [recvIhaveKeep_6]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv6 x y ⌝ → ⌜ lv6 x y ⌝)
+temporal (only := verify) [recvIhaveKeep_7]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv7 x y ⌝ → ⌜ lv7 x y ⌝)
+temporal (only := verify) [recvIhaveKeep_8]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv8 x y ⌝ → ⌜ lv8 x y ⌝)
+temporal (only := verify) [recvIhaveKeep_9]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨recvIhave n m⟩ → ◯ ⌜ lv9 x y ⌝ → ⌜ lv9 x y ⌝)
+temporal (only := verify) [repairPre]
+  ∀ m, ∀ n, ∀ p, ∀ f, □ (⟨repair m n p f⟩ → ⌜ lv3 m n ⌝)
+temporal (only := verify) [repairPost]
+  ∀ m, ∀ n, ∀ p, ∀ f, □ (⟨repair m n p f⟩ → ¬ ◯ ⌜ lv3 m n ⌝)
+temporal (only := verify) [repairKeep_0]
+  ∀ m, ∀ n, ∀ p, ∀ f, ∀ x, ∀ y, □ (⟨repair m n p f⟩ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [repairKeep_1]
+  ∀ m, ∀ n, ∀ p, ∀ f, ∀ x, ∀ y, □ (⟨repair m n p f⟩ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [repairKeep_2]
+  ∀ m, ∀ n, ∀ p, ∀ f, ∀ x, ∀ y, □ (⟨repair m n p f⟩ → ◯ ⌜ lv2 x y ⌝ → ⌜ lv2 x y ⌝)
+temporal (only := verify) [repairKeep_3]
+  ∀ m, ∀ n, ∀ p, ∀ f, ∀ x, ∀ y, □ (⟨repair m n p f⟩ → ◯ ⌜ lv3 x y ⌝ → ⌜ lv3 x y ⌝)
+temporal (only := verify) [dropIhavePre]
+  ∀ n, ∀ m, □ (⟨dropIhave n m⟩ → ⌜ lv9 m n ⌝)
+temporal (only := verify) [dropIhavePost]
+  ∀ n, ∀ m, □ (⟨dropIhave n m⟩ → ¬ ◯ ⌜ lv9 m n ⌝)
+temporal (only := verify) [dropIhaveKeep_0]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv0 x y ⌝ → ⌜ lv0 x y ⌝)
+temporal (only := verify) [dropIhaveKeep_1]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv1 x y ⌝ → ⌜ lv1 x y ⌝)
+temporal (only := verify) [dropIhaveKeep_2]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv2 x y ⌝ → ⌜ lv2 x y ⌝)
+temporal (only := verify) [dropIhaveKeep_3]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv3 x y ⌝ → ⌜ lv3 x y ⌝)
+temporal (only := verify) [dropIhaveKeep_4]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv4 x y ⌝ → ⌜ lv4 x y ⌝)
+temporal (only := verify) [dropIhaveKeep_5]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv5 x y ⌝ → ⌜ lv5 x y ⌝)
+temporal (only := verify) [dropIhaveKeep_6]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv6 x y ⌝ → ⌜ lv6 x y ⌝)
+temporal (only := verify) [dropIhaveKeep_7]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv7 x y ⌝ → ⌜ lv7 x y ⌝)
+temporal (only := verify) [dropIhaveKeep_8]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv8 x y ⌝ → ⌜ lv8 x y ⌝)
+temporal (only := verify) [dropIhaveKeep_9]
+  ∀ n, ∀ m, ∀ x, ∀ y, □ (⟨dropIhave n m⟩ → ◯ ⌜ lv9 x y ⌝ → ⌜ lv9 x y ⌝)
 
 #gen_spec
 
@@ -551,6 +795,879 @@ sat trace [ka_late_join] {
 
 -- each proof as a theorem in the environment, which Lean's kernel checks as it adds it
 #gen_theorems
+
+/-! ## Q3: the transport goes quiet (`../../plans/fv-q3.md`)
+
+The ranking's facts, per own action and case: its witness element is at its level before the step
+(`…Pre`) and not after (`…Post`), and no level down to its own gains an element (`…Keep_j`). Then
+the proof: a list of the nodes, the ranking's counts, the steps sorted into the transport's, the
+environment's and stutters, and `FvQuiet.quiet_exec`. -/
+
+prove_temporal_by [publishPre]
+  tclear hInit hInv
+  tintro a
+  tmonotone
+  fv_step
+
+prove_temporal_by [publishPost]
+  tclear hInit hInv
+  tintro a
+  tmonotone
+  fv_step
+
+prove_temporal_by [publishKeep_0]
+  tclear hInit hInv
+  tintro a x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [fwdPre]
+  tclear hInit hInv
+  tintro m n p f
+  tmonotone
+  fv_step
+
+prove_temporal_by [fwdPost]
+  tclear hInit hInv
+  tintro m n p f
+  tmonotone
+  fv_step
+
+prove_temporal_by [fwdKeep_0]
+  tclear hInit hInv
+  tintro m n p f x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [fwdKeep_1]
+  tclear hInit hInv
+  tintro m n p f x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [fwdKeep_2]
+  tclear hInit hInv
+  tintro m n p f x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writePushPre]
+  tclear hInit hInv
+  tintro m n p
+  tmonotone
+  fv_step
+
+prove_temporal_by [writePushPost]
+  tclear hInit hInv
+  tintro m n p
+  tmonotone
+  fv_step
+
+prove_temporal_by [writePushKeep_0]
+  tclear hInit hInv
+  tintro m n p x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writePushKeep_1]
+  tclear hInit hInv
+  tintro m n p x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writePushKeep_2]
+  tclear hInit hInv
+  tintro m n p x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writePushKeep_3]
+  tclear hInit hInv
+  tintro m n p x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writePushKeep_4]
+  tclear hInit hInv
+  tintro m n p x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeIhavePre]
+  tclear hInit hInv
+  tintro m n
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeIhavePost]
+  tclear hInit hInv
+  tintro m n
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeIhaveKeep_0]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeIhaveKeep_1]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeIhaveKeep_2]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeIhaveKeep_3]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeIhaveKeep_4]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeIhaveKeep_5]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeOwedPre]
+  tclear hInit hInv
+  tintro m n
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeOwedPost]
+  tclear hInit hInv
+  tintro m n
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeOwedKeep_0]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeOwedKeep_1]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeOwedKeep_2]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeOwedKeep_3]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeOwedKeep_4]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeOwedKeep_5]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [writeOwedKeep_6]
+  tclear hInit hInv
+  tintro m n x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkPre1]
+  tclear hInit hInv
+  tintro n m kp
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkPost1]
+  tclear hInit hInv
+  tintro n m kp
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep1_0]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep1_1]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkPre2]
+  tclear hInit hInv
+  tintro n m kp
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkPost2]
+  tclear hInit hInv
+  tintro n m kp
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep2_0]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep2_1]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep2_2]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep2_3]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep2_4]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep2_5]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep2_6]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvChunkKeep2_7]
+  tclear hInit hInv
+  tintro n m kp x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumePre1]
+  tclear hInit hInv
+  tintro n m
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumePost1]
+  tclear hInit hInv
+  tintro n m
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep1_0]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep1_1]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumePre2]
+  tclear hInit hInv
+  tintro n m
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumePost2]
+  tclear hInit hInv
+  tintro n m
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep2_0]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep2_1]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep2_2]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep2_3]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep2_4]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep2_5]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep2_6]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep2_7]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [resumeKeep2_8]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhavePre]
+  tclear hInit hInv
+  tintro n m
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhavePost]
+  tclear hInit hInv
+  tintro n m
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_0]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_1]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_2]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_3]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_4]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_5]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_6]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_7]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_8]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [recvIhaveKeep_9]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [repairPre]
+  tclear hInit hInv
+  tintro m n p f
+  tmonotone
+  fv_step
+
+prove_temporal_by [repairPost]
+  tclear hInit hInv
+  tintro m n p f
+  tmonotone
+  fv_step
+
+prove_temporal_by [repairKeep_0]
+  tclear hInit hInv
+  tintro m n p f x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [repairKeep_1]
+  tclear hInit hInv
+  tintro m n p f x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [repairKeep_2]
+  tclear hInit hInv
+  tintro m n p f x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [repairKeep_3]
+  tclear hInit hInv
+  tintro m n p f x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhavePre]
+  tclear hInit hInv
+  tintro n m
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhavePost]
+  tclear hInit hInv
+  tintro n m
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_0]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_1]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_2]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_3]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_4]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_5]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_6]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_7]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_8]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [dropIhaveKeep_9]
+  tclear hInit hInv
+  tintro n m x y
+  tmonotone
+  fv_step
+
+prove_temporal_by [workEnabled]
+  tclear hInit hNext hInv
+  tmonotone
+  veil_solve_temporal
+
+prove_temporal_by [quiet]
+  texit
+  intro e i h hprem
+  obtain ⟨hfin, hw0, hw1, hw2, hw3, hw4, hw5, hw6, hw7, hw8, henv⟩ := hprem
+  obtain ⟨xs, hxs⟩ := hfin
+  -- every pair of nodes, and the ranking's levels on them
+  let xs2 : List (node × node) := xs.flatMap (fun a => xs.map (fun b => (a, b)))
+  have hxs2 : ∀ x, x ∈ xs2 := by
+    intro x; rcases x with ⟨a, b⟩; simp [xs2, hxs]
+  let δ : Nat → node × node → σ → Prop := fun l x s => match l with
+    | 0 => lv0 x.1 x.2 th s
+    | 1 => lv1 x.1 x.2 th s
+    | 2 => lv2 x.1 x.2 th s
+    | 3 => lv3 x.1 x.2 th s
+    | 4 => lv4 x.1 x.2 th s
+    | 5 => lv5 x.1 x.2 th s
+    | 6 => lv6 x.1 x.2 th s
+    | 7 => lv7 x.1 x.2 th s
+    | 8 => lv8 x.1 x.2 th s
+    | 9 => lv9 x.1 x.2 th s
+    | _ => False
+  -- the transport's actions, by family (`dropIhave` last, not fair), and the environment's
+  let fam' : Nat → σ → σ → Prop := fun j s s' => match j with
+    | 0 => ∃ a, NoStallTransport.publish.ext.tr ρ σ node pk χ a th s s'
+    | 1 => ∃ m, ∃ n, ∃ p, ∃ f, NoStallTransport.fwd.ext.tr ρ σ node pk χ m n p f th s s'
+    | 2 => ∃ m, ∃ n, ∃ p, NoStallTransport.writePush.ext.tr ρ σ node pk χ m n p th s s'
+    | 3 => ∃ m, ∃ n, NoStallTransport.writeIhave.ext.tr ρ σ node pk χ m n th s s'
+    | 4 => ∃ m, ∃ n, NoStallTransport.writeOwed.ext.tr ρ σ node pk χ m n th s s'
+    | 5 => ∃ n, ∃ m, ∃ kp, NoStallTransport.recvChunk.ext.tr ρ σ node pk χ n m kp th s s'
+    | 6 => ∃ n, ∃ m, NoStallTransport.resume.ext.tr ρ σ node pk χ n m th s s'
+    | 7 => ∃ n, ∃ m, NoStallTransport.recvIhave.ext.tr ρ σ node pk χ n m th s s'
+    | 8 => ∃ m, ∃ n, ∃ p, ∃ f, NoStallTransport.repair.ext.tr ρ σ node pk χ m n p f th s s'
+    | _ => ∃ n, ∃ m, NoStallTransport.dropIhave.ext.tr ρ σ node pk χ n m th s s'
+  let own : σ → σ → Prop := fun s s' => ∃ j, fam' j s s'
+  let envf : Nat → σ → σ → Prop := fun j s s' => match j with
+    | 0 => ∃ n, NoStallTransport.install.ext.tr ρ σ node pk χ n th s s'
+    | 1 => ∃ n, NoStallTransport.stopPull.ext.tr ρ σ node pk χ n th s s'
+    | 2 => ∃ n, NoStallTransport.rebuild.ext.tr ρ σ node pk χ n th s s'
+    | 3 => ∃ m, ∃ n, NoStallTransport.learnClaim.ext.tr ρ σ node pk χ m n th s s'
+    | 4 => ∃ n, ∃ q, NoStallTransport.answerArrives.ext.tr ρ σ node pk χ n q th s s'
+    | 5 => ∃ n, ∃ m, ∃ f, NoStallTransport.join.ext.tr ρ σ node pk χ n m f th s s'
+    | 6 => ∃ n, ∃ m, NoStallTransport.leave.ext.tr ρ σ node pk χ n m th s s'
+    | _ => ∃ n, ∃ m, NoStallTransport.close.ext.tr ρ σ node pk χ n m th s s'
+  -- a step is sorted by its effect: one with an own action's effect is own, whatever action took it;
+  -- an environment step that changes nothing is a stutter
+  let env : σ → σ → Prop := fun s s' => (∃ j, envf j s s') ∧ ¬ own s s' ∧ s' ≠ s
+  refine FvQuiet.quiet_exec e i own env (fun s s' => s' = s) (fun j : Fin 9 => fam' j.val) _
+    (fun s' s => LentilLib.ListLex.List.lexLt Nat.lt_wfRel
+      (FvQuiet.counts xs2 δ 0 10 s') (FvQuiet.counts xs2 δ 0 10 s))
+    (FvQuiet.counts_wf xs2 δ 0 10) ?hsplit ?hdec (fun s s' h => h) (fun j s s' h => ⟨j.val, h⟩)
+    ?hwork ?hfair ?henv
+  case hsplit =>
+    intro k hk
+    have hk' := h.2.1 (k - i)
+    rw [show i + (k - i) = k by omega] at hk'
+    obtain ⟨label, hl⟩ := hk'
+    rcases Classical.em (e (k + 1) = e k) with hs | hs
+    · exact Or.inr (Or.inr hs)
+    rcases Classical.em (own (e k) (e (k + 1))) with ho | ho
+    · exact Or.inl ho
+    cases label with
+    | publish a => exact Or.inl ⟨0, a, hl⟩
+    | fwd m n p f => exact Or.inl ⟨1, m, n, p, f, hl⟩
+    | writePush m n p => exact Or.inl ⟨2, m, n, p, hl⟩
+    | writeIhave m n => exact Or.inl ⟨3, m, n, hl⟩
+    | writeOwed m n => exact Or.inl ⟨4, m, n, hl⟩
+    | recvChunk n m kp => exact Or.inl ⟨5, n, m, kp, hl⟩
+    | resume n m => exact Or.inl ⟨6, n, m, hl⟩
+    | recvIhave n m => exact Or.inl ⟨7, n, m, hl⟩
+    | repair m n p f => exact Or.inl ⟨8, m, n, p, f, hl⟩
+    | dropIhave n m => exact Or.inl ⟨9, n, m, hl⟩
+    | install n => exact Or.inr (Or.inl ⟨⟨0, n, hl⟩, ho, hs⟩)
+    | stopPull n => exact Or.inr (Or.inl ⟨⟨1, n, hl⟩, ho, hs⟩)
+    | rebuild n => exact Or.inr (Or.inl ⟨⟨2, n, hl⟩, ho, hs⟩)
+    | learnClaim m n => exact Or.inr (Or.inl ⟨⟨3, m, n, hl⟩, ho, hs⟩)
+    | answerArrives n q => exact Or.inr (Or.inl ⟨⟨4, n, q, hl⟩, ho, hs⟩)
+    | join n m f => exact Or.inr (Or.inl ⟨⟨5, n, m, f, hl⟩, ho, hs⟩)
+    | leave n m => exact Or.inr (Or.inl ⟨⟨6, n, m, hl⟩, ho, hs⟩)
+    | close n m => exact Or.inr (Or.inl ⟨⟨7, n, m, hl⟩, ho, hs⟩)
+    | stutter => exact absurd hl.symm hs
+  case hdec =>
+    intro k hk hown
+    obtain ⟨k', rfl⟩ : ∃ k', k = i + k' := ⟨k - i, by omega⟩
+    obtain ⟨j, hj⟩ := hown
+    rcases j with _ | _ | _ | _ | _ | _ | _ | _ | _ | j
+    · -- publish
+      obtain ⟨a, hs⟩ := hj
+      refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 0 _ _ (by omega) (by omega) ?_
+        ⟨(a, a), publishPre._proof th hass e i h a k' hs,
+          publishPost._proof th hass e i h a k' hs⟩
+      intro l _ hl x hx
+      rcases x with ⟨x, y⟩
+      rcases l with _ | l
+      · exact publishKeep_0._proof th hass e i h a x y k' hs hx
+      · omega
+    · -- fwd
+      obtain ⟨m, n, p, f, hs⟩ := hj
+      refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 2 _ _ (by omega) (by omega) ?_
+        ⟨(m, n), fwdPre._proof th hass e i h m n p f k' hs,
+          fwdPost._proof th hass e i h m n p f k' hs⟩
+      intro l _ hl x hx
+      rcases x with ⟨x, y⟩
+      rcases l with _ | _ | _ | l
+      · exact fwdKeep_0._proof th hass e i h m n p f x y k' hs hx
+      · exact fwdKeep_1._proof th hass e i h m n p f x y k' hs hx
+      · exact fwdKeep_2._proof th hass e i h m n p f x y k' hs hx
+      · omega
+    · -- writePush
+      obtain ⟨m, n, p, hs⟩ := hj
+      refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 4 _ _ (by omega) (by omega) ?_
+        ⟨(m, n), writePushPre._proof th hass e i h m n p k' hs,
+          writePushPost._proof th hass e i h m n p k' hs⟩
+      intro l _ hl x hx
+      rcases x with ⟨x, y⟩
+      rcases l with _ | _ | _ | _ | _ | l
+      · exact writePushKeep_0._proof th hass e i h m n p x y k' hs hx
+      · exact writePushKeep_1._proof th hass e i h m n p x y k' hs hx
+      · exact writePushKeep_2._proof th hass e i h m n p x y k' hs hx
+      · exact writePushKeep_3._proof th hass e i h m n p x y k' hs hx
+      · exact writePushKeep_4._proof th hass e i h m n p x y k' hs hx
+      · omega
+    · -- writeIhave
+      obtain ⟨m, n, hs⟩ := hj
+      refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 5 _ _ (by omega) (by omega) ?_
+        ⟨(m, n), writeIhavePre._proof th hass e i h m n k' hs,
+          writeIhavePost._proof th hass e i h m n k' hs⟩
+      intro l _ hl x hx
+      rcases x with ⟨x, y⟩
+      rcases l with _ | _ | _ | _ | _ | _ | l
+      · exact writeIhaveKeep_0._proof th hass e i h m n x y k' hs hx
+      · exact writeIhaveKeep_1._proof th hass e i h m n x y k' hs hx
+      · exact writeIhaveKeep_2._proof th hass e i h m n x y k' hs hx
+      · exact writeIhaveKeep_3._proof th hass e i h m n x y k' hs hx
+      · exact writeIhaveKeep_4._proof th hass e i h m n x y k' hs hx
+      · exact writeIhaveKeep_5._proof th hass e i h m n x y k' hs hx
+      · omega
+    · -- writeOwed
+      obtain ⟨m, n, hs⟩ := hj
+      refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 6 _ _ (by omega) (by omega) ?_
+        ⟨(m, n), writeOwedPre._proof th hass e i h m n k' hs,
+          writeOwedPost._proof th hass e i h m n k' hs⟩
+      intro l _ hl x hx
+      rcases x with ⟨x, y⟩
+      rcases l with _ | _ | _ | _ | _ | _ | _ | l
+      · exact writeOwedKeep_0._proof th hass e i h m n x y k' hs hx
+      · exact writeOwedKeep_1._proof th hass e i h m n x y k' hs hx
+      · exact writeOwedKeep_2._proof th hass e i h m n x y k' hs hx
+      · exact writeOwedKeep_3._proof th hass e i h m n x y k' hs hx
+      · exact writeOwedKeep_4._proof th hass e i h m n x y k' hs hx
+      · exact writeOwedKeep_5._proof th hass e i h m n x y k' hs hx
+      · exact writeOwedKeep_6._proof th hass e i h m n x y k' hs hx
+      · omega
+    · -- recvChunk
+      obtain ⟨n, m, kp, hs⟩ := hj
+      by_cases hc : cRecv n th (e (i + k'))
+      · -- level 1
+        refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 1 _ _ (by omega) (by omega) ?_
+          ⟨(n, n), recvChunkPre1._proof th hass e i h n m kp k' hs hc,
+            recvChunkPost1._proof th hass e i h n m kp k' hs hc⟩
+        intro l _ hl x hx
+        rcases x with ⟨x, y⟩
+        rcases l with _ | _ | l
+        · exact recvChunkKeep1_0._proof th hass e i h n m kp x y k' hs hc hx
+        · exact recvChunkKeep1_1._proof th hass e i h n m kp x y k' hs hc hx
+        · omega
+      · -- level 7
+        refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 7 _ _ (by omega) (by omega) ?_
+          ⟨(m, n), recvChunkPre2._proof th hass e i h n m kp k' hs hc,
+            recvChunkPost2._proof th hass e i h n m kp k' hs hc⟩
+        intro l _ hl x hx
+        rcases x with ⟨x, y⟩
+        rcases l with _ | _ | _ | _ | _ | _ | _ | _ | l
+        · exact recvChunkKeep2_0._proof th hass e i h n m kp x y k' hs hc hx
+        · exact recvChunkKeep2_1._proof th hass e i h n m kp x y k' hs hc hx
+        · exact recvChunkKeep2_2._proof th hass e i h n m kp x y k' hs hc hx
+        · exact recvChunkKeep2_3._proof th hass e i h n m kp x y k' hs hc hx
+        · exact recvChunkKeep2_4._proof th hass e i h n m kp x y k' hs hc hx
+        · exact recvChunkKeep2_5._proof th hass e i h n m kp x y k' hs hc hx
+        · exact recvChunkKeep2_6._proof th hass e i h n m kp x y k' hs hc hx
+        · exact recvChunkKeep2_7._proof th hass e i h n m kp x y k' hs hc hx
+        · omega
+    · -- resume
+      obtain ⟨n, m, hs⟩ := hj
+      by_cases hc : cResume n th (e (i + k'))
+      · -- level 1
+        refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 1 _ _ (by omega) (by omega) ?_
+          ⟨(n, n), resumePre1._proof th hass e i h n m k' hs hc,
+            resumePost1._proof th hass e i h n m k' hs hc⟩
+        intro l _ hl x hx
+        rcases x with ⟨x, y⟩
+        rcases l with _ | _ | l
+        · exact resumeKeep1_0._proof th hass e i h n m x y k' hs hc hx
+        · exact resumeKeep1_1._proof th hass e i h n m x y k' hs hc hx
+        · omega
+      · -- level 8
+        refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 8 _ _ (by omega) (by omega) ?_
+          ⟨(n, m), resumePre2._proof th hass e i h n m k' hs hc,
+            resumePost2._proof th hass e i h n m k' hs hc⟩
+        intro l _ hl x hx
+        rcases x with ⟨x, y⟩
+        rcases l with _ | _ | _ | _ | _ | _ | _ | _ | _ | l
+        · exact resumeKeep2_0._proof th hass e i h n m x y k' hs hc hx
+        · exact resumeKeep2_1._proof th hass e i h n m x y k' hs hc hx
+        · exact resumeKeep2_2._proof th hass e i h n m x y k' hs hc hx
+        · exact resumeKeep2_3._proof th hass e i h n m x y k' hs hc hx
+        · exact resumeKeep2_4._proof th hass e i h n m x y k' hs hc hx
+        · exact resumeKeep2_5._proof th hass e i h n m x y k' hs hc hx
+        · exact resumeKeep2_6._proof th hass e i h n m x y k' hs hc hx
+        · exact resumeKeep2_7._proof th hass e i h n m x y k' hs hc hx
+        · exact resumeKeep2_8._proof th hass e i h n m x y k' hs hc hx
+        · omega
+    · -- recvIhave
+      obtain ⟨n, m, hs⟩ := hj
+      refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 9 _ _ (by omega) (by omega) ?_
+        ⟨(m, n), recvIhavePre._proof th hass e i h n m k' hs,
+          recvIhavePost._proof th hass e i h n m k' hs⟩
+      intro l _ hl x hx
+      rcases x with ⟨x, y⟩
+      rcases l with _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | l
+      · exact recvIhaveKeep_0._proof th hass e i h n m x y k' hs hx
+      · exact recvIhaveKeep_1._proof th hass e i h n m x y k' hs hx
+      · exact recvIhaveKeep_2._proof th hass e i h n m x y k' hs hx
+      · exact recvIhaveKeep_3._proof th hass e i h n m x y k' hs hx
+      · exact recvIhaveKeep_4._proof th hass e i h n m x y k' hs hx
+      · exact recvIhaveKeep_5._proof th hass e i h n m x y k' hs hx
+      · exact recvIhaveKeep_6._proof th hass e i h n m x y k' hs hx
+      · exact recvIhaveKeep_7._proof th hass e i h n m x y k' hs hx
+      · exact recvIhaveKeep_8._proof th hass e i h n m x y k' hs hx
+      · exact recvIhaveKeep_9._proof th hass e i h n m x y k' hs hx
+      · omega
+    · -- repair
+      obtain ⟨m, n, p, f, hs⟩ := hj
+      refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 3 _ _ (by omega) (by omega) ?_
+        ⟨(m, n), repairPre._proof th hass e i h m n p f k' hs,
+          repairPost._proof th hass e i h m n p f k' hs⟩
+      intro l _ hl x hx
+      rcases x with ⟨x, y⟩
+      rcases l with _ | _ | _ | _ | l
+      · exact repairKeep_0._proof th hass e i h m n p f x y k' hs hx
+      · exact repairKeep_1._proof th hass e i h m n p f x y k' hs hx
+      · exact repairKeep_2._proof th hass e i h m n p f x y k' hs hx
+      · exact repairKeep_3._proof th hass e i h m n p f x y k' hs hx
+      · omega
+    · -- dropIhave
+      obtain ⟨n, m, hs⟩ := hj
+      refine FvQuiet.counts_dec xs2 hxs2 δ 10 0 9 _ _ (by omega) (by omega) ?_
+        ⟨(m, n), dropIhavePre._proof th hass e i h n m k' hs,
+          dropIhavePost._proof th hass e i h n m k' hs⟩
+      intro l _ hl x hx
+      rcases x with ⟨x, y⟩
+      rcases l with _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | l
+      · exact dropIhaveKeep_0._proof th hass e i h n m x y k' hs hx
+      · exact dropIhaveKeep_1._proof th hass e i h n m x y k' hs hx
+      · exact dropIhaveKeep_2._proof th hass e i h n m x y k' hs hx
+      · exact dropIhaveKeep_3._proof th hass e i h n m x y k' hs hx
+      · exact dropIhaveKeep_4._proof th hass e i h n m x y k' hs hx
+      · exact dropIhaveKeep_5._proof th hass e i h n m x y k' hs hx
+      · exact dropIhaveKeep_6._proof th hass e i h n m x y k' hs hx
+      · exact dropIhaveKeep_7._proof th hass e i h n m x y k' hs hx
+      · exact dropIhaveKeep_8._proof th hass e i h n m x y k' hs hx
+      · exact dropIhaveKeep_9._proof th hass e i h n m x y k' hs hx
+      · omega
+  case hwork =>
+    intro k hk hw
+    obtain ⟨k', rfl⟩ : ∃ k', k = i + k' := ⟨k - i, by omega⟩
+    rcases workEnabled._proof th hass e i h k' hw with
+      ⟨s0, s', hs'⟩ | ⟨m, n, s', hs'⟩ | ⟨m, n, s', hs'⟩ | ⟨m, n, s', hs'⟩ | ⟨m, n, s', hs'⟩ | ⟨n, m, s', hs'⟩ | ⟨n, m, s', hs'⟩ | ⟨n, m, s', hs'⟩ | ⟨m, n, s', hs'⟩
+    · exact ⟨⟨0, by omega⟩, s', by dsimp only; exact ⟨s0, hs'⟩⟩
+    · exact ⟨⟨1, by omega⟩, s', by dsimp only; exact ⟨m, n, true, false, hs'⟩⟩
+    · exact ⟨⟨2, by omega⟩, s', by dsimp only; exact ⟨m, n, false, hs'⟩⟩
+    · exact ⟨⟨3, by omega⟩, s', by dsimp only; exact ⟨m, n, hs'⟩⟩
+    · exact ⟨⟨4, by omega⟩, s', by dsimp only; exact ⟨m, n, hs'⟩⟩
+    · exact ⟨⟨5, by omega⟩, s', by dsimp only; exact ⟨n, m, true, hs'⟩⟩
+    · exact ⟨⟨6, by omega⟩, s', by dsimp only; exact ⟨n, m, hs'⟩⟩
+    · exact ⟨⟨7, by omega⟩, s', by dsimp only; exact ⟨n, m, hs'⟩⟩
+    · exact ⟨⟨8, by omega⟩, s', by dsimp only; exact ⟨m, n, true, false, hs'⟩⟩
+  case hfair =>
+    intro j
+    match j with
+    | ⟨0, _⟩ => exact hw0
+    | ⟨1, _⟩ => exact hw1
+    | ⟨2, _⟩ => exact hw2
+    | ⟨3, _⟩ => exact hw3
+    | ⟨4, _⟩ => exact hw4
+    | ⟨5, _⟩ => exact hw5
+    | ⟨6, _⟩ => exact hw6
+    | ⟨7, _⟩ => exact hw7
+    | ⟨8, _⟩ => exact hw8
+    | ⟨j + 9, hj⟩ => exact absurd hj (by omega)
+  case henv =>
+    obtain ⟨k0, hk0⟩ := henv
+    refine ⟨k0, fun k ⟨⟨j, hj⟩, hno, hne⟩ => ?_⟩
+    rcases hk0 k with hst | ho0 | ho1 | ho2 | ho3 | ho4 | ho5 | ho6 | ho7 | ho8 | ho9 | ⟨h0, h1, h2, h3, h4, h5, h6, h7⟩
+    · exact hne (Eq.symm hst)
+    · obtain ⟨a, hh⟩ := ho0; exact hno ⟨0, a, hh⟩
+    · obtain ⟨m, n, p, f, hh⟩ := ho1; exact hno ⟨1, m, n, p, f, hh⟩
+    · obtain ⟨m, n, p, hh⟩ := ho2; exact hno ⟨2, m, n, p, hh⟩
+    · obtain ⟨m, n, hh⟩ := ho3; exact hno ⟨3, m, n, hh⟩
+    · obtain ⟨m, n, hh⟩ := ho4; exact hno ⟨4, m, n, hh⟩
+    · obtain ⟨n, m, kp, hh⟩ := ho5; exact hno ⟨5, n, m, kp, hh⟩
+    · obtain ⟨n, m, hh⟩ := ho6; exact hno ⟨6, n, m, hh⟩
+    · obtain ⟨n, m, hh⟩ := ho7; exact hno ⟨7, n, m, hh⟩
+    · obtain ⟨m, n, p, f, hh⟩ := ho8; exact hno ⟨8, m, n, p, f, hh⟩
+    · obtain ⟨n, m, hh⟩ := ho9; exact hno ⟨9, n, m, hh⟩
+    rcases j with _ | _ | _ | _ | _ | _ | _ | j
+    · obtain ⟨n, hs⟩ := hj; exact h0 ⟨n, hs⟩
+    · obtain ⟨n, hs⟩ := hj; exact h1 ⟨n, hs⟩
+    · obtain ⟨n, hs⟩ := hj; exact h2 ⟨n, hs⟩
+    · obtain ⟨m, n, hs⟩ := hj; exact h3 ⟨m, n, hs⟩
+    · obtain ⟨n, q, hs⟩ := hj; exact h4 ⟨n, q, hs⟩
+    · obtain ⟨n, m, f, hs⟩ := hj; exact h5 ⟨n, m, f, hs⟩
+    · obtain ⟨n, m, hs⟩ := hj; exact h6 ⟨n, m, hs⟩
+    · obtain ⟨n, m, hs⟩ := hj; exact h7 ⟨n, m, hs⟩
+
 
 -- the audit, every failure a build error: the verification conditions, derived from the module
 -- itself (the initializer and each action, against `doesNotThrow` and each safety and invariant
