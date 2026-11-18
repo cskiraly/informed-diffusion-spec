@@ -17,6 +17,12 @@ PRUNE; an IHAVE of g, one of h, and an entry with an IHAVE of each; asks of g by
 of g by id. Its urgent lane: a HAVE of g, a HAVE of h, and a HAVE of g with an IHAVE of g beside it. Peer 3's
 normal lane: a push, an ask and an IHAVE of g's, and a push of h's. What is owed to peer 1, offers and answers, of
 both groups. After `drop_group(g)` every part naming g must be gone but the HAVEs, and every part naming h stay.
+
+An entry that loses its chunk and keeps control is no longer an answer: its `solicited` mark goes with the chunk.
+Every entry the documents queue as an answer has a chunk (§4.1's `respond`, §7.2's owed answer, protocol-v2.md's
+`serve_standing` and `serve_waiting_probe`), and protocol-v2.md §4.12's `choose`, under `ANSWERS_FIRST`, takes the
+rarest marked entry by its chunk. So no entry may be marked after the drop but h's answer, and with `--doc v2`
+`choose` (`ANSWERS_FIRST`, card 9) must take h's answer from peer 1's normal lane.
 """
 import sys
 from pathlib import Path
@@ -110,6 +116,18 @@ def check(doc):
          ["idontwant g[0]", "idontwant h[0]", "idontwant g[0, 1]"])
     line("peer 3's normal lane, after", after["3 normal"], ["chunk h3"])
     line("what is owed to peer 1, after", after["owed"], {"owed": {"h": [2]}, "owed_answers": {"h": [4]}})
+    marked = [show(e) for q in (qp, qq) for lane in (q.urgent, q.normal) for e in lane if e.solicited]
+    line("the entries still marked as answers, after: h's answer alone (an entry whose chunk went is no answer)",
+         marked, ["chunk h1; iwant h#3; prune prune"])
+    if doc == "v2":                                         # protocol-v2.md §4.12's choose lists every answer, and
+        ns["received"][H].set(0)                            #   pick reads its chunk; h0's push forwards a chunk the
+        ns["ANSWERS_FIRST"], ns["RAREST"] = True, True      #   node received, so it is not a source's own (§1.6)
+        try:
+            picked = show(qp.normal[ns["choose"](qp)])
+        except Exception as x:
+            picked = f"raised {type(x).__name__}: {x}"
+        line("ANSWERS_FIRST and card 9: the entry choose takes from peer 1's normal lane", picked,
+             "chunk h1; iwant h#3; prune prune")
     return bad
 
 

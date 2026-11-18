@@ -218,7 +218,9 @@ where one has a control that must come out the other way, it is named:
   lanes of every queue, by index and by id, with what is owed of it, and keeps its HAVEs (§4.6, §8.1),
   in both documents. Where an entry carries another group's part too (an answer with the frame's asks
   and PRUNE, the IHAVEs of what is owed), that part stays, and the entry with it; the controls are
-  the other group's pushes, asks, IHAVEs and owed bits, which stay.
+  the other group's pushes, asks, IHAVEs and owed bits, which stay. An entry kept without its chunk
+  is no longer an answer, so with `--doc v2` §4.12's `choose` under `ANSWERS_FIRST` takes the other
+  group's answer; the other group's answer keeps its mark.
 - `discard_paced_known.py`: after `drop_group`, the pace ticks (card 15, §6.4) announce the group to
   nobody, in both documents: its ids leave every paced job, and a job that named it alone goes (§4.6,
   §8.1). The controls: the other group's ids in the same jobs are still announced, and a job that was

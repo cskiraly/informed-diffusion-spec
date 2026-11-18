@@ -737,7 +737,7 @@ class Node:
                     kept = []
                     for e in getattr(q, lane):
                         if e.chunk is not None and e.chunk.group == g:
-                            e.chunk = None
+                            e.chunk, e.solicited = None, False      # without its chunk it is no answer
                         for m in (e.control.items if e.control else ()):
                             if m.kind in ("ihave", "iwant"):
                                 m.ids = [x for x in m.ids if not of_g(x)]
