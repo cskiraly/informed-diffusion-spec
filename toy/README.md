@@ -103,7 +103,7 @@ needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting
 takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Thirty-one scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Thirty-two scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -214,6 +214,11 @@ where one has a control that must come out the other way, it is named:
   acknowledged with a HAVE, since `accepted` is "the id was stored" (§4.2, §8.1), in both documents.
   The controls: a copy before the drop is acknowledged, and a copy of a chunk whose first copy came
   after the drop, seen and not stored, is not.
+- `discard_queued_known.py`: `drop_group` takes the group's chunks, IHAVEs and IWANTs out of both
+  lanes of every queue, by index and by id, with what is owed of it, and keeps its HAVEs (§4.6, §8.1),
+  in both documents. Where an entry carries another group's part too (an answer with the frame's asks
+  and PRUNE, the IHAVEs of what is owed), that part stays, and the entry with it; the controls are
+  the other group's pushes, asks, IHAVEs and owed bits, which stay.
 - `close_source_known.py`: a source's link closing with a copy in flight releases the copy's room, and the
   chunk is not acknowledged for it: it does not join the source's holding and is not offered. The control: the
   copy's window timeout does acknowledge it.

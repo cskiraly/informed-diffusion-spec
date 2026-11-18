@@ -728,9 +728,22 @@ class Node:
                     for p in list(ns["tried"].get(a, {})):
                         ns["promises"].pop((a, p), None)
 
-        def discard_queued(g):
+        def discard_queued(g):          # g's chunks, IHAVEs and IWANTs leave both lanes of every queue, an entry
+            def of_g(x):                #   only once nothing else is left of it; HAVEs stay (§4.6, §8.1)
+                gi = x if isinstance(x, Wm.HaveBitmap) else group_index(x)
+                return gi is not None and gi.group == g
             for q in ns["queue"].values():
-                q.normal = [e for e in q.normal if not (e.chunk is not None and e.chunk.group == g)]
+                for lane in ("urgent", "normal"):
+                    kept = []
+                    for e in getattr(q, lane):
+                        if e.chunk is not None and e.chunk.group == g:
+                            e.chunk = None
+                        for m in (e.control.items if e.control else ()):
+                            if m.kind in ("ihave", "iwant"):
+                                m.ids = [x for x in m.ids if not of_g(x)]
+                        if not e.is_empty():
+                            kept.append(e)
+                    setattr(q, lane, kept)
             for owed in (ns["owed"], ns["owed_answers"]):
                 for groups in owed.values():
                     groups.pop(g, None)
