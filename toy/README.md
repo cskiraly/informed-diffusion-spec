@@ -103,12 +103,16 @@ needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting
 takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Twenty-nine scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Thirty scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
   offer. And an IHAVE bitmap of an index beyond the group's known count is ignored and penalised;
   bitmaps within it, or of a group whose count is not known, leave an offer.
+- `have_length_known.py`: a HAVE, and an IHAVE's bitmap, longer than `MAX_HAVE_BYTES` (index 8192, in
+  1025 bytes) is ignored and penalised, also where the group's count is not known (§2, §8.2), in both
+  documents; at 1024 bytes, the controls, both are taken. The count's check stays: in a group known
+  to have 4 chunks, a HAVE of index 4 is ignored and penalised, one of index 3 taken.
 - `tie_read_known.py`: a peer that was only asked about has no tie; the tied peer beside it must
   lose its park.
 - `tie_helpers_known.py`: `tie_room`, `drop_offer`, and `close_promises` with `of`, by the values

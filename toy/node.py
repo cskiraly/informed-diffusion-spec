@@ -745,7 +745,9 @@ class Node:
         def mark_seen(mid):
             self._seen.add(mid)
 
-        def valid_have(h):
+        def valid_have(h):              # §8.2: at most MAX_HAVE_BYTES, trailing zero bytes dropped (§2), and no
+            if (h.bits.v.bit_length() + 7) // 8 > ns["MAX_HAVE_BYTES"]:    #   index at or beyond N once the
+                return False            #   descriptor is known
             d = ns["desc"].get(h.group)
             return d is None or h.bits.v >> d.count == 0
 
