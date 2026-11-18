@@ -59,8 +59,8 @@ for the spec's rules; one of the options `protocol.md` §4.6 lists for relabelle
 it leaves open): a copy passes level 1 against either block, so the first installation of either is
 the node's installation (the `install` actions), a copy waits only before it, whatever root it
 names, and it releases every tie; the other block's gate alone does not arise. An adversary's tie
-after it (`advTieElse`), its release and its drop stay, as an over-approximation (under the rule's
-text such a copy, one whose slot is not its group's, is rejected). Offers then resolve at a node
+after it (`advTieElse`), its release and its drop stay, as an over-approximation (under a draft of
+the rule such a copy, one whose slot is not its group's, is rejected). Offers then resolve at a node
 with either block (`offers_resolve_any`), and without the rule a node with only the other block
 stalls (`ka_other_block_stalls`). Relabelled copies need nothing more here: an answer, whatever root
 it names, passes level 1 at a node with either block, and a transport model under the rule, not in
@@ -469,8 +469,8 @@ action advTie (n a : node) {
 -- that never installs, or one whose bid commits another group (§4.2); with ROOT_TIED the adversary
 -- is tied to it, and its promise closes. Kept under level 1 by group, with `releaseElse` and
 -- `dropTie`, as an over-approximation: there a copy of the group waits only before n's
--- installation, whatever root it names, unless its slot is not its group's, which the rule's text
--- rejects
+-- installation, whatever root it names, unless its slot is not its group's, which a draft of the
+-- rule rejects
 action advTieElse (n a : node) {
   require adv a ∧ ¬ adv n ∧ n ≠ a
   if rootTied then
@@ -827,11 +827,13 @@ ghost relation hon (n : node) := ¬ adv n
 An honest node n with the builder's block lacks the chunk. Its honest provider h offered the chunk
 while parked by another chunk, and is not asked once more. The adversary a offers, is asked, and
 closes before its promise falls due, again and again: the close does not park it (§6.1), and on
-its new connection it is an announcer that is not parked, so the retry never finds every announcer
-parked, and the last resort never arms. The loop's four steps lead from a state `f14` back to one;
-the assertions say which of the honest nodes' machinery events are pending at each of the loop's
-states, so the run that repeats the loop is weakly fair. F14 is open: `protocol.md` §6.1 names it
-("an announcer that is never parked holds the last resort off") and does not address it. -/
+its new connection it is an announcer that is not parked. The retry would find every untied
+announcer parked only at the one state between the close and the new offer; enabled there alone,
+it is not forced by weak fairness, and the last resort never arms. The loop's four steps lead from
+a state `f14` back to one; the assertions say which of the honest nodes' machinery events are
+pending at each of the loop's states, so the run that repeats the loop is weakly fair. F14 is open:
+`protocol.md` §6.1 names it ("an announcer that is never parked holds the last resort off") and
+does not address it. -/
 
 -- the three roles, in an instance of three nodes
 ghost relation f14Roles (n : node) (h : node) (a : node) :=
@@ -2044,8 +2046,9 @@ sat trace [ka_expiry_keeps_promise] {
 -- to a, the ask's window ends, a closes before its promise falls due, and a offers again and is asked:
 -- `f14` again, with the same three nodes and a close behind. One trace per state of the loop, each
 -- asserting at its end (Veil's simplification of one trace with the five assertions exceeds its
--- steps); in an instance of three nodes with these roles every step's arguments are forced, so the
--- five are one run, cut at each state
+-- steps); in an instance of three nodes with these roles every step's arguments are forced but the
+-- order of `close`'s two nodes, which changes only the trace marker `closedAsk`, so the five are one
+-- run, cut at each state
 sat trace [ka_f14_s0] {
   installTakenIn
   install

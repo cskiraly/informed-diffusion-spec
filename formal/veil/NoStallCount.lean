@@ -74,7 +74,7 @@ theorem every_connected_node_stops {Node : Type} {N : Nat} (K : Nat)
     (mesh : Node → Node → Prop) (src : Node)
     (rcv : Node → Fin N → Bool) (stop : Node → Prop)
     (source_stopped : stop src)
-    -- a node stops at its K-th received chunk; the source has published at least K
+    -- a node stops at its K-th received chunk (so the source, stopped, has published at least K)
     (stopped_has_K : ∀ n, stop n → K ≤ count (rcv n))
     -- nothing pending: a node that has received K chunks has made its decode claim
     (K_has_stopped : ∀ n, K ≤ count (rcv n) → stop n)
