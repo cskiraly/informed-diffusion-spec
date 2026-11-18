@@ -43,35 +43,35 @@ installation releases it (`releaseElse`: the park lifts, the last-resort count c
 again; at any time once the gate is open, any number of times, where §4.2 allows one per block), a
 root that never installs (the tie stays), or one whose bid commits another group (`dropTie`: dropped
 with the adversary's offers, the retry armed once the gate is open). A sender tied to any root is
-passed over (`tiedToRoot`, §4.2's `tied_to_root`). **F13**: v0.8's `drop_tie`, as first tagged,
-drops the sender's offers and leaves its asks; an ask still queued is written once the tie is gone,
-the retry, finding no announcer, ends, and the sender's next offer is recorded with nothing
+passed over (`tiedToRoot`, §4.2's `tied_to_root`). **F13**: where `drop_tie` drops the sender's
+offers and leaves its asks (without v0.8's rule below), an ask still queued is written once the tie
+is gone, the retry, finding no announcer, ends, and the sender's next offer is recorded with nothing
 scheduled, the ask outstanding (§4.4); while it is, the last resort for a parked honest announcer
 returns at once (§6.1), and the promise falls due and only parks (`ka_drop_keeps_asks`). An offer's
 expiry, 30 s after the announcer's last offer of the group (§6.1, §8.1), leaves the ask the same way
 (`ka_expiry_keeps_asks`); an adversary's offers expire here at any time (`advExpire`), since it
 chooses when it last offers, and an honest announcer's outlast diffusion, as Q1 assumes. F13's
-rule, v0.8's `drop_offer` since 2026-10-28: where a peer's offers of an index are dropped, by
-`drop_tie` or by their expiry, its queued asks of it go (`dropAsks`) and its promise for it closes
-(`dropPromises`); an ask written just before the expiry keeps the sender outstanding through its
-promise (`ka_expiry_keeps_promise`). **Under level 1 by group** (`byGroup`: a candidate rule, off
-for the spec's rules; one of the options `protocol.md` §4.6 lists for relabelled copies, F12, which
-it leaves open): a copy passes level 1 against either block, so the first installation of either is
-the node's installation (the `install` actions), a copy waits only before it, whatever root it
-names, and it releases every tie; the other block's gate alone does not arise. An adversary's tie
-after it (`advTieElse`), its release and its drop stay, as an over-approximation (under a draft of
-the rule such a copy, one whose slot is not its group's, is rejected). Offers then resolve at a node
-with either block (`offers_resolve_any`), and without the rule a node with only the other block
-stalls (`ka_other_block_stalls`). Relabelled copies need nothing more here: an answer, whatever root
-it names, passes level 1 at a node with either block, and a transport model under the rule, not in
-this folder, shows that no copy waits there once it is quiet, so no answer is taken for a waiting
-copy: where an installation takes every waiting copy of the group in, in the same handler and
-before the ledger is asked for, as a draft of the rule does, no copy of the group waits after it, so
-this holds at every step after the installation, not only once the transport is quiet. Without the
-rule, excluded, as the honest model's assumption has it: an adversary's copy that names the
-proposer's other block and so validates at a node on it (a relabelled copy, F12): every copy an
-honest node can take in names the builder's block, and a copy that names the other block's root
-fails its proof when that block installs.
+rule, v0.8's `drop_offer` (§6.1: dropped offers take their ask with them): where a peer's offers of
+an index are dropped, by `drop_tie` or by their expiry, its queued asks of it go (`dropAsks`) and
+its promise for it closes (`dropPromises`); an ask written just before the expiry keeps the sender
+outstanding through its promise (`ka_expiry_keeps_promise`). **Under level 1 by group** (`byGroup`:
+a candidate rule, off for the spec's rules; one of the options `protocol.md` §4.6 lists for
+relabelled copies, F12, which it leaves open): a copy passes level 1 against either block, so the
+first installation of either is the node's installation (the `install` actions), a copy waits only
+before it, whatever root it names, and it releases every tie; the other block's gate alone does not
+arise. An adversary's tie after it (`advTieElse`), its release and its drop stay, as an
+over-approximation (under a draft of the rule such a copy, one whose slot is not its group's, is
+rejected). Offers then resolve at a node with either block (`offers_resolve_any`), and without the
+rule a node with only the other block stalls (`ka_other_block_stalls`). Relabelled copies need
+nothing more here: an answer, whatever root it names, passes level 1 at a node with either block,
+and a transport model under the rule, not in this folder, shows that no copy waits there once it is
+quiet, so no answer is taken for a waiting copy: where an installation takes every waiting copy of
+the group in, in the same handler and before the ledger is asked for, as a draft of the rule does,
+no copy of the group waits after it, so this holds at every step after the installation, not only
+once the transport is quiet. Without the rule, excluded, as the honest model's assumption has it:
+an adversary's copy that names the proposer's other block and so validates at a node on it (a
+relabelled copy, F12): every copy an honest node can take in names the builder's block, and a copy
+that names the other block's root fails its proof when that block installs.
 The offers from a parked announcer are split by case, and offers go to honest receivers, so that
 each condition's proof can be rebuilt for the kernel (as in `NoStallAskAdv.lean`).
 

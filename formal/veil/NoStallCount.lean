@@ -278,7 +278,7 @@ theorem holder_needed : ∃ (rcv : Bool → Fin 1 → Bool) (stop : Bool → Pro
     | here => rcases hb with hb | hb <;> exact absurd hb (by decide)
     | step _ hm => exact hm.elim
 
-/-- K distinct chunks are needed: a link from the only holder, which holds one chunk of the two
+/-- K distinct chunks are needed: one link, both nodes holding the same one of the two chunks
 needed (K = 2); every other hypothesis of `stops_from_holders` holds, and the receiver has not
 stopped -/
 theorem enough_needed : ∃ (rcv : Bool → Fin 2 → Bool) (stop : Bool → Prop) (S : Fin 2 → Bool),
