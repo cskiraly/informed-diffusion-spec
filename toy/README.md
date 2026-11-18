@@ -103,7 +103,7 @@ needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting
 takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Twenty-eight scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Twenty-nine scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -201,6 +201,10 @@ where one has a control that must come out the other way, it is named:
   anyone, or put in the gossip history, as `protocol.md`'s `on_validated` returns. The control: with the
   group live, the same chunk is stored, pushed or offered, and put there. And a row's repair
   (`push_rebuilt`) sends nothing under a dropped column; the control, the column live, sends.
+- `dropped_dup_known.py`: after a node drops a group, a copy of a chunk it stored before is still
+  acknowledged with a HAVE, since `accepted` is "the id was stored" (§4.2, §8.1), in both documents.
+  The controls: a copy before the drop is acknowledged, and a copy of a chunk whose first copy came
+  after the drop, seen and not stored, is not.
 - `close_source_known.py`: a source's link closing with a copy in flight releases the copy's room, and the
   chunk is not acknowledged for it: it does not join the source's holding and is not offered. The control: the
   copy's window timeout does acknowledge it.
@@ -318,7 +322,8 @@ What the toy adds to the document, and nothing else:
   owed for it (§4.1) is dropped when the writer queues it again.
 - **What the runs leave out:** every block installs at its publish, at every node, so nothing is
   deferred or asked for at installation, except under `--late-block` (the `late-block` cell,
-  above); groups do not expire; connections do not close; the
+  above); groups do not expire, and none is dropped, since a decode always returns the source's
+  chunks and nothing fails level 3 (§4.6); connections do not close; the
   queues have no limit but the loss above, and neither IHAVE limit is set (§8.2) but in the
   `ihave-limits` cell, so elsewhere nothing is held back to the next heartbeat (§4.4); set to §8.3's
   reference values, they would hold nothing back either ("Checking a change"). The
