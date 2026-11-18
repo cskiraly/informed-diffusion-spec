@@ -1,4 +1,4 @@
-# Informed Diffusion: the protocol in pseudocode
+# SEACAST: the protocol in pseudocode
 
 > **DRAFT v0.10.3, 2026-11-18.** Companion to the post [*Informed Diffusion: making home builders
 > publish fast*](https://ethresear.ch/t/informed-diffusion-making-home-builders-publish-fast/26151). Field level on the wire; byte-exact layouts follow in a second phase. Written from

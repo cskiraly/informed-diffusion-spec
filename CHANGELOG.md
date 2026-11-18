@@ -5,6 +5,12 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
+## After v0.10.3, not yet released
+
+The repository is renamed `seacast-spec`, from `informed-diffusion-spec`, which GitHub redirects, and
+`protocol.md`'s title is now *SEACAST: the protocol in pseudocode*; the README's heading, its release
+link and its line on the old title follow. No rule, value or code changes.
+
 ## v0.10.3, 2026-11-18
 
 `protocol.md` sorts its constants into limits, bounds and defaults, gives gossipsub's two IHAVE limits
