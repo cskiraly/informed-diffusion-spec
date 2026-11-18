@@ -5,6 +5,36 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
+## After v0.10.4, not yet released
+
+The proofs in `formal/veil/` move to Veil's release v4.35.0, and gain malicious peers, runs that go
+quiet (Q3) and agreement. They stay proofs of v0.8's rules, and their README lists what changed
+since. No rule, value or code of `protocol.md` changes.
+
+`formal/veil/`:
+- **Veil's release v4.35.0** (Lean 4.35.0), in place of a pre-release. The six models keep their
+  results; their solver limits are raised.
+- **A run goes quiet (Q3).** Under weak fairness, once the environment stops, the transport and
+  v0.8's asking eventually have nothing left to do, for good (`QuietRanking.lean`, and `quiet` in
+  `NoStallTransport.lean` and `NoStallEquiv.lean`).
+- **Malicious peers** (`NoStallAskAdv.lean`, `NoStallTransportAdv.lean`, `NoStallEquivAdv.lean`).
+  Q1 holds for the honest nodes the source reaches through honest nodes that installed the block,
+  relabelled copies excluded, and Q3 once the adversaries stop. Two findings:
+  - F13: dropped offers that leave their ask; v0.8's `drop_offer` (§6.1) closes it;
+  - F14: an announcer that is never parked holds the last resort off; §6.1 leaves it open.
+
+  `NoStallEquivAdv.lean`'s switch `byGroup` checks the asking under level 1 by group, one of the
+  options §4.6 lists for relabelled copies; it is off for the spec's rules.
+- **The counting through honest nodes, and three corollaries** (`NoStallCount.lean`): Q1 with a
+  builder that releases only K of the N chunks, with a source that drops out, and with nodes that
+  never install the block, with two known answers.
+- **Agreement and integrity** (`Agreement.lean`, plain Lean): level 2 is all or none, a check that
+  succeeds recovers the committed bytes, and two honest nodes never deliver different payloads for a
+  group.
+- **The README** gives the results of the whole library's build, and says which of `protocol.md`'s
+  changes since v0.8 the models do not have. `README.md` and `formal/README.md` describe the new
+  proofs. The new models say "the last resort", as `protocol.md` does.
+
 ## v0.10.4, 2026-11-18
 
 The repository is renamed `seacast-spec`, from `informed-diffusion-spec`, which GitHub redirects, and

@@ -51,7 +51,16 @@ names how SEACAST diffuses.
     connections closing;
   - Q1 under equivocation, with §4.2's ties and §6.1's rule against a second ask of a peer at once,
     for the nodes the source reaches through nodes that installed the builder's block
-    (`NoStallEquiv.lean`).
+    (`NoStallEquiv.lean`);
+  - Q1 with malicious peers, for the honest nodes the source reaches through honest nodes that
+    installed the block, relabelled copies excluded; and a run in which an announcer that is never
+    parked holds the last resort off, which `protocol.md` §6.1 leaves open;
+  - a run goes quiet (Q3): under weak fairness, once the environment stops (with malicious peers,
+    once they stop), the transport and v0.8's asking have nothing left to do, for good;
+  - agreement and integrity: level 2 is all or none, and two honest nodes never deliver different
+    payloads for a group.
+
+  The models do not have the rules `protocol.md` changed since v0.8; their README lists them.
 
 ## Where SEACAST stands
 
