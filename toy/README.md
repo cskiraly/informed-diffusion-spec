@@ -103,7 +103,7 @@ needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting
 takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Thirty-three scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Thirty-four scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -118,6 +118,9 @@ where one has a control that must come out the other way, it is named:
   held chunk's id get no answer, and one from a peer that claimed the chunk counts nothing against
   it. The controls: the chunk's id and a WantIndex of it are answered, a 20-byte id is not, and the
   claimant's ask of the chunk's id counts against it.
+- `idontwant_id_known.py`: §4.1, an IDONTWANT entry that is not a HAVE bitmap is a stock id, kept in
+  `unwanted[p]` with no penalty; a bitmap beside it must still be read as a HAVE, and not be kept in
+  `unwanted[p]`. The toy tells a bitmap by its type, not by the string's first bytes and length.
 - `tie_read_known.py`: a peer that was only asked about has no tie; the tied peer beside it must
   lose its park.
 - `tie_helpers_known.py`: `tie_room`, `drop_offer`, and `close_promises` with `of`, by the values

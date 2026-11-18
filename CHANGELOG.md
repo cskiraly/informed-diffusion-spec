@@ -10,7 +10,9 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 The repository is renamed `seacast-spec`, from `informed-diffusion-spec`, which GitHub redirects, and
 `protocol.md`'s title is now *SEACAST: the protocol in pseudocode*; the README's heading, its release
 link and its line on the old title follow. `protocol.md` also says what heartbeat gossip tells of the
-source, and names a chunk that is never acknowledged as open. No rule, value or code changes.
+source and names a chunk that is never acknowledged as open; and its `on_frame` keeps an IDONTWANT
+entry that is not a HAVE bitmap as stock gossipsub keeps an id, where it handed every entry to
+`on_have`: the one code change, whose new branch no recorded cell reaches.
 
 The next version's draft carries `protocol.md` v0.10.3's changes, lets any source offer its chunks at publish,
 its own choice as in `protocol.md`, closes the probe's last open cases, and measures its probe and alarm
@@ -32,6 +34,13 @@ byte.
 - **Where the source's announcements go, said exactly:** §2's IHAVE row names the source's step and
   the mesh join; §5.1 says that a refused push to a mesh peer is offered to it instead; §5.1's bullet
   on the acknowledgement, §7.1 and §9 say that those announcements go to the mesh.
+- **An IDONTWANT entry that is not a HAVE bitmap is kept as stock gossipsub keeps an id** (§4.1's
+  `on_frame`, and `is_have_bitmap` among the helpers). An IDONTWANT names no topic, so beside the HAVE
+  bitmaps its entries can be stock message ids; `on_frame` handed every entry to `on_have`, which needs a
+  bitmap. It now hands it the bitmaps and keeps any other entry in `unwanted[p]`, as its comment said,
+  and §4.1 says why. A string is a bitmap if it opens with `HaveBitmap`'s MAGIC and VERSION and holds a
+  group after them, so a stock id of 20 bytes is never taken for one. No recorded cell sends an entry
+  that is not a bitmap, so every digest stays.
 
 The draft's bindings, in a new document, `protocol-v2-bindings.md`:
 - **`protocol-v2.md` §7 now says what every binding provides:** links with their open and close,
@@ -128,6 +137,9 @@ The toy:
   `toy/probe_kept_known.py`, `toy/alarm_member_known.py`, `toy/standalone_wire_known.py`,
   `toy/standalone_charge_known.py`, `toy/rebuilt_once_known.py` and `toy/note_push_known.py`, and those named
   in their items.
+- **`toy/idontwant_id_known.py`:** a stock id in an IDONTWANT is kept in `unwanted[p]`, with no penalty, and a
+  HAVE bitmap beside it is read as a HAVE and not kept there; run on the document before, the toy stops in
+  `on_have`, which the stock id reached.
 - **Unchanged:** every recorded cell's digest in `golden.txt` and `golden-v2.txt`.
 
 ## v0.10.3, 2026-11-18

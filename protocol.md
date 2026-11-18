@@ -423,7 +423,8 @@ cannot be checked yet.
 ### 4.1 The order of handling
 
 A node handles each frame from a peer in a fixed order: its chunks, its IHAVEs, its IWANTs, GRAFT
-and PRUNE, and its HAVEs last. It then sends one response.
+and PRUNE, and its IDONTWANT's entries last, HAVEs and stock ids in the order they come. It then
+sends one response.
 
 ```python
 def on_frame(p, frame):
@@ -431,7 +432,9 @@ def on_frame(p, frame):
     asks = on_ihave(p, frame.ihave)                            # §4.4
     answers = on_iwant(p, frame.iwant)                         # §4.5
     prunes = handle_graft_prune(p, frame)                      # stock
-    for h in frame.idontwant: on_have(p, h)                    # §4.3 (stock ids go to unwanted[p])
+    for h in frame.idontwant:                                  # §4.3: a HAVE bitmap (§2); any other
+        if is_have_bitmap(h): on_have(p, h)                    #   entry is an opaque id, kept with
+        else: unwanted[p].add(h)                               #   stock's admission and lifetime (§8.1)
     respond(p, asks, answers, prunes)
 
 def respond(p, asks, answers, prunes):                         # one response per frame handled
@@ -450,6 +453,13 @@ produces leave together, the control riding on the first answer. An answer that 
 refuses is owed: the writer queues it once there is room (§7.2), so the queue cannot turn an honest
 answer into the asker's broken promise. Validation (§3) runs off this path, on the router's event
 loop, like block installation; a chunk's handling continues when its result is known.
+
+An IDONTWANT names no topic, so its entries can include stock message ids, another topic's say,
+beside the HAVE bitmaps (§2). An entry that is not a bitmap (`is_have_bitmap`) is kept in
+`unwanted[p]`, with stock gossipsub's admission and lifetime (§8.1), and is not read as a HAVE. A
+stock id of 20 bytes, the kind Ethereum's topics use, is too short to be a bitmap, whatever it opens
+with; a longer id that opens with `HaveBitmap`'s MAGIC and VERSION is taken for one, and §8.2's
+checks apply to it. An ask and a stock IDONTWANT for the same id in one frame are handled ask first.
 
 ### 4.2 A chunk arrives
 
@@ -2004,6 +2014,9 @@ This document decides at the moment of sending, so it needs the backlog to be in
 *Peers and messages:*
 - `seen` and `mark_seen`: the stock seen cache;
 - `pending_ids`: the ids of deferred chunks;
+- `is_have_bitmap`: an IHAVE's or IDONTWANT's entry is a HAVE bitmap: its string opens with
+  `HaveBitmap`'s MAGIC and VERSION and is long enough to hold the group after them (§2). A shorter
+  string, such as a stock id of 20 bytes, is not one, whatever it opens with;
 - `valid_have`, `reserve`, `release`, `admitted` and `listed`: the checks and reservations of §8.2;
   `admitted`: a chunk's group within the peer's limits; `listed`: how many ordered offer lists an
   announcer is in;
