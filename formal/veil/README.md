@@ -3,11 +3,13 @@
 Models of the spec, `protocol.md`, whose properties are proved for **any number of nodes, groups and
 chunk indices** and every interleaving. In each Veil model the safety property is an inductive
 invariant whose conditions Lean's kernel checks (the SMT solver is not trusted), and Q3's are
-temporal theorems proved without the solver; the plain-Lean files are theorems.
+temporal theorems the kernel checks too, their one-step facts proved by Lean's `grind` without the
+solver; the plain-Lean files are theorems.
 
 - `ClaimWins.lean`: an honest node is never penalised for an ask, "the claim wins" (A1, §4.5);
 - `SenderFault.lean`: nor for a chunk that fails level 1 or a malformed HAVE (A1's other two
-  penalties, §3, §4.2, §4.3), so A1 holds at every place a node penalises;
+  penalties, §3, §4.2, §4.3), so A1 holds at every place a node penalised in v0.8 (v0.10 adds one,
+  below);
 - `NoStallTransport.lean`, `NoStallAsk.lean` and `NoStallCount.lean`: no stall (Q1). For any one
   chunk, when the transport has nothing left to do, a node with its block holds every chunk a mesh
   neighbour received, has stopped pulling, or holds that neighbour's offer; when the asking machinery
@@ -35,9 +37,12 @@ temporal theorems proved without the solver; the plain-Lean files are theorems.
   Under weak fairness, in every run whose environment eventually stops, the transport and v0.8's
   asking eventually have nothing left to do, for good; with malicious peers, once they stop.
 
-The Quint model next door (`../diffusion.qnt`) checks these properties on three or four nodes.
+The Quint model next door (`../diffusion.qnt`) checks A1, Q1 and Q3 on three or four nodes, and not
+agreement or integrity (`../README.md` lists its checks).
 
-**The models are of v0.8's rules.** Each header names the sections and the version it follows.
+**The models are of v0.8's rules** (`NoStallAsk.lean` and `NoStallAskAdv.lean` have v0.7's asking,
+which `NoStallEquiv.lean` and `NoStallEquivAdv.lean` take to v0.8's). Each header names the sections
+and the version it follows.
 `protocol.md` has changed since, and the models do not have these changes; whether each result
 carries over to them is not checked:
 - **v0.9, the source's announcements at the acknowledgement** (§5.1): the source announces a chunk,
@@ -53,12 +58,24 @@ carries over to them is not checked:
     group expires.
 - **v0.10, level 1 checks the slot** (§3): it rejects a copy whose slot is not its block's.
 - **v0.10, IHAVE entries and bitmaps checked** (§4.4, §8.2): an entry is a bitmap or a chunk's valid
-  id (`valid_id`), anything else ignored, and a bitmap is held to a HAVE's limits.
+  id (`valid_id`), anything else ignored, and a bitmap is held to a HAVE's limits. One naming an
+  index at or beyond the group's count, once its descriptor is known, counts against its sender: a
+  penalty `SenderFault.lean` has for a HAVE only. §4.4 also leaves open one chunk under two keys,
+  where a sender can be asked once per key; in the models a chunk has one key.
 - **v0.10, the node's own order of announcers** (§6.1, §8.1): the announcers beyond a chunk's
   ordered list are tried in an order keyed by a secret the node draws. The models let the retry ask
   any unparked announcer, so they cover every order.
 - **v0.10.3, the constants in three kinds** (§8.3), with reference values for gossipsub's two IHAVE
-  limits: no rule changed, and the models take the limits as any values.
+  limits: no rule changed, and the models take those limits as any values. `GOSSIP_RETRANSMISSION`
+  is now a bound, at least 3; the models' three answers per chunk and connection are its least
+  value.
+- **v0.10.4** (§4.1, §5.1, §5.4):
+  - an IDONTWANT entry that is not a HAVE bitmap is kept as stock gossipsub keeps an id, where every
+    entry went to `on_have`; the models have no stock ids;
+  - §5.1 names open a chunk that is never acknowledged, at `ACK`, which the models do not have
+    (above);
+  - §5.1 and §5.4 say what heartbeat gossip tells of the source outside the mesh; the models follow
+    mesh links only.
 
 ## The claim wins (`ClaimWins.lean`)
 
@@ -163,13 +180,14 @@ The proof rests on two assumptions about the world: level 1 checks the index aga
 with a piece that passes level 1 has a descriptor that passed `valid_descriptor`, so N is at most
 8192 (that an honest builder's does is `../wire/`'s W1). Nine more only keep the traces to worlds
 that can happen (a block's bid commits one group and some group, the blocks that commit a group share
-its slot, indices start at zero, and so on); the proof was also checked without them.
+its slot, indices start at zero, and so on); an earlier check, not this build, proved it without
+them.
 
 | check | how | result |
 |---|---|---|
 | neither penalty on an honest node, any size | an inductive invariant of nine clauses; 200 verification conditions (the nine and `doesNotThrow`, for nineteen actions and the initializer), each a theorem Lean's kernel checks, the SMT solver not trusted | **holds**, also with only the two assumptions it rests on |
 | the audit | as for the claim rule, the assumptions listed | 200 of 200; none trusted; all 799 theorems rest on `propext`, `Classical.choice` and `Quot.sound` |
-| not vacuous | `sat trace`, every rule on: a forger penalised for a chunk, and for a HAVE bit beyond N; a chunk ahead of its block accepted when the block installs; one node accepting chunks under two blocks of a slot whose bids commit the same group, and under two that commit different groups; an inconsistent code's authentic pieces relayed between honest nodes, unpenalised | all seven found |
+| not vacuous | `sat trace`, every rule on: the premises can all hold; a forger penalised for a chunk, and for a HAVE bit beyond N; a chunk ahead of its block accepted when the block installs; one node accepting chunks under two blocks of a slot whose bids commit the same group, and under two that commit different groups; an inconsistent code's authentic pieces relayed between honest nodes, unpenalised | all seven found |
 | known answers | `sat trace`, one rule off, every other on | **an honest node penalised in each**: a relay before level 1; a rebuilt chunk sent before level 2, from an inconsistent code; a chunk rejected ahead of its block; level 1 against the receiver's own block of the slot; a rebuilt chunk naming the slot's other block; a HAVE for a chunk on arrival; a HAVE judged by a forger's descriptor |
 
 When two blocks of a slot commit a group, the group's chunks name either root, which is part of the
@@ -341,15 +359,15 @@ name any one of them, does not arise (A1's model of rebuilt chunks needs only th
 commit the group, which the rule keeps). That holds while no node relabels a chunk: a node that
 puts the other block's root in a chunk makes an authentic copy, which honest nodes on that block
 forward and rebuild from, and a node behind them with only the builder's block can then stall;
-`protocol.md` §4.6 lists this gap as open, with its options. That argument is by inspection, not in
-the models.
+`protocol.md` §4.6 lists this gap, F12, as open, with its options. That argument is by inspection,
+not in the models.
 
 | piece | proof | traces | the build |
 |---|---|---|---|
 | transport | 200 of 200 conditions, 922 theorems | 6 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered; the chunk announced again to a peer back in the mesh after a close lost a queued push; and to a peer that joined after the publish), 6 known answers (F1: a skipped push counted, offered to nobody; a refused push lost; F7: a refused copy lost; F11: an announcement ignored by the receiver's limit; F9: without the resync, nothing offers the chunk to a peer back in the mesh after a close lost a queued push, nor to a late joiner) | 3.6 minutes |
 | asking | 378 of 378 conditions, 1143 theorems | 6 non-vacuity (an offer answered; an offerer parked by another chunk, asked once more by the last resort; an offer before the block asked for at installation; an offer over an IHAVE limit asked for by the heartbeat's retry; one from a parked offerer, asked once more by the last resort the heartbeat's retry arms; an ask lost with its connection, the announcer's offer on the new one asked for by the retry), 5 known answers (F2: without the last resort an offerer parked by another chunk is never asked; answers lost twice without owed answers; an offer before the block never asked without the ledger; an offer over an IHAVE limit never asked without the heartbeat's retry; the last-resort count kept across a close, the ask it counted lost with the connection never made again) | 4.8 minutes |
 | asking, under equivocation | 704 of 704 conditions, 1913 theorems | 6 non-vacuity (an offer answered; on the other block, an answer that waits ties its sender and closes its promise; a node on the other block with a tied sender switches, the sender is asked and the chunk validates; the last resort; the ledger; an ask lost with its connection, the announcer asked afresh on the new one), 5 known answers (without `ROOT_TIED`, at the switch every announcer parked and asked once more with nothing on its way; without `NO_REASK_OPEN`, a third ask to a provider before the switch; without the last resort; without the ledger; the last-resort counts kept across a close) | 25 minutes |
-| counting | twelve theorems, two of them known answers (below) | none | a second |
+| counting | twelve theorems and the lemma `count_mono` they use, two of the twelve known answers (below) | none | a second |
 
 "The build" is Lake's time for the module in one build of the whole library, beside the other
 modules (below, "Running it").
@@ -369,26 +387,29 @@ and K, and takes the per-link step (`link`), the two stopping facts (`stopped_ha
 `K_has_stopped`) and, where it concludes completion, the decode's outcome (`decoded`), as the main
 theorem does:
 - **A builder that releases only K of the N chunks** (`completes_from_K_chunks`): in place of the
-  source's having stopped, the hypothesis is that the source has received (published) at least K
-  distinct chunks (`K ≤ count (rcv src)`); then every node reachable from the source along the mesh
-  is complete. A chunk the source withholds has its own per-link step, by inspection: the transport
-  piece with no source (`one_source` allows none), or with the source publishing it to the mesh it
-  has, possibly none.
+  source's having stopped, the hypothesis is that the source has received at least K distinct
+  chunks (`K ≤ count (rcv src)`; in the transport, `publish` sets the source's `rcv`); then every
+  node reachable from the source along the mesh is complete. A chunk the source withholds has its
+  own per-link step, by inspection: the transport piece with no source (`one_source` allows none),
+  or with the source publishing it to the mesh it has, possibly none.
 - **A source that drops out** (`stops_from_holders`, `completes_from_holders`): for a node n and a
   set S of at least K distinct chunks (`K ≤ count S`), where for each chunk of S some node that
   reaches n along the mesh has received it or has stopped (`holder`), n has stopped, and with
   `decoded` is complete. The source need not be among those nodes, nor any one of them have received
   K. `received_or_stopped` is the step to it: along the mesh from a node that received a chunk,
-  every node has received it or has stopped. `completes_from_holders_installed` is the same along
-  links into nodes that installed the block (`inst`), with `link` needed only for those.
+  every node has received it or has stopped. `completes_from_holders_installed` is the same with the
+  mesh restricted to links into nodes that installed the block (`inst`), `holder`'s paths included,
+  and `link` needed only for those links.
 - **Nodes that never install the block**: `every_installed_reachable_node_completes`, with `inst`
-  the nodes that installed it. The one-block pieces' per-link steps hold for any receiver that
-  installed the block and assume nothing of the others.
+  the nodes that installed it, and the source's having stopped (`source_stopped`), as the main
+  theorem has. The one-block pieces' per-link steps hold for any receiver that installed the block
+  and assume nothing of the others.
 
 Two known answers show the new hypotheses needed, each an instance where every other hypothesis of
 `stops_from_holders` holds: without `holder` (two nodes, no mesh link, one chunk received by the
-first, K = 1), the second has not stopped (`holder_needed`); with fewer than K distinct chunks (the
-only holder holds one of the two needed, K = 2), the receiver has not stopped (`enough_needed`).
+first, K = 1), the second has not stopped (`holder_needed`); with fewer than K distinct chunks (one
+link, both nodes holding the same one of the two needed, K = 2), the receiver has not stopped
+(`enough_needed`).
 That the transport lets the source close its connections and leave every mesh at any time, keeping
 the copies deferred at receivers, is the transport piece's (`close`, `leave`), and the
 correspondence is by inspection.
@@ -446,12 +467,14 @@ The traces `ka_f14_s0` to `ka_f14_s3` and `ka_f14_loop`, under v0.8's rules, sho
   slow answer on another chunk of the group;
 - an adversary a is never parked: it closes before its promise falls due (a close does not park,
   §6.1), and offers again on a new connection;
-- the retry always has a candidate, so the last resort, armed only when every announcer is parked,
-  never asks h.
+- the last resort is armed only when every untied announcer is parked. The retry would find that
+  only at the one state between a's close and its new offer; enabled there alone, it is not forced
+  by weak fairness, and the last resort never asks h.
 
 The traces reach a state with these roles, and take the loop `writeAsk(n, a)`, `windowElapse(n)`,
-`close(n, a)`, `offerAsk(n, a)` back to a state with them. At each of the loop's states they assert
-which honest events are pending, so the run that repeats the loop is weakly fair. The control
+the close between n and a, `offerAsk(n, a)` back to a state with them. At each of the loop's states
+they assert which honest events are pending. That the run repeating the loop is weakly fair is read
+from these finite traces and the actions, by inspection, not proved. The control
 (`f14_control`) shows that without a's new offer the last resort asks h. In the spec the same holds
 for as long as h's park lasts and the group is live, and an adversary that leaves its ask unwritten
 by not reading does the same without reconnecting, which these models leave out (their writes drain).
@@ -474,7 +497,7 @@ proposes the rule: it is in the file so that the option's asking part is checked
 |---|---|---|---|
 | transport, with adversaries | 220 of 220 conditions, 991 theorems | 14: the transport's 12, a false claim, an adversary's offer left in a quiet state | 5.2 minutes |
 | asking (v0.7's), with adversaries | 448 of 448 conditions, 1324 theorems | 14: the asking's 11, `adv_withholds`, `ka_count_per_chunk` (bound to the adversary's offer coming first) and its control | 7.3 minutes |
-| asking under v0.8's rules, with adversaries and the offers' expiry | 1134 of 1134 conditions (42 actions × 27), 2625 theorems | 29: `NoStallEquiv.lean`'s 11 (their nodes honest); an ask left at an adversary; an adversary tied to another root after the block, alone and beside an honest offer that resolves; a tie released; a tie dropped; an ask gone with expired offers; F13 by a dropped tie, by the expiry without the queued asks' part, and by the expiry without the promise's; under `byGroup`, an offer answered and a tie released, and the known answer without it; F14's five and its control | 71 minutes |
+| asking under v0.8's rules, with adversaries and the offers' expiry | 1134 of 1134 conditions (42 × 27: 41 actions and the initializer, 26 clauses and `doesNotThrow`), 2625 theorems | 29: `NoStallEquiv.lean`'s 11 (their nodes honest); an ask left at an adversary; an adversary tied to another root after the block, alone and beside an honest offer that resolves; a tie released; a tie dropped; an ask gone with expired offers; F13 by a dropped tie, by the expiry without the queued asks' part, and by the expiry without the promise's; under `byGroup`, an offer answered and a tie released, and the known answer without it; F14's five and its control | 71 minutes |
 
 ## Agreement and integrity (`Agreement.lean`)
 
@@ -487,7 +510,8 @@ committed:
 - any two checks of a group succeed or fail together (`level2_all_or_none`, L3);
 - one that succeeds recovers the one byte string the root commits (`integrity`);
 - two honest nodes deliver the same payload, a function of those bytes (`agreement`, and
-  `agreement_by_key` across descriptors with one key);
+  `agreement_by_key` across descriptors with one key, given that a key names one descriptor,
+  `key_inj`: the group id is the descriptor's hash, taken as collision-free);
 - an honest builder's group passes everywhere (`honest_succeeds`);
 - the decode claim is true of a group whose check succeeds, and wrong only of one that every node
   reaching K drops.
@@ -512,8 +536,9 @@ there. For each honest per-chunk piece, with any finite number of nodes:
 - **the transport goes quiet** (`NoStallTransport.lean`, `quiet`): in every run in which the
   transport's environment eventually stops (a block installing, the decode claim, the decode's
   store, a learned claim, an answer that brings the chunk, the mesh and its connections changing),
-  and each of its nine actions is weakly fair, the transport eventually has nothing left to do, for
-  good (`◇ □ ¬ work`), whatever rules are on;
+  and each of its nine machinery actions (all its own but `dropIhave`, F11's known answer) is weakly
+  fair, the transport eventually has nothing left to do, for good (`◇ □ ¬ work`), whatever rules
+  are on;
 - **the asking goes quiet** (`NoStallEquiv.lean`, `quiet`: v0.8's asking, one block or two): the
   same, with the queues' refusals of an ask stopping too, the machinery's thirteen actions weakly
   fair (the retry's and the last resort's asks that a queue takes), and `NO_REASK_OPEN` on, whatever
@@ -540,8 +565,11 @@ any level down to its own and loses an element there lowers the counts (`counts_
 is well-founded (`counts_wf`, from Lentil's `List.lexLt_wfRel`). Each model states, per own action
 (and case), that its witness element is at its level before the step (`…Pre`), not after it
 (`…Post`), and that no level down to its own gains an element (`…Keep_j`), each a temporal property
-of one step proved by `fv_step` (below), and its proof of `quiet` puts them together. Neither proof
-uses the module's invariants, and neither rests on the SMT solver.
+of one step proved by `fv_step` (below); that while there is work, some honest node's machinery
+action is enabled (`workEnabled`, proved by Veil's `veil_solve_temporal`); and its proof of `quiet`
+puts them together. Neither proof uses the module's invariants. The one-step facts use no SMT
+solver; `veil_solve_temporal` may, its answers then rebuilt as kernel proofs, as for the
+invariants.
 
 | piece | levels (highest first), each a relation | facts |
 |---|---|---|
@@ -596,22 +624,24 @@ LEAN_NUM_THREADS=2 lake build   # the models: queries, model checks, proofs, the
 A clean `lake build` means every check passed: a clause that fails, a query without a trace, a
 violation and a failed audit are errors. The one warning is Veil's own, at `NoStallEquivAdv.lean`'s
 `#gen_spec`: it could not prove its generated `Next.tr_abstract`, a lemma for temporal proofs. It
-did not stop the model's: each of their facts has an action in its premise. Packages and build
-outputs go to `.lake`: 1.8 GiB of packages and 0.8 GiB for the models. With Veil already built,
-the models took 87 minutes on ten cores of an AMD EPYC 9254 (`taskset`, `LEAN_NUM_THREADS=2`, on a
+did not stop the model's: each one-step fact has an action in its premise, and `workEnabled` clears
+the transition relation (`tclear … hNext`). Packages and build outputs go to `.lake`. In the whole
+library's build, its outputs took 0.8 GiB beside 1.8 GiB of packages. With Veil already built, the
+models took 87 minutes on ten cores of an AMD EPYC 9254 (`taskset`, `LEAN_NUM_THREADS=2`, on a
 machine shared with other jobs), and 44,400 seconds of CPU; Lake builds independent modules side by
 side, and `NoStallEquivAdv.lean` alone took 71 of the minutes.
 
 Veil checks as many conditions at once as `LEAN_NUM_THREADS` says, each with its own SMT run, or,
 where it is not set, as many as `getconf _NPROCESSORS_ONLN` reports; the variable also sizes Lean's
 own task pool, for each Lean process. It does not bound the build's CPU: with
-`LEAN_NUM_THREADS=2`, the build of `NoStallEquiv.lean` alone used about seven cores on average.
-Pin the CPUs with `taskset` and cap the memory as well, with room above that build's peaks: its
-processes together reached about 25 GiB (25,856 MiB, sampled every 20 seconds), and the largest of
-them alone 23.3 GiB (GNU time's maximum resident set size). For larger instances
-`#model_check compiled` builds a native checker, which needs `clang`, `lld`, `libc++-dev` and
-`libc++abi-dev`: on the window's instance above it finds the same 127,504 states in about 80
-seconds with its build.
+`LEAN_NUM_THREADS=2`, an earlier build of `NoStallEquiv.lean` alone, on another machine, used about
+seven cores on average. Pin the CPUs with `taskset` and cap the memory as well, with room above the
+whole library's build's peaks: its processes together reached about 25 GiB (25,856 MiB, sampled
+every 20 seconds), and the largest of them alone 23.3 GiB (GNU time's maximum resident set size).
+For larger instances `#model_check compiled` builds a native checker, which needs `clang`, `lld`,
+`libc++-dev` and `libc++abi-dev`. In an earlier check, on the pre-release, it found the window's
+127,504 states above in about 80 seconds with its build; the library's build runs `interpreted`
+only.
 
 ## Veil 2.0, as met here
 
@@ -648,7 +678,7 @@ pre-release (`02791b2d`); the later ones are new on the release `v4.35.0`.
   action whose conditions nest quantifiers proves more easily split into one action per case.
 - On `v4.35.0`, a long trace may need more than the SMT solver's 60 s on a loaded machine
   (`unknown`): `set_option veil.smt.timeout 300`.
-- On `v4.35.0`, in `NoStallEquivAdv.lean` (42 actions, 27 clauses), the search for the invariants'
+- On `v4.35.0`, in `NoStallEquivAdv.lean` (41 actions, 26 clauses), the search for the invariants'
   instance at `#gen_spec` ran out at its 20,000 heartbeats, with only a warning, and 53 conditions
   then failed on an SMT path that breaks. `set_option synthInstance.maxHeartbeats 200000` fixes it.
   Read a warning at `#gen_spec` before the failures that follow it.
