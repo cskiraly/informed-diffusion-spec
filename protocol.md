@@ -309,7 +309,7 @@ type, not passed. Their `group` is the group's key, as a chunk's is (§1).
 | carried in | means | sent when |
 |---|---|---|
 | IDONTWANT | "I hold these chunks": always the sender's whole current bitmap for the group, so the receiver ORs it in and order does not matter | on every new chunk that passes level 1, to the mesh and to the chunk's sender (§4.2); by the source before its data, and as its HAVE grows (§5.1); on decode, all N bits (§4.6) |
-| IHAVE | "I can send you these": exactly the chunks the announcement names, minus what the sender pushed you and what you told it you hold; never empty | announce instead of push (§5.2); heartbeat gossip (§6.4) |
+| IHAVE | "I can send you these": exactly the chunks the announcement names, minus what the sender pushed you and what you told it you hold; never empty | announce instead of push (§5.1, §5.2) and at a mesh join (§5.4); heartbeat gossip (§6.4) |
 | IWANT, as `WantIndex` | "send me chunk `index`": used when the asker does not know the chunk's full id | §6.1 |
 
 A bitmap that names an index at or beyond its group's N, once the descriptor is known, is a
@@ -1047,8 +1047,8 @@ source stores every chunk, marks it seen, and puts it in the message cache for h
 group yet (below). It then plans the pushes: for each chunk, in
 index order, R targets that §5.3 chooses among its candidates (`candidates_for_source`), each chunk's
 choice seeing the plans made before it. It sends the first copy of every chunk before any second
-copy. A peer's first chunk from the source follows a HAVE that names it (below). A push that a full
-queue refuses is offered instead (§5.2).
+copy. A peer's first chunk from the source follows a HAVE that names it (below). A push to a mesh
+peer that a full queue refuses is offered to it instead (§5.2).
 
 - **Batch publishing** [c2] fixes only the order in which chunks enter each peer's queue. What
   leaves first on each link is decided when the queue sends (§7).
@@ -1061,7 +1061,7 @@ queue refuses is offered instead (§5.2).
   is offered it instead (§5.2), so this step offers no peer a chunk twice. Other connections get no
   announcement from this step, though heartbeat gossip may announce to them later (§6.4).
 - The source pushes each chunk to R = 2 peers. It never uses the fast-class degree of card 17.
-- **The source announces at the acknowledgement** [c3] (`origin_acked`), by default
+- **The source announces to its mesh at the acknowledgement** [c3] (`origin_acked`), by default
   (`SOURCE_OFFERS = ACK`). The mesh peers not chosen to be pushed a chunk are announced it at its
   acknowledgement: at the first HAVE naming it, from any peer (§4.3), or, if none comes, at the
   first window timeout of a copy of it (§7.1). The offers trail the pushes by about a round trip.
@@ -1078,6 +1078,20 @@ queue refuses is offered instead (§5.2).
   of it, as a forwarding node's HAVE precedes its pushes. HAVEs to the mesh that would leave
   together may be merged into one, as the research implementation merges those of the chunks sent
   between two of its router's turns.
+
+**Open: a chunk that is never acknowledged.** At `SOURCE_OFFERS = ACK` the source announces a chunk
+to the rest of its mesh only at the chunk's acknowledgement, and a chunk has none while no HAVE
+naming it reaches the source and no copy of it times out in the window (§7.1). That happens when
+each of its chosen pushes was refused or skipped (§5.2), stays queued to a peer that does not read
+(§7.2), or went with its connection before a HAVE or the timeout (§7.1, §8.1). A refused or skipped
+push to a mesh peer is offered to that peer instead; one to a connection outside the mesh is
+forgotten (§5.2). A HAVE naming the chunk comes once a peer that holds a copy claims it to a mesh
+the source is in: a copy delivered before its connection closed and forwarded, a rebuilt copy, or a
+decode claim, which names every chunk of a coded group (§4.2, §4.6). Until then the source
+announces the chunk only once a peer has asked for it, offered it in place of its push (§5.2), at
+a join (§5.4) or by heartbeat gossip outside the mesh (§6.4), and the source's answer is
+acknowledged. No rule bounds that wait within the group's lifetime. At `PUBLISH` the chunk is
+announced at publish.
 
 #### Rationale
 
@@ -1127,9 +1141,11 @@ cover.
 source, so it would tell each mesh peer who published the payload. The paced HAVE still keeps the
 other nodes from pushing the source's chunks back to it, a chunk at a time. It removes the one sign
 certain to its mesh, unless the source announces at publish, which is another (above). Others remain
-at either setting: the source's HAVE grows faster than any other node's, it announces every chunk at
-once to a peer that joins its mesh (§5.4) and, at its next heartbeat, to the sampled peers outside
-its mesh (§6.4), and it is everyone's first sender. They are the subject of separate work on the
+at either setting: the source's HAVE tends to grow faster than any other node's; it announces the
+group's chunks at once to a peer that joins its mesh (§5.4), and, since `publish` puts every chunk in
+the gossip history, to the peers it samples outside its mesh at each of its next three heartbeats
+(§6.4), at `ACK` without waiting for any chunk's acknowledgement; and it is usually everyone's first
+sender. They are the subject of separate work on the
 source's privacy, where P4 is this measure's name.
 
 ### 5.2 A node forwards [c3, c4, c11, c17]
@@ -1281,7 +1297,9 @@ def on_mesh_join(p):                                  # p joins our mesh: by our
   (`announce`, §5.2), owed if a full queue refuses it. Not the decode claim, which names chunks not
   yet rebuilt, and nothing of a group that expired or was dropped.
 - **At the source** that is every chunk of a group it publishes, sent or not; its HAVE stays paced
-  (P4). The announcement stays inside the mesh.
+  (P4). This announcement goes only to a peer the source adds to its mesh (one that prunes the
+  source's GRAFT instead has still received it, below). For three heartbeats after the publish,
+  heartbeat gossip names the group's chunks to the source's sample outside its mesh (§6.4).
 - **When it runs**: at every addition of a peer to the node's mesh for the topic, whatever adds it:
   a GRAFT the node accepts, its own GRAFT when it joins the topic, the heartbeat's upkeep (a mesh
   below `Dlo`, the outbound quota) and opportunistic grafting. The node's own GRAFT runs it at once,
@@ -1307,8 +1325,12 @@ on a connection outside the mesh, and a later copy may be forwarded, but neither
 gossip goes to a sample of the peers outside the mesh and names only the last three heartbeats'
 chunks (§6.4).
 
-**The source's announcement stays inside the mesh.** On connections outside it, the source's
-announcement of every chunk at once would tell more peers who published.
+**The join's announcement goes to the mesh.** On connections outside it, the source's announcement
+of every chunk at once would tell more peers who published. Heartbeat gossip tells some of them all
+the same: `publish` puts every chunk in the gossip history, so each of the source's next three
+heartbeats announces them to its sample outside the mesh (§6.4), at `SOURCE_OFFERS = ACK` without
+waiting for any chunk's acknowledgement. Keeping a source's chunks out of the gossip history until
+they are acknowledged is left to the work on the source's privacy (§5.1's Rationale).
 
 ## 6. Asking
 
@@ -1728,8 +1750,8 @@ chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue
   and finds no chunk to send gives it back too (`release_unused_slot`).
 - **What bypasses it:** urgent control (HAVEs, acknowledgements, decode claims) never waits.
 - **At the source,** the first HAVE naming a chunk, from any peer, or else the first window timeout
-  of a copy of it, is the chunk's acknowledgement: at `SOURCE_OFFERS = ACK` its announcements go out
-  and it joins the source's HAVE (§5.1).
+  of a copy of it, is the chunk's acknowledgement: at `SOURCE_OFFERS = ACK` its announcements to the
+  mesh go out and it joins the source's HAVE (§5.1).
 - **A second copy** of a chunk still in flight to the same peer waits for a slot like any chunk, but
   returns it at once: the window counts chunks a peer is not yet known to hold, not bytes on the
   wire.
@@ -2287,8 +2309,8 @@ rerun does as this document does, the entry says so.
   ignored, and so were the ids of one IHAVE after its 5000th. This document counts only
   IHAVE-bearing frames, reads every entry, and records an IHAVE over either limit and retries its
   asks at the next heartbeat (§4.4), so the two differ only in a heartbeat in which a peer reaches a
-  limit, or for an IHAVE of more than 5000 ids. The rerun's source announces a chunk only to the
-  mesh peers it did not choose for a push, as §5.1 does.
+  limit, or for an IHAVE of more than 5000 ids. Within its mesh, the rerun's source announces a chunk
+  only to the peers it did not choose for a push, as §5.1 does.
 - *The live window and the group's key* (§8.1, §1) came after the implementation measured, its
   rerun included. The measured runs have no blocks and no expiry within a payload's lifetime, so
   neither would act there: in those runs the key only renames groups, which in the toy moves the

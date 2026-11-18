@@ -9,12 +9,29 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 
 The repository is renamed `seacast-spec`, from `informed-diffusion-spec`, which GitHub redirects, and
 `protocol.md`'s title is now *SEACAST: the protocol in pseudocode*; the README's heading, its release
-link and its line on the old title follow. No rule, value or code changes.
+link and its line on the old title follow. `protocol.md` also says what heartbeat gossip tells of the
+source, and names a chunk that is never acknowledged as open. No rule, value or code changes.
 
 The next version's draft carries `protocol.md` v0.10.3's changes, lets any source offer its chunks at publish,
 its own choice as in `protocol.md`, closes the probe's last open cases, and measures its probe and alarm
 figures again. Its bindings move to a document of their own, which defines the standalone binding to the
 byte.
+
+`protocol.md`:
+- **The source's chunks in heartbeat gossip** (§5.1's Rationale, §5.4's bullet "At the source" and its
+  Rationale): `publish` puts every chunk in the gossip history, so each of the source's next three
+  heartbeats announces them to its sample outside the mesh, at `ACK` without waiting for their
+  acknowledgement. §5.4 said the source's announcement stays inside the mesh: that holds for the
+  join's, as for §5.1's at the acknowledgement or at publish, and not for heartbeat gossip. Keeping the
+  chunks out of the gossip history until acknowledged is left to the work on the source's privacy.
+- **Open: a chunk that is never acknowledged** (§5.1). At `ACK`, a chunk whose pushes are all refused,
+  skipped, left queued to a peer that does not read, or lost with their connections has no
+  acknowledgement, and is announced to the rest of the mesh only once a HAVE naming it reaches the
+  source (a peer's claim of a forwarded or rebuilt copy, or a decode claim), or once the source's
+  answer to a peer's ask is acknowledged; at `PUBLISH` it is announced at publish.
+- **Where the source's announcements go, said exactly:** §2's IHAVE row names the source's step and
+  the mesh join; §5.1 says that a refused push to a mesh peer is offered to it instead; §5.1's bullet
+  on the acknowledgement, §7.1 and §9 say that those announcements go to the mesh.
 
 The draft's bindings, in a new document, `protocol-v2-bindings.md`:
 - **`protocol-v2.md` §7 now says what every binding provides:** links with their open and close,
