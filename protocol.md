@@ -308,7 +308,7 @@ type, not passed. Their `group` is the group's key, as a chunk's is (§1).
 
 | carried in | means | sent when |
 |---|---|---|
-| IDONTWANT | "I hold these chunks": always the sender's whole current bitmap for the group, so the receiver ORs it in and order does not matter | on every new chunk that passes level 1, to the mesh and to the chunk's sender (§4.2); by the source before its data (§5.1); on decode, all N bits (§4.6) |
+| IDONTWANT | "I hold these chunks": always the sender's whole current bitmap for the group, so the receiver ORs it in and order does not matter | on every new chunk that passes level 1, to the mesh and to the chunk's sender (§4.2); by the source before its data, and as its HAVE grows (§5.1); on decode, all N bits (§4.6) |
 | IHAVE | "I can send you these": exactly the chunks the announcement names, minus what the sender pushed you and what you told it you hold; never empty | announce instead of push (§5.2); heartbeat gossip (§6.4) |
 | IWANT, as `WantIndex` | "send me chunk `index`": used when the asker does not know the chunk's full id | §6.1 |
 
@@ -576,7 +576,8 @@ def send_have(p, g):                                 # [c7] always the whole bit
     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=have_bits(g))), urgent=True)
 
 def have_bits(g):                                    # what our HAVE says of g: what we hold, or, for a
-    return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what is acknowledged (§5.1) [P4]
+    return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what is acknowledged, or
+                                                               #   at PUBLISH what is written (§5.1) [P4]
 ```
 
 **The path of a chunk** (`on_chunk`, `on_validated`). A copy of a chunk the node stored before is
@@ -663,7 +664,8 @@ A HAVE for an expired group is ignored (§8.1), and a malformed one counts again
 Otherwise the node adds the HAVE's bits to what it knows the peer holds (`peer_has`), whose lifetime
 each HAVE for the group refreshes (`HAVE_TTL`). For each index the peer newly holds, the node counts
 the peer as a holder (card 9), frees the window slot of any copy it sent the peer at that index
-(card 14), and, for a group it publishes, notes that a copy of the chunk exists elsewhere (§5.1).
+(card 14), and, for a group it publishes, takes it as the chunk's acknowledgement (`origin_acked`,
+§5.1), which does nothing at `SOURCE_OFFERS = PUBLISH`.
 
 `peer_has` is the one view of what each peer holds. Cancel and projection (§7.2), the push
 candidates and budget (§5.2), whom to push to (§5.3) and what to announce read it at the moment they
@@ -995,7 +997,8 @@ def publish(block, d, shards):
         store(g, s.index, f); mark_seen(message_id(f))
         gossip_history.put(f)                         # stock: heartbeat gossip may announce it (§6.4)
     mine[g] = all_bits(N(d)); state[g] = COMPLETE; stop_pull[g] = True
-    origin[g] = bitmap(set())               # [P4] our HAVE names the chunks acknowledged so far (§5.1): none yet
+    origin[g] = bitmap(set())               # [P4] our HAVE names the chunks acknowledged so far, or at
+                                            #   PUBLISH those written so far (§5.1): none yet
     plan = []
     for i in range(N(d)):                   # index order; each chunk's targets see earlier plans
         f = chunks[g][i]
@@ -1012,15 +1015,26 @@ def publish(block, d, shards):
                     enqueue(p, IDONTWANT(HaveBitmap(group=g, bits=origin[g] | bitmap({f.index}))), urgent=True)
                 if not enqueue(p, f, urgent=False): unpush(p, g, f.index)   # refused: offered instead (§5.2)
     planned[g] = {f.index: set(targets) for f, targets in plan}    # [c3] the mesh peers not chosen to be
-                                            #   pushed a chunk are announced it at its acknowledgement
+                                            #   pushed a chunk are announced it at its acknowledgement,
+    if SOURCE_OFFERS == PUBLISH:            #   or now, if the source so chooses (§5.1); its HAVE then
+        for f, targets in plan:             #   grows at each chunk's first write (origin_written)
+            for p in mesh:
+                if p not in targets: announce(p, g, bitmap({f.index}))
 
 def origin_acked(g, i):                     # [c3, P4] a chunk of a group we publish is acknowledged:
-    if origin[g].has(i): return             #   a peer's HAVE names it (§4.3), or its
-    origin[g].set(i)                        #   first copy's slot timed out (§7.1). It joins our HAVE, which
-    for q in mesh: send_have(q, g)          #   goes to the mesh as a forwarding node's does when a chunk
-    for p in mesh:                          #   arrives (§4.2), and the mesh peers not chosen to be pushed
-        if p not in planned[g].get(i, ()):  #   it are announced it (a refused push is owed already, §5.2)
-            announce(p, g, bitmap({i}))
+    if SOURCE_OFFERS == PUBLISH: return     #   a peer's HAVE names it (§4.3), or a copy's slot timed
+    if origin[g].has(i): return             #   out first (§7.1). It joins our HAVE, which goes to the
+    origin[g].set(i)                        #   mesh as a forwarding node's does when a chunk arrives
+    for q in mesh: send_have(q, g)          #   (§4.2), and the mesh peers not chosen to be pushed it are
+    for p in mesh:                          #   announced it (a refused push is owed already, §5.2). At
+        if p not in planned[g].get(i, ()):  #   PUBLISH the offers left at publish and the HAVE grows at
+            announce(p, g, bitmap({i}))     #   the first write, before this or after: it does nothing
+
+def origin_written(f):                      # [P4] at PUBLISH, a chunk of a group we publish leaves for
+    g = f.group                             #   the first time (§7.2): it joins our HAVE, which goes to
+    if g not in origin or origin[g].has(f.index): return   #   the mesh as at the acknowledgement
+    origin[g].set(f.index)
+    for q in mesh: send_have(q, g)
 
 def candidates_for_source(f):
     pool = connected_topic_peers() if UPLINK >= STRIPE_UPLINK else mesh    # [c13] configured uplink
@@ -1044,19 +1058,26 @@ queue refuses is offered instead (§5.2).
   connection starting with nothing, the chunks are dealt two at a time over all connections: the two
   copies of a chunk go to two different peers, and each connection receives about 2N/C chunks. Only
   mesh peers not chosen to be pushed a chunk are announced it, and one whose push the queue refuses
-  is offered it instead (§5.2), so no peer is offered a chunk twice. Other connections get no
+  is offered it instead (§5.2), so this step offers no peer a chunk twice. Other connections get no
   announcement from this step, though heartbeat gossip may announce to them later (§6.4).
 - The source pushes each chunk to R = 2 peers. It never uses the fast-class degree of card 17.
-- **The source announces at the acknowledgement** [c3] (`origin_acked`). The mesh peers not chosen
-  to be pushed a chunk are announced it at its acknowledgement: at the first HAVE naming it, from
-  any peer (§4.3), or, if none comes, when its first copy's window slot times out (§7.1). The offers
-  trail the pushes by about a round trip.
+- **The source announces at the acknowledgement** [c3] (`origin_acked`), by default
+  (`SOURCE_OFFERS = ACK`). The mesh peers not chosen to be pushed a chunk are announced it at its
+  acknowledgement: at the first HAVE naming it, from any peer (§4.3), or, if none comes, at the
+  first window timeout of a copy of it (§7.1). The offers trail the pushes by about a round trip.
+- **Or at publish, if the source so chooses** (`SOURCE_OFFERS = PUBLISH`). It then announces each
+  chunk to the mesh peers not chosen to be pushed it, in the same step as it queues the pushes, and
+  its HAVE grows at each chunk's first write (`origin_written`); the acknowledgement does nothing.
+  This is the source before v0.9. The research implementation offers so too, and its rerun of
+  Figures 4 and 5 paces the HAVE at the write (§9). No rule at another node needs either setting
+  (Rationale).
 - **The source's HAVE is paced** [P4], for the source's privacy. It names the chunks acknowledged so
-  far: a chunk joins it at its acknowledgement, and the HAVE then goes to the mesh, as a forwarding
-  node's does when a chunk arrives. A peer the source pushes to also gets a HAVE naming its first
-  chunk, just ahead of it, as a forwarding node's HAVE precedes its pushes. HAVEs to the mesh that
-  would leave together may be merged into one, as the research implementation merges those of the
-  chunks sent between two of its router's turns.
+  far, or at `PUBLISH` those written so far: a chunk joins it at its acknowledgement, or at its
+  first write, and the HAVE then goes to the mesh, as a forwarding node's does when a chunk arrives.
+  A peer the source pushes to is also sent a HAVE naming the first chunk queued for it, just ahead
+  of it, as a forwarding node's HAVE precedes its pushes. HAVEs to the mesh that would leave
+  together may be merged into one, as the research implementation merges those of the chunks sent
+  between two of its router's turns.
 
 #### Rationale
 
@@ -1064,19 +1085,52 @@ queue refuses is offered instead (§5.2).
 can pass the chunks on. The source knows neither their uplinks nor how much of its own it can count
 on, so the threshold sits where the gain is measured (§8.3).
 
-**Announcing at the acknowledgement, not at publish.** Announced at publish, the offers would race
-the pushes. A transport that takes the whole batch at once (a deep library buffer, a socket's send
-buffer, a router's queue) lets every announcement leave at once; the mesh then asks for chunks whose
-pushes are still queued, and the source answers on top of its pushes. The acknowledgement is the one
-event the source sees whatever the transport holds (§7.3).
+**Announcing at the acknowledgement, by default.** Announced at publish, the offers race the pushes.
+A transport that takes a writer's entries at once (a deep library buffer, a socket's send buffer, a
+router's queue) can let a peer's announcements leave while pushes, to it and to other peers, still
+wait in the transport or in the node's queues; the mesh then asks for chunks whose pushes have not
+left, and the source answers on top of its pushes. The acknowledgement is the one event the source
+sees whatever the transport holds (§7.3).
+
+**Announcing at publish, the source's choice.** No rule at another node needs either setting: a
+peer takes an offer whenever it comes, and one whose ask the source does not answer in time parks it
+for the group and asks another announcer, if it has one (§6.1). Like any default, the setting
+changes how the payload spreads (§8.3), and so what the other nodes see. At `PUBLISH` each mesh
+peer is offered the chunks not pushed to it before most have left the source, so it may ask the
+source sooner, and park it if it does not answer in time. At `ACK` the source's HAVE names a chunk
+only once it is acknowledged, so its mesh peers push some of its chunks back to it meanwhile. What
+the setting trades is the source's own:
+- *Its uplink.* Offers at publish draw asks on top of the source's pushes. Where the writer keeps
+  §7.3's rule and the queue admits them, they wait behind the pushes queued before them to the same
+  peer (an offer a full queue refuses is owed, and rides with the next write, §7.2); where the
+  transport takes a writer's entries at once, they can leave while pushes still wait. In the toy at
+  60 nodes (degree 30, three payloads, the median of ten seeds), measured on the next version's
+  draft when it took this rule as written (`toy/README.md`, 2026-11-11), with writes that complete
+  at once: against announcing at publish, a 50 Mbps builder announcing at the acknowledgement was
+  asked 61 % less and uploaded 2.07 copies of the payload instead of 2.50, and a 1 Gbps builder 5.9
+  instead of 10.0; the payload's median completion moved by −8 to 0 ms over four cells, and by −19
+  to +6 ms over their seeds. At 500 nodes, at one seed, the source was asked 22 % less and uploaded
+  3.06 copies instead of 3.24. With §7.3's rule kept, the timing changed nothing measurable at 60
+  nodes (40 asks against 45, the medians within 4 ms). A fast source can gain where its peers pull
+  chunks from it while its uplink has room: the draft's 1 Gbps proposer of many column groups
+  completes 44 ms sooner at 60 nodes and 9 ms sooner at 500 when it offers at publish, and its
+  50 Mbps proposer 26 ms later at 500 (`protocol-v2.md` §4.7).
+- *Its privacy.* Every chunk announced at once, by the one node that holds them all, names the
+  source to its mesh, and the paced HAVE [P4] then hides nothing from it. A source that wants P4's
+  cover announces at the acknowledgement.
+
+The reference value is `ACK`. A client may key the choice on the source's configured uplink, as
+striping is (`STRIPE_UPLINK`); this document does not, since a fast source may still want P4's
+cover.
 
 **The paced HAVE.** A HAVE that names every chunk before any chunk has left can come only from the
 source, so it would tell each mesh peer who published the payload. The paced HAVE still keeps the
-other nodes from pushing the source's chunks back to it, a chunk at a time. It removes the one
-certain sign of the source. Others remain: the source's HAVE grows faster than any other node's, it
-announces every chunk at once to a peer that joins its mesh (§5.4), and it is everyone's first
-sender. They are the subject of separate work on the source's privacy, where P4 is this measure's
-name.
+other nodes from pushing the source's chunks back to it, a chunk at a time. It removes the one sign
+certain to its mesh, unless the source announces at publish, which is another (above). Others remain
+at either setting: the source's HAVE grows faster than any other node's, it announces every chunk at
+once to a peer that joins its mesh (§5.4) and, at its next heartbeat, to the sampled peers outside
+its mesh (§6.4), and it is everyone's first sender. They are the subject of separate work on the
+source's privacy, where P4 is this measure's name.
 
 ### 5.2 A node forwards [c3, c4, c11, c17]
 
@@ -1673,9 +1727,9 @@ chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue
   `WINDOW_TIMEOUT` (500 ms) after sending, or the peer's queue closing. A writer that holds a slot
   and finds no chunk to send gives it back too (`release_unused_slot`).
 - **What bypasses it:** urgent control (HAVEs, acknowledgements, decode claims) never waits.
-- **At the source,** the first HAVE naming a chunk, from any peer, or else its first copy's window
-  timeout, is the chunk's acknowledgement: its announcements go out and it joins the source's HAVE
-  (§5.1).
+- **At the source,** the first HAVE naming a chunk, from any peer, or else the first window timeout
+  of a copy of it, is the chunk's acknowledgement: at `SOURCE_OFFERS = ACK` its announcements go out
+  and it joins the source's HAVE (§5.1).
 - **A second copy** of a chunk still in flight to the same peer waits for a slot like any chunk, but
   returns it at once: the window counts chunks a peer is not yet known to hold, not bytes on the
   wire.
@@ -1713,6 +1767,7 @@ def next_to_send(p):
         if out:
             if out.chunk:
                 track_in_flight(p, out.chunk); slot_held[p] = False    # [c14] the slot is used
+                if SOURCE_OFFERS == PUBLISH: origin_written(out.chunk) # [P4] the source's HAVE (§5.1)
             return with_owed(p, out)                           # owed offers ride along
         # nothing was left of the entry: start again from the urgent lane
 
@@ -2031,7 +2086,7 @@ versions and code, N = 2K for a coded group, the tree and the ids.
 
 | name | bound | value | card | why |
 |---|---|---|---|---|
-| `R`, `R_FAST` | at least 1 | 2, 6 | 3, 11, 17 | a source that pushes nothing offers its mesh no chunk, since §5.1's offers wait for a chunk's acknowledgement: only a peer that joins its mesh (§5.4), or heartbeat gossip outside it (§6.4), is offered anything, so the group's diffusion may never start. §5.3's guard also reads the first push to a peer, which a budget of 0 never makes. 2: the coded group needs less fan-in; 3 without the code at 1 MiB. 6: the knee, beyond which receivers' downlinks bind |
+| `R`, `R_FAST` | at least 1 | 2, 6 | 3, 11, 17 | a source with `R` = 0 pushes nothing, and at `SOURCE_OFFERS = ACK` offers its mesh no chunk, since §5.1's offers then wait for a chunk's acknowledgement: only a peer that joins its mesh (§5.4), or heartbeat gossip outside it (§6.4), is offered anything, so the group's diffusion may never start. §5.3's guard also reads the first push to a peer, which a budget of 0 never makes. 2: the coded group needs less fan-in; 3 without the code at 1 MiB. 6: the knee, beyond which receivers' downlinks bind |
 | `GUARD_GRACE` | longer than a push takes to leave this node's queue and reach the peer, plus the peer's first HAVE coming back: about the round trip to the peer where queues are short | 200 ms | 16 | so that an honest peer is not demoted before its first HAVE can arrive (§5.3). A peer whose copies wait for their block sends no HAVE until it installs (§4.2), and one whose queue to this node is full can drop its HAVE (§8.2): either can be demoted meanwhile, until its first HAVE |
 | `GOSSIP_RETRANSMISSION` | at least 3 | 3, stock gossipsub | – | while its park and the last resort's count last, §6.1's rules ask a provider for a chunk at most twice before the root its copies name installs, and leave its third answer for after the switch to that block (§6.1's Rationale) |
 | `GROUP_TTL` | at least 7 heartbeats and the seen cache's lifetime, after the group's last chunk or its completion | not fixed | – | so that a group outlives its diffusion. That is not assured: a decode, which this document does not bound, can outlast the group (§4.6), as can what is still queued for it (§7.2), and the live window can end the group sooner (§8.1) |
@@ -2055,6 +2110,7 @@ resort's count last.
 | `UNIT` | 16 KiB | 1 | the unit where variant A's latency reached its floor (*What segmented payload diffusion is made of*) |
 | `FAST_UPLINK` | 500 Mbps | 17 | the configured uplink from which a node pushes `R_FAST` (§5.2) |
 | `STRIPE_UPLINK` | 1 Gbps (configured uplink) | 13 | where striping's gain is measured; the first hop suggests it starts near eight times the peers' uplink, 400 Mbps in the all-home network |
+| `SOURCE_OFFERS` | `ACK` | 3 | when the source announces a chunk to the mesh peers it did not push it to: `ACK` at the chunk's acknowledgement, `PUBLISH` at publish, its HAVE then growing at each chunk's first write (§5.1). `ACK` waits for an event the source sees whatever the transport holds (§7.3), and keeps P4's cover toward the mesh; no rule at another node needs either setting |
 | `IWANT_WINDOW` | 200 ms | 5 | one ask in flight per id, then move on |
 | `RETRY_SLACK` | 5 ms | 5 | the retry looks just after the ask's window has closed |
 | `PROMISE` | 400 ms | 5 | a late answer is still taken; after this the peer is parked, which affects only this node's asks of it (§6.1) |
@@ -2163,15 +2219,16 @@ rerun does as this document does, the entry says so.
   instead (§5.1, [P4]). A change of 2026-10-07 makes the implementation send one HAVE before the
   data by default, and pace it as an option (`SEGMENT_SRC_HAVE=paced`), measured at no cost in
   delivery. The rerun of Figures 4 and 5
-  paces it at the write; this document's HAVE grows at the acknowledgement instead (§5.1), about a
-  round trip later.
+  paces it at the write; this document's HAVE grows at the acknowledgement by default (§5.1), about a
+  round trip later, and at the write at `SOURCE_OFFERS = PUBLISH`.
 - *The source announced at publish.* The implementation queues a chunk's offers to the mesh peers it
   does not push it to in the same step as the pushes; this document queues them at the chunk's
-  acknowledgement (§5.1). Over quic-go, whose stream write blocks until all but one packet is
-  packed, the offers waited behind the pushes in each peer's queue and drew few asks. Over a
-  transport that takes the whole batch at once, offers made at publish drew asks for chunks whose
-  pushes were still queued, an order of magnitude more asks at the source than the harness saw
-  (the cross-check of 2026-10-07, on the toy).
+  acknowledgement by default, and as the implementation does at `SOURCE_OFFERS = PUBLISH` (§5.1).
+  Over quic-go, whose stream write blocks until all but one packet is packed, the offers waited
+  behind the pushes in each peer's queue and drew few asks. Over a transport that takes the whole
+  batch at once, offers made at publish drew asks for chunks whose pushes were still queued, an
+  order of magnitude more asks at the source than the harness saw (the cross-check of 2026-10-07,
+  on the toy).
 - *The transport below the writer* was quic-go's: the measured runs kept §7.3's rule by the
   library's behaviour, not by a rule, and the harness's per-peer queue held the backlog.
 - *The push degree by payload size.* The measured tier 4 runs at R = 2 at 1 MiB, and was swept over
@@ -2268,7 +2325,7 @@ The document's terms, each with the section that defines it.
 
 - **acknowledgement**: the HAVE a node sends the peer a chunk came from (§4.2); it gives back the
   window slot of that copy (§7.1). At the source, a chunk's acknowledgement is the first HAVE naming
-  it from any peer, or its first copy's window timeout (§5.1).
+  it from any peer, or the first window timeout of a copy of it (§5.1).
 - **announce**: to send an IHAVE bitmap naming chunks a node can send (§2, §5.2); the peer that
   announced a chunk is its **announcer**, and the announcement its **offer** (§6.1). Where §9 says a
   node *announced* a chunk it held, as stock IDONTWANT does, it means its HAVE: a claim (below),
@@ -2283,8 +2340,8 @@ The document's terms, each with the section that defines it.
   wire (§1, §2).
 - **claim**: a node's statement, in its HAVE, that it holds a chunk. A chunk it receives is claimed
   only once it passes level 1 (§4.2); the **decode claim** names all N chunks of a group at the K-th
-  chunk received, before decoding (§4.6). A source's HAVE names the chunks acknowledged so far
-  (§5.1).
+  chunk received, before decoding (§4.6). A source's HAVE names the chunks acknowledged so far, or
+  at `SOURCE_OFFERS = PUBLISH` those written so far (§5.1).
 - **deferred**: a copy of a chunk whose block is not installed yet; it waits in a bounded store, or
   is refused, and within §8.2's limits ties its sender either way (§4.2).
 - **descriptor**: the `SegmentDescriptor` a bid commits to, which says how the payload was cut and

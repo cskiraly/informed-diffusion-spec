@@ -348,9 +348,12 @@ def main(argv):
                     choices=("off", "on", "v03", "oldest", "line", "others", "fresh", "late", "othersans"),
                     help="--doc v2: off and on are protocol-v2.md §4.12's ANSWERS_FIRST (a source's own chunks first either way); "
                          "v03 is v0.3's order; the others are the forms measured against it (node.py _writer_variants, README)")
-    ap.add_argument("--source-offers", default="on", choices=("on", "off", "late"),
-                    help="off: the source does not offer its chunks to the relation peers it did not push them (card 3 at the source); "
-                         "late: it offers them after the pushes of every group it published at the same instant")
+    ap.add_argument("--source-offers", default="on", choices=("on", "off", "late", "publish"),
+                    help="off: publish does not offer the chunks to the peers it did not push them (card 3 at the source); "
+                         "late: publish queues those offers after the pushes of every group published at the same instant; "
+                         "both act only on offers publish itself makes, so since v0.9's rule (offers at the acknowledgement) "
+                         "they change nothing; publish: protocol.md's SOURCE_OFFERS = PUBLISH (§5.1), the offers at publish "
+                         "and the HAVE growing at a chunk's first write, as before v0.9's rule; not with --doc v2")
     ap.add_argument("--answer-due", type=float, default=0.100, help="--answers-first late: seconds an answer waits before it goes ahead of pushes")
     ap.add_argument("--promise", type=float, default=0.400, help="seconds an offer's promise runs before the peer is parked for the group (v0.3 §6.1's PROMISE)")
     ap.add_argument("--promise-mode", default="fixed", choices=("fixed", "uplink", "peer"),
@@ -403,6 +406,8 @@ def main(argv):
                MAX_IHAVE_MESSAGES=limits[0], MAX_IHAVE_LENGTH=limits[1],
                late_block=(int(late[0]), late[1] / 1000, int(late[2]) if len(late) == 3 else 2) if late else None,
                ALARM_WAIT=a.alarm_wait, ALARM_JITTER=a.alarm_jitter, ALARM_NEXT=a.alarm_next, ALARM_MAX=a.alarm_max)
+    if a.source_offers == "publish" and a.doc == "v2":
+        ap.error("--source-offers publish is protocol.md's SOURCE_OFFERS: protocol-v2.md here has none")
     if a.fault.startswith("hoardcol") and a.rebuilt_seen != "on":
         ap.error("--fault hoardcol is meant strict: with --rebuilt-seen on")
     if a.payload:

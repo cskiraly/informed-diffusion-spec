@@ -8,9 +8,10 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 ## After v0.10.2, not yet released
 
 `protocol.md` sorts its constants into limits, bounds and defaults, gives gossipsub's two IHAVE limits
-reference values, and calls what a peer writes on its stream a frame, with none of the values it gave
-before and nothing the code does changed; its §1 says what the open choice of where the descriptor
-travels decides. The next version's draft carries v0.10's rules where it has
+reference values, calls what a peer writes on its stream a frame, and lets a source announce its
+chunks at publish, its own choice, the acknowledgement staying the default. None of the values it gave
+before changes, and at the defaults the code does all it did; its §1 says what the open choice of where
+the descriptor travels decides. The next version's draft carries v0.10's rules where it has
 functions of its own, follows §8.1's lifetimes at a connection's close, and settles the probe of a
 claim's open cases; its figures are measured again.
 
@@ -45,13 +46,22 @@ claim's open cases; its figures are measured again.
   frame, and that a client may merge entries' control into one, as §5.1, §5.4, §6.4 and §8.3 already
   allowed; §7.3 says that its "yamux frames" are the multiplexer's. No rule or value changes.
 - **What the source's HAVE names, and when it announces, said as the code does it.** A chunk is
-  acknowledged at the first HAVE naming it, from any peer, or at its first copy's window timeout (§5.1,
-  §7.1, and the glossary's "acknowledgement"). The source's HAVE names the chunks acknowledged so far,
-  and its announcements wait for the acknowledgement; a pushed peer's first HAVE also names its first
-  chunk, as before. Two comments, §5.1's bullet on the HAVE and the glossary said "known to have
-  arrived", and `publish`'s comment "chunks we have sent"; §5.1's bullet on the announcements
-  and §8.3's `R` row had the offers wait for "a copy known to exist elsewhere", and §7.1 named only a
-  slot's return or timeout. Wording and comments only.
+  acknowledged at the first HAVE naming it, from any peer, or at the first window timeout of a copy of
+  it (§5.1, §7.1, and the glossary's "acknowledgement"). At the default (next item), the source's HAVE
+  names the chunks acknowledged so far, and its announcements wait for the acknowledgement; a pushed
+  peer's first HAVE also names the first chunk queued for it, as before. Two comments, §5.1's bullet
+  on the HAVE and the glossary said "known to have arrived", and `publish`'s comment "chunks we have
+  sent"; §5.1's bullet on the announcements and §8.3's `R` row had the offers wait for "a copy known
+  to exist elsewhere", and §7.1 named only a slot's return or timeout. Wording and comments only.
+- **When the source announces is its own choice** (§5.1, §8.3's `SOURCE_OFFERS`): at a chunk's
+  acknowledgement by default (`ACK`), as since v0.9, or at publish (`PUBLISH`), its HAVE then growing
+  at each chunk's first write (`origin_written`) and the acknowledgement doing nothing, as before v0.9
+  and as the research implementation offers (§9). No rule at another node needs either setting,
+  though, like any default, it changes how the payload spreads. The acknowledgement is an event the
+  source sees whatever the transport holds, and keeps P4's cover toward the mesh; announcing at
+  publish names the source to its mesh, and can draw asks on top of its pushes where the transport
+  takes a writer's entries at once. §5.1's Rationale gives the trade, with the toy's figures, and §2,
+  §4.3, §7.1, §8.3's `R` row, §9 and the glossary say which setting they describe.
 
 The draft of SEACAST's next version (`protocol-v2.md`), changed since v0.10:
 - **v0.10's rules in the draft's own functions.** Its `defer` ignores a copy beyond its sender's limit
@@ -104,13 +114,18 @@ The toy:
   bound; the toy's runs send no such IWANT, and no outcome depends on the kept entries.
 - **The IHAVE limits at `protocol.md`'s reference values hold back no ask** in any recorded cell,
   with or without `--doc v2`: each cell runs as it does with no limit (`toy/README.md`).
+- **`--source-offers publish` runs `protocol.md`'s `SOURCE_OFFERS = PUBLISH`.** In each of the fifteen
+  cells of `golden.txt` it gives the digest of the document with the source of before v0.9's rule put
+  back, and none of the recorded digests (`toy/README.md`); `--doc v2` refuses it. Its help says that
+  `off` and `late` act only on offers `publish` makes, so since v0.9's rule they change nothing.
 - **Known answers** for each change: `toy/v2_carried_known.py`, `toy/close_known.py`,
   `toy/refusal_report_known.py`, `toy/probe_decode_known.py`, `toy/probe_write_known.py` and
   `toy/probe_settle_known.py`; `toy/deferral_rules_known.py` and `toy/table_read_known.py` also run the
   draft (`--doc v2`).
 - **Unchanged:** every recorded cell's digest in `golden.txt` and `golden-v2.txt`. Of the code lines
-  `protocol.md` changes, `MAX_SEGMENT_SIZE` keeps its value, and the others only take the new names
-  (`on_frame`, `frame`, `ihave_frames`) or a reworded comment.
+  `protocol.md` changes, `MAX_SEGMENT_SIZE` keeps its value, `SOURCE_OFFERS`'s change nothing at the
+  default `ACK`, and the others only take the new names (`on_frame`, `frame`, `ihave_frames`) or a
+  reworded comment.
 
 ## v0.10.2, 2026-11-16
 

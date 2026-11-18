@@ -93,6 +93,16 @@ which takes every write at once (`--send-buffer 0`, the default until that day):
 met, a case the document allows and the check keeps. Its line is the `push` cell's line before the
 default changed, in both recordings.
 
+Every cell of `golden.txt` runs the source at `protocol.md`'s reference value, `SOURCE_OFFERS = ACK`
+(§5.1). `--source-offers publish` sets `PUBLISH`, the source's other choice: its offers at publish and
+its HAVE growing at each chunk's first write, as before v0.9's rule. In all fifteen cells it gives the
+digest of the document with the source of before that rule put back (v0.8's `publish` and
+`origin_sent`, from `c9881d3`'s parent), and none gives its recorded digest (2026-11-18). That
+needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting, `loss-thin` and
+`late-block` differ, since there a chunk is acknowledged before the source writes it. `--doc v2`
+refuses `publish`: the draft here has no `SOURCE_OFFERS`. The option's other values, `off` and
+`late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
+
 Sixteen scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.

@@ -573,6 +573,8 @@ class Node:
             "HAVE_TTL": c["HAVE_TTL"], "PUSH_TTL": c["PUSH_TTL"],
             "CANCEL": c["card8"], "RAREST": c["card9"], "PROJECT": c["card12"], "PACED": c["card15"],
             "ANSWERS_FIRST": c.get("answers_first", "off") == "on",
+            "ACK": "ACK", "PUBLISH": "PUBLISH",                      # protocol.md §5.1's SOURCE_OFFERS: ACK, unless
+            "SOURCE_OFFERS": "PUBLISH" if c.get("source_offers") == "publish" else "ACK",   #   --source-offers publish
             "DESCRIPTOR_IN_CHUNK": True,
             # state (§8.1); missing entries read as empty
             "desc": DefaultMap(None), "state": DefaultMap(None), "chunks": lazy(lazy_dict), "known_id": lazy(lazy_dict),
