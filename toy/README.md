@@ -103,7 +103,7 @@ needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting
 takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Thirty-two scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Thirty-three scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -219,6 +219,10 @@ where one has a control that must come out the other way, it is named:
   in both documents. Where an entry carries another group's part too (an answer with the frame's asks
   and PRUNE, the IHAVEs of what is owed), that part stays, and the entry with it; the controls are
   the other group's pushes, asks, IHAVEs and owed bits, which stay.
+- `discard_paced_known.py`: after `drop_group`, the pace ticks (card 15, §6.4) announce the group to
+  nobody, in both documents: its ids leave every paced job, and a job that named it alone goes (§4.6,
+  §8.1). The controls: the other group's ids in the same jobs are still announced, and a job that was
+  empty before the drop still takes its tick.
 - `close_source_known.py`: a source's link closing with a copy in flight releases the copy's room, and the
   chunk is not acknowledged for it: it does not join the source's holding and is not offered. The control: the
   copy's window timeout does acknowledge it.

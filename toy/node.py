@@ -748,8 +748,13 @@ class Node:
                 for groups in owed.values():
                     groups.pop(g, None)
 
-        def discard_paced(g):
-            pass
+        def discard_paced(g):           # g's ids leave every paced job (§6.4), and a job that named g alone goes
+            jobs = []                   #   with them (§4.6, §8.1); one that was empty already is not g's, and stays
+            for q, ids, at in ns["pace_queue"]:
+                left = [m for m in ids if m[:32] != g]     # by its group, as gossip_history.remove_group
+                if left or not ids:
+                    jobs.append((q, ids if len(left) == len(ids) else left, at))
+            ns["pace_queue"][:] = jobs
 
         # ---- peers and messages (§8.1, §8.2)
         def seen(mid):
