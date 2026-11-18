@@ -13,9 +13,10 @@ claimant:
 - **A probe a full queue refuses, with the duty armed later** (the duty was due 10 s on): the duty keeps its own
   time; it is not moved to now.
 - **A probe whose claimant closes, with the duty armed later**: the same, the duty back at its own time.
-- **After a probe given no verdict, a plain ask of the probed cell to the claimant** (the claimant offered it):
-  the ask's promise starts at its write, and the claimant's answer closes it; the settled probe's rule no longer
-  holds it open.
+- **After a probe given no verdict, a plain ask of the probed cell to the claimant**, queued by hand: settled,
+  the probe's ask is gated again (stop-pull), so the ask is not written and no promise starts (since 2026-11-17;
+  before, the ask passed and its promise started). And a promise under the probe's key, made by hand, is closed
+  by the claimant's copy: the settled probe's rule no longer holds it open.
 - Controls, the same before and after: a close when the duty was due at the decision is reconsidered at once; a
   probe not yet settled is written; the claimant's own copy before the write passes the probe, and the queued
   WANT is dropped (option (a), §4.6); before the verdict, another peer's copy leaves the written probe's promise
@@ -28,15 +29,67 @@ decoding):
   ask twice; a plain standing ask, then the marked ask; the marked ask, then a plain standing ask; and the marked
   ask twice with one slot of the serving limit left, where a standing copy of it took the slot first.
 - The control: a plain standing ask of the same cell, from another peer, is answered once.
+- Askers on links that are not DECLARED, whose marked asks do not stand (since 2026-11-17): one asker; two
+  askers, each kept and answered once with its exemption; and an asker that marks another index of the group
+  too, whose first marked ask stays the one kept and answered.
+
+    python3 probe_settle_known.py --controls
+
+runs the three broken texts in VARIANTS, each of which the line on its words must catch: a later marked ask
+replacing the kept one, one kept probe per group whatever the asker, and a probe kept only where it would stand
+anyway. Every line before these three passes all of them.
 """
 import sys
 from pathlib import Path
 
 SEED, NODE = 7, 2
 
+# Broken texts that the lines on askers that are not DECLARED must catch (`--controls`): name -> (replacements in protocol-v2.md's extracted
+# code, the words of the line that must fail). The lines before them pass every one of them: each uses one asker,
+# peer 1, a DECLARED link, whose asks stand whatever their flag.
+KEEP = "            if flagged and p not in probe_waiting[gi.group]:"
+VARIANTS = {
+    "keep-any-marked": ([(KEEP, "            if flagged:"),     # a later marked ask replaces the kept one, and
+                         ("            and probe_waiting[gi.group].get(p, gi.index) == gi.index)",   # takes the
+                          "            )")],                                                         # exemption
+                        "a marked ask of another index"),
+    "one-per-group": ([(KEEP, "            if flagged and not probe_waiting[gi.group]:")],   # one asker per group
+                      "two askers"),
+    "standing-only": ([(KEEP, "            if flagged and (declared or gi.standing) and p not in probe_waiting[gi.group]:")],
+                      "not DECLARED"),                          # kept only where it would stand anyway
+}
 
-def main():
+
+def use_variant(name):
+    import node as N
+    from extract import generate
+    src = generate(N.DOC2)
+    for old, new in VARIANTS[name][0]:
+        assert src.count(old) == 1, (name, old)
+        src = src.replace(old, new)
+    N._SPEC2 = compile(src, f"protocol-v2.md (variant {name})", "exec")
+
+
+def controls():
+    import subprocess
+    bad = 0
+    for name, (_, words) in VARIANTS.items():
+        r = subprocess.run([sys.executable, "-B", __file__, "--variant", name], capture_output=True, text=True)
+        failed = [x for x in r.stdout.splitlines() if "<-- must be" in x]
+        caught = r.returncode == 1 and any(words in x for x in failed)
+        bad += not caught
+        print(f"variant {name}: {'caught' if caught else 'NOT CAUGHT'} by the line on {words!r}; "
+              f"{len(failed)} line(s) failed")
+    print("ok" if not bad else "FAIL")
+    return 1 if bad else 0
+
+
+def main(argv=()):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    if "--controls" in argv:
+        return controls()
+    if "--variant" in argv:
+        use_variant(argv[argv.index("--variant") + 1])
     import run
     import sim as S
     import wire as Wm
@@ -165,15 +218,17 @@ def main():
     ns["filter_entry"](q, entry)                            # the probe, settled while queued, is dropped
     ask = ns["Ask"](g, i)
     ns["queue"][q].normal[:] = []
-    ns["enqueue"](q, Wm.IWANT([ask]), False)                # the claimant offers the cell: a plain ask (§4.4)
+    ns["enqueue"](q, Wm.IWANT([ask]), False)                # a plain ask of the probed cell, queued by hand
     plain = ns["queue"][q].normal[-1]
     ns["now"] = at + 0.1
-    ns["filter_entry"](q, plain)                            # written: its promise starts (protocol.md §6.1)
-    started = (ask, q) in ns["promises"]
+    out = ns["filter_entry"](q, plain)                      # settled: the ask is gated again (stop-pull)
+    line("no verdict, then a plain ask of the probed cell queued to the claimant: written, and its promise started",
+         (out is not None and asks_left(plain) > 0, (ask, q) in ns["promises"]), (False, False))
+    ns["promises"][(ask, q)] = at + 0.1                     # a promise under the probe's key, made by hand
     ns["now"] = at + 0.2
-    ns["fill"](g, i, cells[i], q)                           # the claimant answers it
-    line("no verdict, then a plain ask the claimant answers: its promise started, and still open",
-         (started, (ask, q) in ns["promises"]), (True, False))
+    ns["fill"](g, i, cells[i], q)                           # the claimant's copy
+    line("no verdict, then a promise under the probe's key: still open after the claimant's copy",
+         (ask, q) in ns["promises"], False)
 
     # the control: before the verdict, another peer's copy leaves the written probe's promise open
     setup()
@@ -228,9 +283,50 @@ def main():
          claimant([(p, True), (p, False)])[p], (1, 1, True))
     line(f"peer {p}'s marked ask twice, one slot left: answers queued, charges, and the exemption taken",
          claimant([(p, True), (p, True)], slots=1)[p], (1, 1, True))
+
+    # askers on links that are not DECLARED, whose marked asks do not stand: one, two, and one that marks
+    # another index of the group as well
+    t = next(x for x in sorted(nd.peers) if x not in (p, r, s))
+    j3 = sorted(ns["chunks"][g2])[1]
+    f3 = ns["chunks"][g2][j3]
+    derived = [ns["join_recv"][x][T_row].interest for x in (r, t)]
+
+    def kept(asks):                                         # asks: (peer, index, marked) in order of arrival, none
+        ns["state"][g2] = "DECODING"                        #   standing; cells j and j3 claimed, not stored
+        for k in (j, j3):
+            ns["chunks"][g2].pop(k, None)
+            ns["known_id"][g2].pop(k, None)
+            ns["received"][g2].clear(k); ns["rebuilt"][g2].clear(k)
+            ns["standing"][g2].pop(k, None)
+        ns["probe_waiting"][g2].clear()
+        for x in (r, t):
+            ns["queue"][x].normal[:] = []; ns["queue"][x].urgent[:] = []
+            ns["probe_served"][x][g2] = False
+            for fk in (f, f3):
+                ns["probe_answers"][x][fk.group].clear(fk.index)
+        for x, k, marked in asks:
+            ns["on_want"](x, [Wm.FlaggedWant(g2, k, False, 0, probe=marked)])
+        waiting = dict(ns["probe_waiting"][g2])
+        ns["fill"](g2, j, f, s)                             # cell j is stored; j3 is not
+
+        def answers(x):
+            qx = ns["queue"][x]
+            return sum(1 for e in list(qx.urgent) + list(qx.normal) if e.chunk is f and e.solicited)
+        return waiting, {x: (answers(x), ns["probe_answers"][x][f.group].has(f.index)) for x in (r, t)}
+
+    line(f"peers {r} and {t}: their links' interest", derived, ["DERIVED", "DERIVED"])
+    w, out = kept([(r, j, True)])
+    line(f"peer {r}, on a link not DECLARED, a marked ask not standing: kept; answered once, with its exemption",
+         (w, out[r]), ({r: j}, (1, True)))
+    w, out = kept([(r, j, True), (t, j, True)])
+    line(f"two askers, peers {r} and {t}: both kept; each answered once, with its exemption",
+         (w, out[r], out[t]), ({r: j, t: j}, (1, True), (1, True)))
+    w, out = kept([(r, j, True), (r, j3, True)])
+    line(f"peer {r}'s marked ask, then a marked ask of another index (not stored): the first kept; answered once, "
+         f"with its exemption", (w, out[r]), ({r: j}, (1, True)))
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

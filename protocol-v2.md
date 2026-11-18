@@ -40,8 +40,9 @@ them; §5 lists what carries over.*
     open (§4.6).*
 - *v0.9 (2026-11-10):*
   - *The source's holding grows at a chunk's acknowledgement, not at its write (§4.3 `on_holding`,
-    §4.7 `origin_acked`, §4.11 `window_timeout` and `next_to_send`).*
-  - *Its offers wait for the acknowledgement too, for every object type (§4.7).*
+    §4.7 `origin_acked`, §4.11 `window_timeout` and `next_to_send`), at `SOURCE_OFFERS = ACK`, the
+    default since 2026-11-18 (§4.7).*
+  - *Its offers wait for the acknowledgement too, for every object type, at `ACK` (§4.7).*
   - *What the transport below the writer should hold, and the note for operators (its §7.3), apply
     as written (§4.11).*
 - *v0.10 (2026-11-15):*
@@ -74,8 +75,8 @@ them; §5 lists what carries over.*
 - *v0.10.3 (2026-11-18): `protocol.md`'s constants in three kinds, reference values for
   gossipsub's two IHAVE limits, "frame" for what a peer writes on its stream, the source's HAVE
   said as "acknowledged", and the source's choice of when it announces (`SOURCE_OFFERS`). This
-  draft has taken the rename (`on_frame`, `frame`, `ihave_frames`); it carries the rest in its
-  next step.*
+  draft carries them all: the rename (`on_frame`, `frame`, `ihave_frames`), §6.3's bounds in §8.3's
+  kinds, the IHAVE values (§4.3, §6.3), "acknowledged" (§4.7), and `SOURCE_OFFERS` (§4.7, §6.3).*
 
 *This draft defines the notions, the messages, the state and the event handlers; the scheduling
 that tier 4 measured carries over unchanged where §5 says so. Every design decision is marked
@@ -106,7 +107,8 @@ RowDAS's rows (EIP-8371). Rendezvous and discovery: how a node finds peers that 
 type and a family (gossipsub topics where they exist, the ENR's `cgc` and node ids); this document
 assumes a set of connected peers per object type and defines what happens on those connections.
 The libp2p connection and its framing. Gossipsub itself is *not* assumed: what it provided, the
-pusher set, suppression, announcements and pulls, is defined here, and §7 says how the result is
+pusher set, suppression, announcements and pulls, is defined here, and the bindings (§7,
+`protocol-v2-bindings.md`) say how the result is
 carried on gossipsub's wire where that is the deployed path. v0.3's code is assumed where §5 says
 a function carries over: this document redefines what changes and names what it keeps.
 
@@ -128,7 +130,7 @@ how the messages travel. Named mechanisms inside a part keep their own names.
 | completion and repair | the claims, completion per interest, decoding at K, rebuilt chunks, deferral, the probe, evidence | §1.5, §4.6 | |
 | informed scheduling *(local)* | what a node sends next and when: the window in bytes, the projection, the next entry, pacing, the ask window | §4.9, §4.11–4.13 | the byte window |
 | source distribution *(local)* | how a source releases a group: batch order, striping, the cap, its paced holding; any node holding chunks first is a source (§1.6) | §4.7 | striped publishing |
-| wire bindings | how the messages travel: standalone (in an RPC of its own or in Waggle's framing), on gossipsub's Partial Messages Extension, or on v0.3's wire | §7 | |
+| wire bindings | how the messages travel: standalone (on a stream of its own or in Waggle's framing), on gossipsub's Partial Messages Extension, or on v0.3's wire | §7; `protocol-v2-bindings.md` | |
 
 The heartbeat (§4.8) drives three of them: relation upkeep, announcement gossip and pacing. Outside the
 parts, and assumed above: the object type's interface (§1.1: indices, verification, decoding,
@@ -145,7 +147,7 @@ of a group is v0.3's `desc`, read here as `hdr`. New helpers are listed in §3.
 
 **Requirement labels.** The draft was written against a list of requirements; the labels it cites
 are these ([P4] is v0.4's tag, its §5.1: the source's holding names only the chunks it has sent;
-since v0.9, the chunks known to have arrived, §4.7).
+since v0.9, the chunks acknowledged so far, §4.7).
 
 | label | requirement |
 |---|---|
@@ -211,7 +213,8 @@ class TypeParams:                                    # per object type; values i
     SYMMETRIC: bool                                  # one relation both ways, kept as gossipsub keeps its mesh (§4.1)
     PRUNE_BACKOFF: float                             # seconds before a relation a PRUNE named is grafted again (§4.1)
     ANNOUNCE_EXTRA: AnnounceWidth                    # ALL_JOINED | SAMPLE | NONE              [D5]
-    EAGER: bool                                      # chunks of this type are pushed; False: holdings and offers only (rows, EIP-8371)
+    EAGER: bool                                      # chunks of this type are pushed; False: holdings and offers only (rows, EIP-8371),
+                                                     #   at the source too: it offers every chunk at publish (§4.7)
     DECODE_AT_K: Callable[[GroupId], bool]           # repair: who decodes at K, claiming all        [D4]
     DECODE_LATER: Callable[[GroupId], Optional[float]]   # repair: who decodes later if the group is still short, and when (from known_at) [D4]
     REPAIR_TO: Callable[[GroupId], List[PeerId]]     # repair: whom rebuilt chunks of a group go to  [D4]
@@ -397,7 +400,8 @@ rule (§4.6) says it decodes a group or a block it does not need whole for itsel
 
 ## 2. Messages
 
-Abstract messages; §7 binds them to wires. Every message names its object type or group, and a
+Abstract messages; the bindings carry them on wires (§7, `protocol-v2-bindings.md`). Every message
+names its object type or group, and a
 receiver ignores, without penalty, a message for an object type it has not joined on that link.
 
 ```python
@@ -463,7 +467,8 @@ class Evidence(Container):               # [D6]
   to one of its links with one step fewer (§4.10). A pull against an offer, the probe and the
   repair sample (§4.6) set neither. A third field, `probe`, marks the one ask that verifies a peer's
   claim (§4.6): the claimant answers it whatever the asker's holdings say, once per asker and group.
-  The standalone binding carries `standing` and `probe` in one flags byte (§7).
+  The standalone binding carries `standing` and `probe` in one flags byte (`protocol-v2-bindings.md`
+  §1.3).
 - **A chunk carries its header once per group and link**, so cells can be verified before the block
   (P2); the payload's header is the descriptor, which the chunk carries (design A) and the installed
   block confirms, as in v0.3.
@@ -492,7 +497,7 @@ mine: Dict[GroupId, Bitmap]                           # what we claim: received,
 chunks: Dict[GroupId, Dict[int, Chunk]]
 interest: Dict[GroupId, Bitmap]                       # new: ours, per group (§1.2); ALL reads as every index
 stop_pull: Dict[GroupId, bool]                        # [c6]
-origin: Dict[GroupId, Bitmap]                         # v0.4's: for a group we publish, the chunks known to have arrived [P4]
+origin: Dict[GroupId, Bitmap]                         # v0.4's: for a group we publish, the chunks acknowledged so far (§4.7) [P4]
 planned: Dict[GroupId, Dict[int, Set[PeerId]]]        # v0.9's: for a group we publish, each chunk's push targets [c3]
 known_at: Dict[GroupId, float]                        # new: when the group id became known; START_DELAY runs from here [D8]
 
@@ -519,7 +524,7 @@ duty_at: Dict[GroupId, float]                         # new: the duty's own time
 waited: Dict[GroupId, bool]                           # new: we waited once for chunks held on another axis (§4.6)
 probe: Dict[GroupId, int]                             # new: the index we asked a claimant for, to verify the claim (R5)
 probed: Dict[GroupId, PeerId]                         # new: the claimant we asked
-probe_asks: Set[Ask]                                  # new: those asks, exempt from stop-pull (§4.6)
+probe_asks: Set[Ask]                                  # new: those asks, exempt from stop-pull until settled (§4.6)
 probe_sent: Set[GroupId]                              # new: groups whose probe's WANT was written (§4.6)
 probe_ok: Dict[GroupId, Optional[bool]]               # new: the probe's verdict, once: True if the claimant's own copy came;
                                                       #   None: no verdict, the probe not written in time or
@@ -548,6 +553,8 @@ runs out or the connection closes. An expired group is not taken up again: the
 receive and publish paths check it as v0.3's do, `fill` on every axis a chunk projects onto, and
 the paths that act on a projected group (`forward`, `push_rebuilt`, the repair
 sample's `ask_custodian`) skip an expired axis; `check_completion` finds no state to act on.
+A dropped group's later chunks are not stored, forwarded, offered or kept for heartbeat gossip on
+that axis (`fill`, `forward`, `push_rebuilt`), as `protocol.md`'s `on_validated` returns for one.
 The sampler's `sample`, `resample` and `ask_sample` check it (§4.10), so a draw or a retry after
 the expiry makes no park, interest or WANT again.
 Reading a missing entry allocates nothing;
@@ -584,12 +591,14 @@ nodes not yet linked, each with the families its custody holds), `open_link(r, T
 and JOIN with `our_join(T)`, through `send_join`), `route_next(T, fam, qs)` (§1.3, §4.10: of the links `qs`, those nearest `fam` by the
 routing neighbours' distance between their computed custody and `fam`; all of them where the
 rendezvous keeps no such rule), `block_of(g)` (the block a cell group belongs to; `g` itself for a type without blocks),
-`wire_size(f)` (§4.11: the chunk's bytes on the wire, the binding's),
+`wire_size(p, entry)` (§4.11: the bytes the entry's chunk takes on the wire to `p`, the binding's: with a
+header where its write carries one),
 `cell_groups(root)` (the column and row groups of a block, from their ids alone).
 
 ## 4. Events
 
-Validation runs off the receive path as in v0.3 §4.1. The order of handling one RPC is v0.3's:
+Validation runs off the receive path as in v0.3 §4.1. The order of handling one frame (a binding's unit
+on the wire, which may carry several messages; `protocol-v2-bindings.md` §0) is v0.3's:
 chunks, then offers (which produce asks), then asks (which produce answers), then GRAFT and PRUNE,
 then holdings, then the response.
 
@@ -597,7 +606,7 @@ then holdings, then the response.
 def on_frame(p, frame):
     for f in frame.chunks: on_chunk(p, f)                            # §4.2
     offers = [h for h in frame.haves if h.offer]
-    if offers: ihave_frames[p] += 1                                   # offer-bearing RPCs, for §4.3's limits
+    if offers: ihave_frames[p] += 1                                   # offer-bearing frames, for §4.3's limits
     asks = [a for h in offers for a in on_offer(p, h)]                # §4.3
     answers = on_want(p, frame.asks)                                  # §4.5
     for gr in frame.grafts: on_graft(p, gr)                           # §4.1: it sends its own answers
@@ -804,7 +813,7 @@ pushed "I will push you". A node that refuses it answers with a PRUNE, as before
   The queue keeps control in its order (§4.12). One that a full queue refuses is owed, every later
   one waits behind it, and the writer queues them in that order once there is room
   (`send_relation`, `queue_owed_relations`, §4.11), so none is lost while the connection lasts. A
-  binding that merges entries puts at most one GRAFT or PRUNE of a relation in one RPC.
+  binding that merges entries puts at most one GRAFT or PRUNE of a relation in one frame.
 - **Checked** (`toy/graft_check.py`): this section's functions as written, on two nodes, from the
   link's first JOIN, sent by either end or both, for one relation over an ordered connection with
   queues of one entry and other traffic taking their room, each end's upkeep grafting or pruning up
@@ -930,7 +939,7 @@ link, through `send_join`: when it opens the link, a sampling link's included
   node that has no link for it).
 - **On gossipsub's wires** a JOIN is a subscription (§7): both ends send theirs when the
   connection opens, and one made later goes to every peer, so none is an answer. A sampler's
-  `(DECLARED, NONE)` writes nothing there, so it is never owed (§7).
+  `(DECLARED, NONE)` writes nothing there, so it is never owed (`protocol-v2-bindings.md` §4).
 
 **A peer that joins a push relation is announced what the node holds** (2026-10-26, from
 `protocol.md` §5.4's `on_mesh_join`).
@@ -1007,7 +1016,8 @@ def on_validated(p, f, result):
     if result == REJECT: return penalise(p)            # level 1 failures are the sender's
     T = type_of_group(f.group)
     for (g, i) in T.project(f): fill(g, i, f, p)       # (R4) one arrival fills every group it belongs to
-    if any(duty_for(g) == FORWARD for (g, i) in T.project(f)): forward(f, p)   # §4.4: on any axis we serve; never waits for level 2
+    acting = [(g, i) for (g, i) in T.project(f) if not expired(g) and state[g] != INVALID]   # a dropped group is not acted on (§4.6)
+    if any(duty_for(g) == FORWARD for (g, i) in acting): forward(f, p)   # §4.4: on any axis we serve; never waits for level 2
     for (g, i) in T.project(f): check_completion(g)    # §4.6
 
 def fill(g, i, f, p):
@@ -1121,6 +1131,11 @@ of a refused copy is gone).
   goes: offers, asks, promises, tries and ties (`drop_beyond`, from `fill`). And at each heartbeat,
   what waits for a gate that never opens goes once its slot leaves the live window or its group
   expires (`drop_stale_waits`, from `on_heartbeat`).
+- **Tables by group and index** (a note, not a rule). The pseudocode finds what names one chunk by
+  scanning whole tables: `drop_beyond` when a group opens, and `protocol.md`'s `close_promises` at
+  every arrival, over every promise, offer, try and ask the node holds. That keeps it short, and the
+  result is the same either way. An implementation is expected to index these tables by group and
+  index, so that an arrival costs a lookup, not a pass over everything the node tracks.
 - **Ordering.** `defer` here waits for the gate of the chunk's own type; `protocol.md`'s waited
   for the block alone. Cells leave the store and their ties at the header, so a binding validates
   a block's cell header no later than it installs the block (a rule, decided 2026-11-01). The
@@ -1188,7 +1203,7 @@ touch `peer_has`, `holders`, cancel or the window; holdings never feed the offer
 
 **Gossipsub's two IHAVE limits** (`protocol.md` §4.4, v0.7) apply to offers. They delay asks and
 lose no offer.
-- `MAX_IHAVE_MESSAGES` counts the offer-bearing RPCs from a peer within a heartbeat (`on_frame`, §4).
+- `MAX_IHAVE_MESSAGES` counts the offer-bearing frames from a peer within a heartbeat (`on_frame`, §4).
   `MAX_IHAVE_LENGTH` counts the asks made of the peer in reply to its offers.
 - Over either limit, the peer's offers are still recorded. What the node would ask of it is held
   back to the next heartbeat (§4.8), which runs `protocol.md`'s retry for it, with the retry's
@@ -1196,7 +1211,13 @@ lose no offer.
 - Only asks in reply to offers count against the limits: the retry, the last resort, the asks at
   a gate's release and those after the start delay `[D8]` do not.
 - Both counts are per peer over every object type, as one connection carries them all.
-- Their values are the client's (`protocol.md` §8.2). What that means depends on the binding (§7):
+- Their values are the client's (`protocol.md` §8.2). `protocol.md` §8.3 gives reference values for
+  gossipsub's: 4096 offer-bearing frames and 5000 ids asked, per peer and heartbeat. At those values the
+  toy's 60-node cells hold back no ask, under this draft's tier 4 setting, variant C (`c`) and custody,
+  with and without samplers. The busiest peer reached at most 248 frames and 58 asks in a heartbeat
+  (custody), and 42 and 11 (variant C). Under the rows setting (seeds 7 to 9, with and without half the
+  columns withheld) none was held back either, the busiest peer at 1 254 frames and 178 asks. What the values
+  mean depends on the binding (§7, `protocol-v2-bindings.md` §2, §3):
   - On v0.3's wire, offers are IHAVEs, so a stock gossipsub client applies its own limits.
   - On the standalone binding, the values are the client's alone (§6.3 says which to avoid).
   - On the extension binding, offers travel as `partsMetadata`, not as IHAVEs. Whether the
@@ -1208,7 +1229,7 @@ lose no offer.
 def forward(f, from_peer):
     for (g, i) in type_of_group(f.group).project(f):                       # (R4) each axis with its own type
         T = type_of_group(g)
-        if expired(g): continue                                            # an expired axis is not acted on (v0.3 §8.1)
+        if expired(g) or state[g] == INVALID: continue                     # an expired or dropped axis is not acted on (v0.3 §8.1, §4.6)
         if duty_for(g) != FORWARD: continue                                # no duty on this axis: we only serve asks
         fam, c = T.family(g), colour_of(g, i)
         pushers = [q for q in links(T) if c in push_out[q][T][fam]]        # the relation for this colour
@@ -1224,7 +1245,7 @@ def forward(f, from_peer):
             if q not in targets: announce(q, g, bitmap({i}))               # [c3] offered instead
         for q in announce_extra(g, i):                                     # [D5] width beyond the relation
             announce(q, g, bitmap({i}))
-    gossip_history.put(f)                                                  # heartbeat gossip (§4.8)
+    if state[f.group] != INVALID: gossip_history.put(f)                    # heartbeat gossip (§4.8); never a dropped group's (§4.6)
 
 def announce(p, g, bits):                                                  # [c3, c7] an offer
     b = bits & ~pushed[p][g] & ~peer_has[p][g].bits & interest_of_peer(p, g)   # an empty bitmap is not sent
@@ -1236,6 +1257,15 @@ def announce_extra(g, i) -> List[PeerId]:                                  # [D5
     if T.params.ANNOUNCE_EXTRA != ALL_JOINED: return []                    # SAMPLE: the heartbeat's paced gossip (§4.8)
     related = {q for q in links(T) if push_out[q][T][fam] or push_in[q][T][fam]}
     return [q for q in links(T) if q not in related and wants_from_me(q, g).has(i)]
+
+def fills(g, i) -> List[Tuple[GroupId, int]]:         # (R4) every (group, index) the chunk at index i of g fills,
+    return [(g, i)] + type_of_group(g).cross(g, i)     #   from the ids alone: the chunk need not be stored
+
+def note_push(p, g, i):                                # protocol.md §5.2's, under every group the chunk fills (R4):
+    for (g2, i2) in fills(g, i):                       #   a cell sent through its row is not offered or repaired
+        e = pushed[p][g2]                              #   to that peer again through its column
+        if e.empty(): e.first_push = now               # the guard's clock (§5.3 there), per group
+        e.set(i2); e.ttl = PUSH_TTL
 ```
 
 A forwarding node's rules are v0.3 §5.2 and §5.3 with two changes: the candidates are the push
@@ -1248,7 +1278,7 @@ permitted for columns (`[D5]`, §8). With `M = 1`, interest `ALL` everywhere and
 
 ```python
 def on_want(p, asks):                                  # v0.3 §4.5's on_iwant, plus the serving limit (R6)
-    answers = {}                                       # by id: one answer per id per RPC
+    answers = {}                                       # by id: one answer per id per frame
     for a in asks:
         gi = group_index(a)
         if gi and expired(gi.group): continue          # past its active lifetime: ignored, no penalty
@@ -1323,9 +1353,10 @@ unless it is a routed request and goes to a peer with duty `FORWARD` (below). A 
 offer, and a broken one parks the peer for the group (v0.3 §6.1). A
 `DECLARED` peer's WANT is also its interest: `want_p[p][g]` is set from it before the asks are
 answered, and what the peer does not hold yet is kept as a standing request (§4.10), which is why
-derived interest makes no promise with a timer: the custodian answers when it can. Standing
-requests live with the group's state (`GROUP_TTL`) and count against the serving limit when
-answered.
+derived interest makes no promise with a timer: the custodian answers when it can. A standing
+request is answered when the chunk is stored, received or rebuilt (`serve_standing`, from `fill` and
+`decode_group`). Standing requests live with the group's state (`GROUP_TTL`) and count against the
+serving limit when answered.
 
 A routed sample request (a WANT with `hops` above zero, §4.10) may also go to a peer with duty
 `FORWARD` that neither offered the index nor custodies it `[D12]`. That peer answers it from what it
@@ -1418,8 +1449,8 @@ def reconsider(g, at):
     del reconsider_at[g]
     if deferred[g] and g not in probe_ok:              # (R5) the verdict, once: only the claimant's own copy
         if g in probe_sent:                            #   passes it, whichever peer brought the cell; a probe
-            probe_ok[g] = False; penalise(probed[g])   #   not written by now gets none, and our own repair
-        else: probe_ok[g] = None                       #   goes on below (§4.6)
+            settle_probe(g, False); penalise(probed[g])   # not written by now gets none, and our own repair
+        else: settle_probe(g, None)                    #   goes on below (§4.6)
     if popcount(known_in_scope(g)) >= T.index_count(hdr[g]): return # whole in the subnet's view: nothing to rebuild
     if (deferred[g] and received[g].has(probe[g]) and wants_family(T, T.family(g))   # (R5) the claim held, on a
             and not owed_missing(g)):                        #   row we take part in, and its repair reached us; on a
@@ -1441,7 +1472,7 @@ def claims_close(p):                                   # (R5) p's connection clo
     for g in [g for g, qs in claims.items() if p in qs]:   #   among connected claimants; our probe of p, not yet
         claims[g].discard(p)                           #   judged, gets no verdict, its promise gone with the
         if deferred[g] and probed.get(g) == p and g not in probe_ok:   # connection, and the deferral ends:
-            probe_ok[g] = None                         #   no verdict, and our own repair is reconsidered at the
+            settle_probe(g, None)                      #   no verdict, and our own repair is reconsidered at the
             arm(g, max(now, duty_at.get(g, now)))      #   duty's own time, at once if that has passed
 
 def note_claim(p, g):                                  # (R5) from on_holding: p claims every index of g
@@ -1461,16 +1492,20 @@ def defer_on_claim(g):                                 # (R5) verify the claim b
     add_offer(a, q); tried[a][q] = now                 # a claim is an offer of every index (v0.3 §6.1's tables)
     probe_asks.add(a)                                  # past stop-pull and the ask window: gated exempts it
     if not send(q, Want(group=g, bits=bitmap({i}), probe=True), urgent=False):   # marked: answered whatever we hold
-        probe_ok[g] = None                             # refused by a full queue, never written: no verdict, and our
+        settle_probe(g, None)                          # refused by a full queue, never written: no verdict, and our
         return arm(g, max(now, duty_at[g]))            #   own repair is reconsidered at the duty's own time (§4.6)
     arm(g, max(reconsider_at.get(g, now), now + T.params.DEFER_WINDOW))   # its promise starts at its write
                                                        #   (filter_entry); not written by then: no verdict either
 
 def gated(a): return stop_pull[group(a)] and a not in probe_asks    # [c6] v0.3 §6.2, with the probe exempt
 
+def settle_probe(g, verdict):                          # (R5) the verdict, once (True passed, False failed, None no
+    probe_ok[g] = verdict                              #   verdict); settled, the probe's ask is gated again, so the
+    probe_asks.discard(Ask(g, probe[g]))               #   probed cell is pulled past stop-pull no more (§4.6)
+
 def probe_answer(g, i, p):                             # (R5) the claimant's own copy of the probed index, first or a
     if deferred[g] and probe.get(g) == i and p is not None and p == probed.get(g) and g not in probe_ok:
-        probe_ok[g] = True                             #   duplicate, passes the probe and keeps its promise
+        settle_probe(g, True)                          #   duplicate, passes the probe and keeps its promise
         promises.pop((Ask(g, i), p), None)
 
 def probe_promise(g, i):                               # (R5) the probe's promise, still open: another peer's copy
@@ -1489,7 +1524,8 @@ def probe_settled(a) -> bool:                          # (R5) a is our probe, ju
 
 def probe_of_claim(p, gi) -> bool:                     # (R5) as the claimant: p's flagged ask of an index we claim,
     return (gi is not None and gi.probe and mine[gi.group].has(gi.index)   #   while no flagged ask of the group
-            and not probe_served[p][gi.group])         #   from p was answered; a later one is a plain ask (the cap)
+            and not probe_served[p][gi.group]          #   from p was answered; a later one is a plain ask (the cap),
+            and probe_waiting[gi.group].get(p, gi.index) == gi.index)   # as is one of another index while p's is kept
 
 def serve_probe(p, g, f):                              # (R5) f answers p's probe of g: the cap is taken, and card 8
     probe_served[p][g] = True                          #   lets that answer through once, whatever p holds
@@ -1533,6 +1569,7 @@ def decode_group(g):                                   # level 2, off the chunk 
     filled = []                                        # the other groups the rebuilt chunks fill, in order
     for i in new:
         store(g, i, whole[i]); rebuilt[g].set(i)       # servable from now on
+        serve_standing(g, i)                           # §4.10: WANTs that preceded it are answered now, as in fill
         serve_waiting_probe(g, i)                      # (R5) a probe that reached us while we decoded (§4.6)
         for (g2, i2) in T.project(whole[i]):           # (R4) a rebuilt chunk fills its other groups too
             if g2 == g: continue
@@ -1549,7 +1586,7 @@ def push_rebuilt(g, new):                              # [c10] v0.3 §4.6 over e
     for i in new:
         for (g2, i2) in T.project(chunks[g][i]): by_group.setdefault(g2, []).append((i2, chunks[g][i]))
     for g2, items in by_group.items():
-        if expired(g2): continue                       # an expired axis is not acted on (v0.3 §8.1)
+        if expired(g2) or state[g2] == INVALID: continue   # an expired or dropped axis is not acted on (v0.3 §8.1, §4.6)
         T2 = type_of_group(g2); k = T2.threshold(hdr[g2])
         if T2.params.REPAIR_BUDGET and T2.params.EAGER:
             push_rebuilt_as_source(g2, items); continue
@@ -1602,9 +1639,9 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
   connected (below), the claimant is penalised, once, and another peer's
   copy leaves its promise open, so that v0.3's pull discipline parks it when the promise breaks.
   That holds only while the probe waits: once it is judged or given no verdict, a promise under its
-  key is a plain ask's, which any copy closes (`probe_promise`), so a later plain ask of the probed
-  cell to the claimant, which an offer of the claimant's can bring, does not park a claimant that
-  answered it. The
+  key is a plain ask's, which any copy closes (`probe_promise`), and the probe's ask is no longer
+  exempt from stop-pull (`settle_probe`), so the member pulls the probed cell from nobody after the
+  verdict, as it pulls no other cell of the row once complete. The
   probe's promise is the deferral window itself, not v0.3's `PROMISE` of 400 ms: a reconstructor
   that has just decoded is pushing a row's worth of rebuilt cells through its window, and in the toy
   its answer to a probe left 450 ms after it was decided, so with the shorter promise honest
@@ -1612,11 +1649,12 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
   (`known_in_scope`), verified or not; a verified claim ends a member's duty through the deferral
   instead. Executing the toy's liar fault showed that a false claim counted there made the row look
   whole to every member of its subnet and suppressed the third phase, the suppression the RowDAS
-  design warned of. The probe is an ask past completion, so it is exempt from stop-pull (card 6) and
-  from the one-ask-per-index window, which otherwise dropped it in the toy and penalised honest
-  reconstructors; and it counts against the claimant's serving limit like any answer: the draw of
-  the claimant does not look at the limit, so a member that has already pulled `SERVE_LIMIT` chunks
-  from the claimant it draws has its probe refused, and that claimant is penalised. A client may
+  design warned of. The probe is an ask past completion, so until it is settled it is exempt from
+  stop-pull (card 6) and from the one-ask-per-index window, which otherwise dropped it in the toy
+  and penalised honest reconstructors; and it counts against the claimant's serving limit like any
+  answer: the draw of the claimant does not look at the limit, so a member that has already pulled
+  `SERVE_LIMIT` chunks from the claimant it draws has its probe refused, and that claimant is
+  penalised. A client may
   prefer a claimant it has pulled less from, or keep one ask in reserve. The RowDAS design asked for
   "defer and re-arm" because a bitmap takes a round trip and cancelling on a claim outright lets any
   peer suppress reconstruction; the probe makes the re-arm a verdict on the claimant rather than a
@@ -1636,7 +1674,7 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
     of the same cell neither uses it nor passes card 8. A second marked ask of the group, after one
     was answered, is a plain ask. The mark costs no byte: on v0.3's wire and in Partial Messages it
     is one more bit beside `standing`, and the standalone binding carries `standing` and `probe` in
-    one flags byte (§7).
+    one flags byte (`protocol-v2-bindings.md` §1.3).
   - *The asker's queue keeps the probe.* While the probe waits, the asker's queue writes its marked
     WANT even when another peer's copy came first and the asker holds the cell (`probe_waits`):
     otherwise the asker dropped its own probe, and the claimant could pass only on a push.
@@ -1672,7 +1710,11 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
     a standing WANT of the same index from the same asker, sent before it or after it, is kept as a
     standing WANT as well, which would send the cell twice and charge the serving limit twice, or
     spend the last slot without the exemption, so that the claimant's own queue could cancel the
-    answer as a duplicate once the asker's holding names the cell. Dropped, the probe would go
+    answer as a duplicate once the asker's holding names the cell. Nor, while it is kept, does the
+    same asker's marked ask of another index of the group take the exemption: it is a plain ask
+    (`probe_of_claim`, since 2026-11-17), so the kept probe is still answered when its cell is
+    stored. An honest member sends one probe per group; before, a faulty asker's second marked ask,
+    of a stored cell, took the exemption, and the kept one went unanswered. Dropped, the probe would go
     unanswered, and an honest claimant whose decode
     outlasts the probe's round trip would be penalised. A decode that fails stores nothing, so its
     claimant is judged as one that does not answer.
@@ -1691,29 +1733,26 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
   - *Measured* in the toy's rows (60 nodes, three blocks, seeds 7 to 9, `--send-buffer 0`), in five
     cells: honest; a fifth of the nodes lying (`--fault claim20`); the same with 16 subnets and half
     the columns withheld; a fifth hoarding (`--fault hoard20`) with 16 subnets and half withheld;
-    and the liars' withheld cell with 5 % supernodes (three of 60). With the rules of 2026-11-16,
-    none of 1 298 verdicts on honest or hoarding claimants failed, and every probe got a verdict:
-    none was still unwritten when its window ran out, and no probe reached a claimant still
-    decoding (the toy's queues refuse nothing, and these cells close no connection). One probe, in
-    the supernodes' cell at seed 8, passed before it was written, on a copy the liar pushed. Liars
-    passed their probe 3, 1 and 61 times in the three liar cells, over the three seeds, each time on
-    a copy the liar pushed (a toy liar answers no ask). The mark cost 9 duplicate cells in 2 428
-    probes: exempt answers written over a holding the asker had sent. A probe was written when it
-    was decided, at the median; the longest wait was 101 ms, against a `DEFER_WINDOW` of 1 s.
-    Starting the probe's wait at its write left the copies as they were in 14 of the 15 runs, and
-    0.03 lighter in one, the supernodes' cell at seed 8, not traced. One run, the 16-subnet liars'
-    cell at seed 9, delivers no block to 58 of its 60 nodes, as it did before 2026-11-16, and
-    decides 3 probes; the figures include it. These runs predate four later fixes (a probe settled
-    while queued, a kept probe answered once, the duty's own time, a settled probe's promise), and
-    none of the first three changes them: they act on a probe given no verdict, kept while
-    decoding, refused or closed, of which there was none, and on a probe passed before its write,
-    whose WANT the earlier filter dropped too (`held`). The fourth acts only on a later ask of the
-    probed cell to the claimant, after the verdict. After a pass the member holds the cell; after a
-    failure the claimant was parked for the group when its promise broke, so only an ask after its
-    park ends, which an offer of the claimant's brings, could reach it (the last resort does not
-    ask in a group that has stopped pulling, `protocol.md` §6.1). These runs did not count such
-    asks, so whether the fourth fix would change their events, copies or verdict counts is not
-    shown; it changes no verdict once given.
+    and the liars' withheld cell with 5 % supernodes (three of 60), on this section's rules as they
+    stand (2026-11-18). None of 1 281 verdicts on honest or hoarding claimants failed, and every
+    probe got a verdict and was written: none was still unwritten when its window ran out, and no
+    probe reached a claimant still decoding (the toy's queues refuse nothing, and these cells close
+    no connection). Liars passed their probe 1, 0 and 65 times in the three liar cells, over the
+    three seeds, each time on a copy the liar pushed (a toy liar answers no ask). The mark cost 5
+    duplicate cells in 2 417 probes: exempt answers written over a holding the asker had sent. A
+    probe was written when it was decided, at the median; the longest wait was 163 ms, against a
+    `DEFER_WINDOW` of 1 s. One run, the 16-subnet liars' cell at seed 9, delivers no block to 58 of
+    its 60 nodes, as it did before, and decides no probe; the figures include it. Against the runs
+    with the rules of 2026-11-16 (below), every run changed its events; copies stayed within 0.03 in
+    11 of 15 runs and moved in four, not traced: the hoarders' cell by −0.04 at seed 9 and +0.03 at
+    seed 7, the supernodes' cell by +0.04 at seed 7 and +0.09 at seed 9.
+  - *Measured with the rules of 2026-11-16*, before four later fixes (a probe settled while queued,
+    a kept probe answered once, the duty's own time, a settled probe's promise) and the later
+    changes to the draft, in the same cells: none of 1 298 verdicts on honest or hoarding
+    claimants failed; liars passed 3, 1 and 61 times; the mark cost 9 duplicate cells in 2 428
+    probes; one probe, in the supernodes' cell at seed 8, passed before it was written, on a copy
+    the liar pushed; the 16-subnet liars' cell at seed 9 decided 3 probes; the longest wait from
+    decision to write was 101 ms.
   - *Measured before 2026-11-16*, and before v0.10's order of the announcers beyond the list
     (`protocol.md` §6.1), which moves the supernodes' cell at seed 8 and, bracketed but not run at
     that change, at seed 9, in the same five cells: judged by the
@@ -1888,17 +1927,27 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
     that cell's row, at the column's index, to a member of the row's subnet among its links. While
     the cell is missing it asks another member every `ALARM_NEXT`, up to `ALARM_MAX`.
   - *The member.* A member that deferred on a verified claim asks that claimant for the index once,
-    with the probe's promise (`DEFER_WINDOW`), started in the toy at the decision, not at the write
-    (§4.6 since 2026-11-16; not measured again). A broken promise counts against the claimant, and the
-    member rebuilds the row and repairs it as after any decode. Nothing new goes on the wire: the
-    alarm is a standing WANT.
+    with the probe's promise (`DEFER_WINDOW`), started at the ask's write, as the probe's is (in the
+    toy since 2026-11-17; at the decision before). A broken promise counts against the claimant, and the
+    member rebuilds the row and repairs it as after any decode. A claimant that cannot be asked,
+    because its connection has closed or a full queue refuses the ask, or whose connection closes
+    before the ask is written or before the promise ends, is not judged, and the member rebuilds the
+    row if the cell is still missing. Nothing new goes on the wire: the alarm is a standing WANT, and since 2026-11-17 a member
+    that rebuilds the row answers it from `decode_group` (§4.5).
   - *Its wait* is stated by its bound: above the honest custodians' tail on the network, or it fires
     without a fault. In the toy's 500-node rows without a fault, no custodian completed later than
     2.944 s over seeds 7 to 16. The measurements use 3.5 s, with `ALARM_NEXT` 1.5 s and `ALARM_MAX` 3.
     A rescue
     comes a round trip, `DEFER_WINDOW` and a decode after the wait, later than the sample's, so the
     alarm backs the sample up rather than replacing it.
-  - *Measured at ten seeds*, as above, with the sample and rebuilt cells marked seen. A fifth of the
+  - *Measured again on the rules as they stand* (2026-11-18), in the 500-node cells of the one-column
+    hoarder at seeds 11, 12 and 16, with writes completing at once as before. Without the alarm 2 of 6
+    blocks were short (108 custodians): the same blocks as before but seed 16's first, which now
+    completes. With it none was, for 61 alarms and 10 rebuilds, as before. In honest cells and under
+    false claims (seeds 7 to 9, rebuilt cells not marked seen) no alarm fired. The figures below were
+    not measured again.
+  - *Measured at ten seeds*, before the member's changes of 2026-11-17 above, as above, with the
+    sample and rebuilt cells marked seen. A fifth of the
     nodes repaired all but one withheld column per subnet, with no supernodes. Without the alarm, 3
     of 20 blocks were short (165 custodians); with it, none, for 61 alarms and 10 rebuilds, all at
     the two short seeds. With 5 % supernodes none was short without it, since a supernode's second
@@ -1915,7 +1964,9 @@ def push_rebuilt_as_source(g2, items):                 # [D4] REPAIR_BUDGET: a r
   which is "the push into non-custodied columns is the whole of the relief" (the RowDAS design);
   the row's own members, complete at 64, are not pushed what they do not want. For the payload,
   `project` is the identity and this is v0.3's `push_rebuilt`. PeerDAS's reconstruction is the
-  second phase without row subnets (below).
+  second phase without row subnets (below). A send of a chunk to a peer, a push or an answer, is noted
+  under every group the chunk fills (`note_push`, §4.4, since 2026-11-17), so a cell answered through
+  its row is not pushed again through its column, and the same holds the other way.
 - **A rebuilt chunk names the block its sources name** (`protocol.md` §4.6, v0.8). Otherwise,
   under two blocks of a slot, a rebuilt copy naming the other block would wait for good at a
   neighbour that installed only the first.
@@ -2028,7 +2079,8 @@ def publish(block, d, shards):                         # the payload's builder; 
         store(g, s.index, f); mark_seen(chunk_id(f))
         gossip_history.put(f)                          # heartbeat gossip may offer it (§4.8)
     mine[g] = all_bits(N(d)); state[g] = COMPLETE; stop_pull[g] = True
-    origin[g] = bitmap(set())                          # [P4] our holding names only chunks known to have arrived: none yet
+    if not T.params.EAGER: return offer_at_publish(g, d)   # a pull-only type: nothing pushed (§4.7)
+    origin[g] = bitmap(set())                          # [P4] our holding names the chunks acknowledged so far (§4.7): none yet
     plan = []
     for i in range(N(d)):                              # index order; each chunk's targets see earlier plans
         f = chunks[g][i]
@@ -2046,10 +2098,29 @@ def publish(block, d, shards):                         # the payload's builder; 
                 if not enqueue(p, f, urgent=False): unpush(p, g, f.index)   # refused: offered instead (v0.5 §5.2)
     planned[g] = {f.index: set(targets) for f, targets in plan}   # [c3] the relation peers not chosen to be
                                                        #   pushed a chunk are offered it at its acknowledgement
+    if SOURCE_OFFERS == PUBLISH:                       # the source's own choice (§4.7, §6.3): those offers now,
+        for f, targets in plan:                        #   and its holding grows at each chunk's first write
+            for p in source_pool(T, g, colour_of(g, f.index)):
+                if p not in targets: announce(p, g, bitmap({f.index}))
 
-def origin_acked(g, i):                                # [c3, P4] a chunk of a group we publish is known to have
-    if origin[g].has(i): return                        #   arrived somewhere: a peer's holding names it (§4.3), or
-    origin[g].set(i)                                   #   its first copy's room timed out (§4.11). It joins our
+def origin_written(f):                                 # SOURCE_OFFERS = PUBLISH: a chunk of a group we publish
+    g = f.group                                        #   leaves for the first time; it joins our holding, which
+    if g not in origin or origin[g].has(f.index): return   #   goes where origin_acked's goes (§4.2)
+    origin[g].set(f.index)
+    for q in suppression_scope(g): send_have(q, g)
+
+def offer_at_publish(g, d):                            # a pull-only type's source (EAGER off) pushes nothing, so no
+    origin[g] = all_bits(N(d))                         #   acknowledgement can come: every chunk is offered at once, to
+    for q in suppression_scope(g): send_have(q, g)     #   the peers origin_acked would offer it to, and our holding
+    T = type_of_group(g); offers = {}                  #   names every chunk, which the offers show anyway
+    for i in range(N(d)):
+        for q in source_pool(T, g, colour_of(g, i)): offers.setdefault(q, set()).add(i)
+    for q, idx in offers.items(): announce(q, g, bitmap(idx))
+
+def origin_acked(g, i):                                # [c3, P4] a chunk of a group we publish is acknowledged:
+    if SOURCE_OFFERS == PUBLISH: return                #   (none at PUBLISH: the offers left at publish, §4.7)
+    if origin[g].has(i): return                        #   a peer's holding names it (§4.3), or
+    origin[g].set(i)                                   #   a copy's room timed out first (§4.11). It joins our
     for q in suppression_scope(g): send_have(q, g)     #   holding, which goes where a forwarding node's goes (§4.2)
     T = type_of_group(g); fam = T.family(g); c = colour_of(g, i)   # [c3] the relation peers not chosen to be
     for p in [q for q in source_pool(T, g, c) if q not in planned[g][i]]:
@@ -2067,8 +2138,9 @@ def source_pool(T, g, c):                              # whom a source pushes be
     return rel or links(T)                             # none in fam for colour c: the links, filtered by interest
                                                        #   by the caller, as gossipsub's fanout (below)
 
-def unpush(p, g, i):                                   # [c3] a chosen push that will not be made: not counted, and
-    pushed[p][g].clear(i)                              #   owed to a relation peer, or at a source to a peer of the
+def unpush(p, g, i):                                   # [c3] a chosen push that will not be made: not counted, under
+    for (g2, i2) in fills(g, i): pushed[p][g2].clear(i2)   # every group note_push marked, and owed to a relation peer,
+                                                       #   or at a source to a peer of the
     if p in mesh or (g in origin and p in source_pool(type_of_group(g), g, colour_of(g, i))):   # pool the push was
         owe(p, g, bitmap({i}))                         #   planned from (v0.5 §5.2's, with the fallback links)
 ```
@@ -2097,20 +2169,50 @@ and at a slow source an asker that waits past the promise parks it for the group
 offer to a refused fallback target at the chunk's acknowledgement, which never comes when every
 copy was refused; and leaving the gap.
 
-**When the source offers** [c3] (v0.9 §5.1, taken for every object type on 2026-11-11). A chunk
-is *acknowledged* once a copy is known to have arrived somewhere: at the first holding naming it,
-from any peer (§4.3), or, if none comes, when its first copy's room times out (§4.11).
-- **A source offers a chunk at its acknowledgement,** for every object type, as v0.9 has it.
+**When the source offers** [c3] (v0.9 §5.1, taken for every object type on 2026-11-11; the source's
+choice since 2026-11-18). A chunk is *acknowledged* at the first holding naming it, from any peer
+(§4.3), or, if none comes, at the first window timeout of any copy of it (§4.11; a closed connection
+drops its copy's room, `protocol.md` §8.1), as `protocol.md`'s glossary has it.
+- **A source offers a chunk at its acknowledgement** by default (`SOURCE_OFFERS = ACK`), for every
+  object type, the rule v0.9 had for every source.
   Offered at publish, the offers race the pushes: a transport that takes the whole batch at once
   lets every offer leave at once, the relation asks for chunks whose pushes are still queued, and
   the source answers on top of its pushes. The acknowledgement is the one event the source sees
   whatever the transport holds (§4.11), and the offers trail the pushes by about a round trip.
+- **Offering at publish is the source's choice** (`SOURCE_OFFERS = PUBLISH`; decided 2026-11-18). No
+  rule at another node needs either setting: a receiver takes an offer whenever it comes. The setting
+  changes how a group spreads, as any default does (`protocol.md` §8.3): what other nodes are asked
+  and pushed, and when they complete. A source whose offers draw asks it cannot answer in time is
+  parked by its askers for the group, a cost it bears itself. At `PUBLISH` the source offers each chunk at publish, to the peers it would
+  offer it to at the acknowledgement, and its holding grows at each chunk's first write
+  (`origin_written`), as before v0.9; an acknowledgement then does nothing (`origin_acked`), not even
+  for a chunk a peer rebuilt before the source wrote it. Two things decide it:
+  - *Its uplink.* The offers draw asks on top of its pushes. In the toy's custody cell (seeds 7 to 9,
+    writes completing at once and one write at a time), a 1 Gbps proposer that offers at publish
+    completes its block 13 to 114 ms sooner at the median, and answers 4.7 to 12 times as many asks.
+    A 50 Mbps proposer completes it 24 ms later at 60 nodes and 26 ms later at 500 (below, against
+    the acknowledgement).
+  - *Its privacy.* Every chunk offered at once, by the one node that holds them all, names the source
+    to those peers, and the paced holding [P4] then hides nothing from them. Toward the peers outside
+    its relation the settings are alike: its heartbeat gossip names every chunk to sampled peers at
+    either setting (§4.8). A source that wants P4's cover toward its relation offers at the
+    acknowledgement.
+
+  Copies do not decide it: offering at publish adds 0.06 to 0.14 copies on the toy's 60-node graph
+  and saves 0.10 to 0.19 on the research harness's 100-node one. A client may key the choice on its
+  uplink, as striping is (`STRIPE_UPLINK`); this document does not, since a fast source may still
+  want P4.
 - **A chunk that no peer wants** is pushed to no one and never acknowledged. That costs nothing: its
   offers would have gone to no one either.
+- **A pull-only type's source** (`EAGER` off; decided 2026-11-18) pushes nothing, so no
+  acknowledgement can come. It offers every chunk at publish, to the peers it would offer it to at
+  the acknowledgement, and its holding names every chunk (`offer_at_publish`). With no pushes, the
+  offers have nothing to race. They name the source to those peers, which [P4]'s paced holding
+  does not hide. No setting publishes a pull-only type: rows come from cross-fill or a rebuild.
 - **A copy lost with its connection,** for later study. A closed connection takes with it what was
   in flight on it (`protocol.md` §8.1). A chunk whose every copy ended that way, and that no peer's
-  holding names, is never acknowledged, so its offers never go. `protocol.md` v0.9 has the same
-  shape. The recorded cells do not churn, and a churn cell bounds it only where every copy of one
+  holding names, is never acknowledged, so its offers never go: at `ACK`, as in `protocol.md`; at
+  `PUBLISH` they left at publish. The recorded cells do not churn, and a churn cell bounds it only where every copy of one
   chunk is lost with its connection; no toy knob closes a source's links in the middle of a
   message.
 
@@ -2156,7 +2258,8 @@ type had the payload's source offer at the acknowledgement and a column's at pub
 - **What it gave up:** at 500 nodes, a column's source's saving (8 to 33 % of its upload) and a
   50 Mbps proposer's 26 ms, for the rows' 7 ms (28 with §4.11's rule).
 
-One rule for every type, as v0.9 has it, was taken instead.
+One rule for every type, as v0.9 has it, was taken instead; since 2026-11-18 any source may offer at
+publish (`SOURCE_OFFERS`, above).
 
 **A source's links in a family it does not custody** (decided 2026-11-13; found 2026-11-09,
 writing `candidates`' interest rule, §4.1). A proposer holds every column of its block but
@@ -2193,18 +2296,19 @@ of 128 in the toy's 60-node cells); routed sample requests do (§4.10).
 
 **The source's holding is paced** [P4], as in v0.4 §5.1 and for the same reason: a holding that
 names every chunk before any has left can come only from the source.
-- **What it names.** A group's holding names only the chunks known to have arrived somewhere. A chunk
+- **What it names.** A group's holding names the chunks acknowledged so far, at `ACK`. A chunk
   joins it at its acknowledgement (above), for every object type, and the holding then goes to the
   suppression scope, as a forwarding node's does when a chunk arrives (§4.2).
-- **Why not at the write.** Until v0.9 a chunk joined at its first write. Where the transport takes
+- **Why not at the write.** Until v0.9 a chunk joined at its first write, as it still does at
+  `PUBLISH`. Where the transport takes
   a batch at once, that named chunks which had not left (v0.9 §5.1).
-- **A pushed peer.** A peer the source pushes to gets a holding naming its first chunk just ahead
+- **A pushed peer.** A peer the source pushes to also gets a holding naming its first chunk just ahead
   of it.
 - **Per group.** The rule is per group, so a proposer paces the holding of each column group it
   publishes.
 - **The claims.** The two claims (§1.5) follow the paced bitmap: a source claims neither
-  `claim_all` nor `complete` for a group it publishes until every chunk of it is known to have
-  arrived. That is what v0.4 does by reading its decode claim from a full bitmap.
+  `claim_all` nor `complete` for a group it publishes until every chunk of it is acknowledged. That
+  is what v0.4 does by reading its decode claim from a full bitmap.
 - **Not covered: a pre-seeded node** (I8). It holds part of a group before its peers but did not
   publish it, and its first holding names what it holds, which is what lets its peers skip it.
 - **The signs that remain.** Those v0.4 lists remain here too:
@@ -2282,10 +2386,9 @@ The source's offers are card 3 at the source, and they cost a home builder bytes
 - **A column's offers wait for the acknowledgement too** (above). A fast proposer pays for it: its
   block completes 44 ms later at 60 nodes (seeds 7 to 16) and 9 ms later at 500 (seeds 7 to 9) than
   with its offers at publish.
-  - Offers keyed on the configured uplink, as striping is (at publish for a source at or above
-    `STRIPE_UPLINK`), would take that back. In the toy at 60 nodes its block then completes 6 ms
-    sooner than in the document before (−9 to +4).
-  - For later study (2026-11-14): at 500 nodes the cost it would take back is 9 ms. The order of a
+  - A fast proposer can take it back by offering at publish (`SOURCE_OFFERS`, above). With the
+    offers keyed on the configured uplink, as striping is, its block completed 6 ms sooner at 60
+    nodes than in the document before (−9 to +4); at 500 nodes the cost is 9 ms. The order of a
     source's queue is §4.12's.
 
 ### 4.8 The heartbeat
@@ -2510,7 +2613,7 @@ def next_to_send(p):                  # v0.3 §7.2, with the chunk chosen before
             leave_line(p); return None                         # nothing to send
         k = choose(q)                                          # §4.12; chosen first: its size is what the window counts
         entry = q.normal[k]
-        need = wire_size(entry.chunk) if entry.chunk else 0    # control takes no room
+        need = wire_size(p, entry) if entry.chunk else 0       # control takes no room
         if need and not acquire_room(p, need): return WAIT     # [c14] in line, FIFO over peers; an urgent arrival
         q.normal.pop(k)                                        #   wakes the writer, which keeps its place
         out = filter_entry(p, entry)                           # [c8, c12], and stale asks
@@ -2518,6 +2621,7 @@ def next_to_send(p):                  # v0.3 §7.2, with the chunk chosen before
         if out:
             if out.chunk:
                 track_in_flight(p, out.chunk, need)            # [c14] the room travels with the chunk
+                if SOURCE_OFFERS == PUBLISH: origin_written(out.chunk)   # §4.7: the holding at the first write
             return with_owed(p, out)                           # owed offers ride along
 ```
 
@@ -2528,8 +2632,9 @@ besides the unit. The writer chooses the entry before taking room, since the roo
 chunk; v0.3 took a slot first and chose after, which also made a control-only entry at the head of
 the queue wait for a chunk's slot, and here control takes no room. And an empty window always
 admits one chunk, so a chunk larger than the window is not stuck. `filter_entry`, `rarest` and
-`projected` (§4.9) are as before; `wire_size(f)` is the binding's, the chunk's bytes on the
-wire.
+`projected` (§4.9) are as before; `wire_size(p, entry)` is the binding's, the bytes the entry's chunk
+takes on the wire to `p`, with the header a first push of a cell's group carries on the standalone
+binding (`protocol-v2-bindings.md` §1.3).
 
 What the unit changes, in the toy (60 nodes, one seed, `toy/README.md` for the tables): the
 custody setting's block completes in 347 ms at the median and 456 ms at the tail with a 1 Gbps
@@ -2683,9 +2788,9 @@ IWANT_WINDOW = IWANT_WINDOW * ask_scale()      # 200 ms at 50 Mbps and above, 1 
 | §4.2 `defer`, `tie`, `on_block_installed`, the bounded store | §4.2 | the gate is the type's (`authenticable`; `defer` here waits for it, and `on_header_validated` releases a block's cells and their ties); a copy that waits, kept or refused, and another copy of one that waits, tie their senders to the root they name (v0.8), no longer an offer (v0.5); v0.10's bounds on what waits in this document's own `defer`, `fill` (`drop_beyond`), `on_heartbeat` (`drop_stale_waits`) and `on_header_validated` (an index the group has not, `tie_slot`), since 2026-11-16 |
 | §3 level 1's slot check (v0.10) | §1's table, `verify` of each type | a payload copy's slot is its block's (`validate_chunk`), a cell's its header's (since 2026-11-16) |
 | §4.4 an IHAVE's bitmap held to a HAVE's limits (v0.10) | §4.3 `on_offer` | an offer's bitmap, ignored and counted beyond them (since 2026-11-16) |
-| §4.4 gossipsub's IHAVE limits (v0.7): `over_ihave_limits`, `ihave_frames`, `ihave_asked`, `held_back` | §4 `on_frame`, §4.3 `on_offer`, §4.8 | counted per offer-bearing RPC and per ask in reply to offers, per peer over every object type; what they hold back is retried at the next heartbeat (since 2026-10-27) |
-| §4.6 `drop_group` | §4.6 | plus evidence `[D6]` |
-| §5.1 batch order, striping, the cap, the paced source HAVE [P4] | §4.7 | candidates filtered by interest; P4 per group, its claims with the bitmap; v0.7's single offer (since 2026-11-04) |
+| §4.4 gossipsub's IHAVE limits (v0.7): `over_ihave_limits`, `ihave_frames`, `ihave_asked`, `held_back` | §4 `on_frame`, §4.3 `on_offer`, §4.8 | counted per offer-bearing frame and per ask in reply to offers, per peer over every object type; what they hold back is retried at the next heartbeat (since 2026-10-27) |
+| §4.6 `drop_group` | §4.6 | plus evidence `[D6]`; a later chunk is not forwarded or offered on the dropped axis, where the draft did (§4.4 `on_validated`, `forward`; since 2026-11-18) |
+| §5.1 batch order, striping, the cap, the paced source HAVE [P4] | §4.7 | candidates filtered by interest; P4 per group, its claims with the bitmap; v0.7's single offer (since 2026-11-04); a pull-only type's source pushes nothing and offers every chunk at publish (`offer_at_publish`, since 2026-11-18); any source may offer at publish, its own choice (`SOURCE_OFFERS`, since 2026-11-18) |
 | §5.3 `choose_push`, `guard_fails`, `note_push` | §4.4, §4.7 | candidates come from the relation |
 | §5.4 `on_mesh_join` (v0.8) | §4.1 `join_push` | at a GRAFT the node accepts into a push relation, the relation's colour, and at the yes to its own GRAFT, a round trip after v0.8's (§4.1); on gossipsub's wires at its own GRAFT, as v0.8 |
 | §6.1 `may_ask`, `retry_offer`, `promise_due`, `parked`, the offer table | from §4.3's `on_offer` | offers from any link; `IWANT([a])` read as a WANT; start delay `[D8]`; `IWANT_WINDOW` scaled by the node's uplink (§4.13); v0.5's offers kept per connection and group (`add_offer`, `announcers`) and its last resort when every announcer is parked (`last_resort`, `ask_parked`); v0.8's ties and no second ask of a peer while one is outstanding (`tied_to_root`, `outstanding`; §4.2 here), and the asks that go with an announcer's dropped offers (`drop_offer`, 2026-10-28) |
@@ -2714,7 +2819,7 @@ IWANT_WINDOW = IWANT_WINDOW * ask_scale()      # 200 ms at 50 Mbps and above, 1 
 | repair | `(everyone, at once, the mesh peers)` |
 | `START_DELAY`, `SERVE_LIMIT` | 0, unbounded (the stock per-id limit remains) |
 | evidence | none |
-| wire | v0.3 §2's magic strings (§7) |
+| wire | v0.3 §2's magic strings (`protocol-v2-bindings.md` §3) |
 
 **One difference, outside every recorded cell.** A source below `STRIPE_UPLINK` with no mesh peer
 for the payload pushes and offers its chunks to its links whose interest holds them (§4.7,
@@ -2764,7 +2869,7 @@ copies lighter (1.80 copies). With the toy's transport keeping `protocol.md` §7
 the tail and 0.02 copies of `protocol.md`'s recording (`cap-wait` 544 → 552 ms, p99 710 → 726 ms),
 and `loss-thin` is 18 ms later at the median and 0.07 copies lighter (1.64 copies).
 Since 2026-10-27 a thirteenth cell, `ihave-limits`, sets stock gossipsub's two IHAVE limits
-(10 RPCs and 5000 asks; §4.3). The other cells set none.
+(10 offer-bearing frames and 5000 asks; §4.3). The other cells set none.
 - Under v0.9's rules and the toy's transport since 2026-11-15, this document holds back 26 667 asks
   to the next heartbeat, where `protocol.md` holds back 26 799. It is 2 ms sooner at the median and
   1 ms later at the tail, with 0.02 copies more (p50 510 against 512 ms, p99 593 against 592 ms,
@@ -2851,7 +2956,7 @@ ones under the row setting, the last by `check.py --doc v2 --golden golden.txt`.
 | `PRUNE_BACKOFF` | object type | how long after a PRUNE that a node receives it does not graft that peer again for the relation the PRUNE named (§4.1) | stated by its bounds: at least a round trip, at most how long a node may stay below its floor once its candidates have refused; on gossipsub's wires gossipsub's backoff (§7) |
 | `R_NODE`, `R` | node | the per-chunk push budget (v0.3: 2, 6 fast; the source's plan) | v0.3 §8.3's open item on size. **For later study** (each to be evaluated carefully): whether cells keep the fast class's 6 or take `R` (2), which would make the budget per object type. The toy's 60-node cells so far, over seeds 7 to 19: supernodes on datacenter links, in the fast class, pushed mostly duplicates into columns of about ten custodians (0.96 copies more per node in the honest custody cell; 0.72 copies and half a second of tail in the honest row cell); with cells at `R` the honest row cell is back at 1.13 s at the tail and 2.22 copies (1.14 s and 2.16 without supernodes), the withheld cells are as fast or faster at the tail (custody 1.25 s, 16 subnets 1.64 s, 32 subnets 1.69 s, against 1.25, 1.76 and 1.83) at 0.6 to 1.2 copies fewer, and the honest custody cell gives up 31 ms at the median and 73 ms at the tail for 1.17 copies fewer. Not yet evaluated: larger families (500 nodes and more), fast nodes other than supernodes, the payload's fast class in the same network, the harness |
 | `ANNOUNCE_EXTRA` | object type | ALL_JOINED, SAMPLE or NONE beyond the relations | `[D5]`, decided (2026-11-14): `ALL_JOINED` for columns and rows, as in every measurement; `NONE` permitted for columns, never for rows (§8); the payload `SAMPLE`, v0.3's heartbeat gossip (§6.1) |
-| `EAGER` | object type | chunks of the type are pushed eagerly; False: holdings and offers only (rows) | – |
+| `EAGER` | object type | chunks of the type are pushed eagerly; False: holdings and offers only (rows), at the source too, which offers every chunk at publish (§4.7) | – |
 | `DECODE_AT_K`, `DECODE_LATER` | object type | who decodes at K; who decodes later and when (from `known_at`), e.g. EIP-8371's phases | `[D4]`, decided (2026-11-13): EIP-8371's phases (§4.6), the second phase's delay shorter than the third's; the second at 1 s and the third at 2 s, each with up to 0.2 s of jitter, in the toy and in the research harness |
 | `REPAIR_TO` | object type | whom rebuilt chunks of a group go to (v0.3: the mesh; columns: custodians lacking them) | `[D4]`, decided (2026-11-13): pushed to the custodians lacking them, as measured. Options measured (§4.6, "Whom rebuilt cells go to"): the cells offered, not pushed, to the nodes that keep every row, or every rebuilt cell offered |
 | `REPAIR_BUDGET` | object type | each rebuilt chunk to `R_NODE` of those lacking it and offered to the rest, as its source pushes a chunk (§1.6); off: to every peer short of K, v0.3's | `[D4]`: an option, off (decided 2026-11-13) |
@@ -2870,127 +2975,96 @@ ones under the row setting, the last by `check.py --doc v2 --golden golden.txt`.
 | `COVER_HIGH` | object type | families a peer of high custody counts for in the coverage floor (§1.3, §4.1) | `[D12]`; 1, decided, as in the measurements; 0 is within 0.4 points of it with eight samples (1.7 with sixteen), at a link more; counted in full, one supernode link with no other rule finds eight distinct servers for 4.7 % of draws at 16 links |
 | `ROUTE_FLOOR` | object type | links a node with duty `FORWARD` keeps to custodians at the routing neighbours' distances (§1.3) | `[D12]`; an option, off. In the same graphs, without a per-column floor at 16 links: the hypercube rule brings every (sampler, column) pair within two hops for 17 added links per custodian, the Kademlia-style rule 95.9 % within two and 4.1 % in three for 6.4 |
 | `ROUTE_HOPS` | object type | forwarding steps a sampler's routed request may take (§4.10) | `[D12]`; 1, decided (FullDAS's two hops), and at least 1. More is an option where one step does not reach a custodian, as the Kademlia-style rule's 4.1 % in three hops; in a 60-node cell one request that took a second step brought its sample at 468 ms, where it had waited for the second phase |
-| `FORWARD_LIMIT` | object type | routed requests a node passes on per peer and slot (§4.5, §4.10) | `[D12]`; X6: a limit, decided, stated by its bound: at least one per block whose samples an asking peer may still be hunting in the slot, since under `ROUTE_HOPS` 1 and one sample per peer a sampler routes at most one request per first hop and block. In the toy's 60-node cells (seed 7, two covers, routed requests on), a limit of 1 changed no event, honest or under 30 % withholders; with half the columns withheld it refused 10 of 1 048 forwards, and the same samples arrived |
+| `FORWARD_LIMIT` | object type | routed requests a node passes on per peer and slot (§4.5, §4.10) | `[D12]`; X6: a bound, each node's within it (`protocol.md` §8.3's kinds), decided, stated: at least one per block whose samples an asking peer may still be hunting in the slot, since under `ROUTE_HOPS` 1 and one sample per peer a sampler routes at most one request per first hop and block. In the toy's 60-node cells (seed 7, two covers, routed requests on), a limit of 1 changed no event, honest or under 30 % withholders; with half the columns withheld it refused 10 of 1 048 forwards, and the same samples arrived |
 | `EVIDENCE` | object type | the fraud-proof object, if any | `[D6]`: none in this version (decided 2026-11-13); the hook stays |
 | `ANSWERS_FIRST` | node | queued answers by rarity before pushes, after a source's own chunks (§4.12) | an option, off in every setting; a wash in three-seed toy checks |
-| groups tracked per slot | node | state for groups we hold or peers want, beyond our interest | X6: a limit, stated by its bound (2026-11-14): at least the groups the chunks a node holds or rebuilds project onto (R4, §3), which for a row member or a reconstructor is up to every column of the block, for each block in its live window. The value is the client's; no limit in the measurements |
-| relations per link | link | families × colours a link may carry | X6: a limit, stated by its bound (2026-11-14): at least the families of the node's own interest times `M`, per object type, since an honest peer grafts a relation only for a family the other end's interest holds (`candidates`, §4.1). The value is the client's; no limit in the measurements |
-| sampling-only links accepted | node | inbound links joined `(DECLARED, NONE)` that a node accepts (§1.3) | `[D12]`; X6: a limit, stated by its bound (2026-11-14): high enough that the network's samplers each keep `SAMPLE_COVER` links per family they sample. On average that is the samplers' added links over the nodes that serve them: in the toy's graphs, with a fifth of 500 nodes sampling, two covers add 8 links per sampler at 70 links and 29 at 16 (`SAMPLE_COVER`'s row), about 2 and 7 per other node, and a limit at the average would refuse some, as the draws are not even. The value is the client's; no limit in the measurements, and the serving load not measured |
+| `SOURCE_OFFERS` | node | when a source offers each chunk to the relation peers it did not push it to: `ACK`, at the chunk's acknowledgement; `PUBLISH`, at publish, its holding growing at each chunk's first write (§4.7) | a default, `ACK`, `protocol.md` §5.1's rule; `PUBLISH` is the source's own choice: sooner for a fast source, later for a slow one, and it names the source (§4.7). Decided 2026-11-18 |
+| groups tracked per slot | node | state for groups we hold or peers want, beyond our interest | X6: a bound, each node's within it (`protocol.md` §8.3's kinds), stated (2026-11-14): at least the groups the chunks a node holds or rebuilds project onto (R4, §3), which for a row member or a reconstructor is up to every column of the block, for each block in its live window. The value is the client's; no limit in the measurements |
+| relations per link | link | families × colours a link may carry | X6: a bound, each node's within it (`protocol.md` §8.3's kinds), stated (2026-11-14): at least the families of the node's own interest times `M`, per object type, since an honest peer grafts a relation only for a family the other end's interest holds (`candidates`, §4.1). The value is the client's; no limit in the measurements |
+| sampling-only links accepted | node | inbound links joined `(DECLARED, NONE)` that a node accepts (§1.3) | `[D12]`; X6: a bound, each node's within it (`protocol.md` §8.3's kinds), stated (2026-11-14): high enough that the network's samplers each keep `SAMPLE_COVER` links per family they sample. On average that is the samplers' added links over the nodes that serve them: in the toy's graphs, with a fifth of 500 nodes sampling, two covers add 8 links per sampler at 70 links and 29 at 16 (`SAMPLE_COVER`'s row), about 2 and 7 per other node, and a limit at the average would refuse some, as the draws are not even. The value is the client's; no limit in the measurements, and the serving load not measured |
 | `ASK_UPLINK` | node | the uplink at and above which `IWANT_WINDOW` keeps v0.3's value; below it the window scales by `ASK_UPLINK / UPLINK` (§4.13); 50 Mbps | The toy, in the research harness's setting, against v0.3's fixed window, seeds 7 to 9: fewer copies in every cell, 0.16 to 0.33; the tail shorter in the all-home network at 12.5 Mbps (0.7 to 3.0 %), with 30 % silent peers (2.4 to 4.4 %), in the mixed-bandwidth network at 6 Mbps with a home builder (3.1 to 3.2 %) and with a datacenter builder (3.0 to 3.6 %), and within ±1.6 % with 30 % withholders; with 10 % of chunks lost it is up to 3.2 % longer (a lost answer is waited for until the longer window closes). For later study: whether a node should scale by the asked peer's link where it knows it |
 | `IWANT_WINDOW` | node | v0.3 §8.3's 200 ms, scaled by `ask_scale()` (§4.13) | – |
 | `MERGE_HOLDINGS` | node | a holding of a group the node publishes that is still in its queue takes the newer chunks instead of a second holding (§4.2; v0.4 §5.1 allows it) | permitted: a source may merge (local policy, as v0.4 words it); the toy keeps it off so that its recorded cells stay comparable. The toy, seeds 7 to 16 (§4.7): for a 50 Mbps proposer of 128 column groups it takes back 10 of P4's 116 ms at the custody block's median with writes that complete at once, 16 of 80 ms with one write per connection at a time; copies unchanged |
 | `HAVE_TTL`, `PUSH_TTL`, `GROUP_TTL`, `PARK_TTL`, offers, `GUARD_GRACE`, `RTT_REF`, `TARGET`, `WINDOW_TIMEOUT`, pace tick, `GOSSIP_RETRANSMISSION` | – | v0.3 §8.3 unchanged | – |
-| `MAX_IHAVE_MESSAGES`, `MAX_IHAVE_LENGTH` | node, per peer and heartbeat | gossipsub's two IHAVE limits on offers: offer-bearing RPCs, and asks in reply to them. Over either, asks wait for the next heartbeat (§4.3). The values are the client's (`protocol.md` §8.2); on v0.3's wire a stock gossipsub client sets 10 and 5000 (§7). A low message limit trades latency for copies. Offers come chunk by chunk, so it holds back many asks. An ask held back is likely often never made, because by the heartbeat the chunk has come by push: a duplicate pull saved (not counted). In the toy's `ihave-limits` cell (60 nodes, one seed, under v0.9's rules; `toy/run.py --doc v2 --ihave-limits M,5000`), against no limit (p50 461 ms, 2.49 copies): 10 RPCs cost 80 ms at the median and save 0.08 copies, 20 cost 31 ms and save 0.11, 40 cost 3 ms and save 0.01, and 100 change neither. The 5000 asks never bound. *Recommended* on the standalone binding: not gossipsub's 10, since in that cell 20 saves more copies for under half the delay. On v0.3's wire, batching a peer's offers into fewer RPCs avoids the delay, and with it the saving | **For later study:** the trade of latency for copies against the other knobs that make it, the ask window (§4.13) first. **Not yet tested:** at 500 nodes, over several seeds, with column and row groups (where the rate of offers differs), or under a peer that floods offers. No value is chosen. What the limits protect is mostly bounded already: one ask per index at a time (v0.3 §6.1), asks only for groups an installed block commits (§4.2), and the offer table's limits (`protocol.md` §8.2) |
+| `MAX_IHAVE_MESSAGES`, `MAX_IHAVE_LENGTH` | node, per peer and heartbeat | gossipsub's two IHAVE limits on offers: offer-bearing frames, and asks in reply to them. Over either, asks wait for the next heartbeat (§4.3). The values are the client's (`protocol.md` §8.2); on v0.3's wire a stock gossipsub client sets 10 and 5000 (`protocol-v2-bindings.md` §3). A low message limit trades latency for copies. Offers come chunk by chunk, so it holds back many asks. An ask held back is likely often never made, because by the heartbeat the chunk has come by push: a duplicate pull saved (not counted). In the toy's `ihave-limits` cell (60 nodes, one seed, under v0.9's rules; `toy/run.py --doc v2 --ihave-limits M,5000`), against no limit (p50 461 ms, 2.49 copies): 10 frames cost 80 ms at the median and save 0.08 copies, 20 cost 31 ms and save 0.11, 40 cost 3 ms and save 0.01, and 100 change neither. The 5000 asks never bound. *Recommended* on the standalone binding: not gossipsub's 10, since in that cell 20 saves more copies for under half the delay. On v0.3's wire, batching a peer's offers into fewer frames avoids the delay, and with it the saving | **For later study:** the trade of latency for copies against the other knobs that make it, the ask window (§4.13) first. **At `protocol.md` §8.3's reference values** (4096 frames, 5000 ids, per peer and heartbeat): no ask held back in the toy's 60-node cells under the tier 4 setting, variant C and custody (with and without samplers), each run as with no limit; the busiest peer reached 248 frames and 58 asks in a heartbeat. Under the rows setting (60 nodes, seeds 7 to 9, with and without half the columns withheld), no ask held back either, each run as with no limit; the busiest peer reached 1 254 frames and 178 asks. This draft takes those values as `protocol.md`'s and chooses none of its own for its bindings. **Not yet tested:** 500 nodes, seeds other than 7 outside the rows setting, or a peer that floods offers. What the limits protect is mostly bounded already: one ask per index at a time (v0.3 §6.1), asks only for groups an installed block commits (§4.2), and the offer table's limits (`protocol.md` §8.2) |
 
 ## 7. Bindings `[D1]`
 
-The protocol is defined on its own messages. Three bindings carry them, the standalone one in an
-RPC of its own or in Waggle's framing (the end of this section); a node may speak more than one and
-negotiates per link which one a peer takes.
+The protocol is defined on its own messages (§2). A **binding** carries them between two nodes. The
+bindings, their bytes and the rules that hold on one binding only are in
+[`protocol-v2-bindings.md`](protocol-v2-bindings.md). It has three:
+- the standalone binding, on a stream of its own or in Waggle's framing;
+- gossipsub with the Partial Messages Extension;
+- v0.3's wire.
 
-| message | standalone: a protocol id of its own, these messages as the RPC | onto gossipsub with the Partial Messages Extension | v0.3's wire (the toy's binding) |
-|---|---|---|---|
-| JOIN | the RPC's first message per object type | `SubOpts(topic, requestsPartial, supportsSendingPartial)` plus an extension field for duty and `M`; a sampler's `(DECLARED, NONE)` is no subscription (below) | subscription; a sampler's is none (below) |
-| GRAFT, PRUNE with colour and direction | as defined: an accepted GRAFT is answered by one marked `answer`, and a GRAFT for a relation the receiver holds by a yes again; `PRUNE_BACKOFF` this document's (§4.1) | gossipsub's GRAFT/PRUNE with an extension field for the colour; direction `BOTH` only; no floor per colour; accepted in silence, as gossipsub's: the sender is in the relation from its GRAFT, and the backoff after a PRUNE keeps the ends together (§4.1) | stock, accepted in silence as on the extension binding; under `--upkeep on` the toy runs §4.1's answered exchange instead, `answer` carried beside the GRAFT, with `PRUNE_BACKOFF` from `--prune-backoff` |
-| HAVE, holding | as defined | `partsMetadata.available` plus two flag bits | IDONTWANT `HaveBitmap`; `claim_all` and `complete` read from a full bitmap, or carried beside it (the toy's extension, needed for a row member complete at 64; the toy charges no bytes for them, the research harness's Go path a flags byte after the root, under version 4) |
-| HAVE, offer | as defined | `partsMetadata.available` to a peer not being pushed | IHAVE `HaveBitmap` |
-| WANT | as defined, but `standing` and `probe` travel in one `flags: Bitvector[8]` in place of their two booleans: bit 0 `standing`, bit 1 `probe`, the other bits zero when sent and ignored when received | `partsMetadata.requests`; `standing`, `hops` and `probe` need an extension field, which also asks for the part where the asker has not subscribed (below) | IWANT `WantIndex`; `standing`, `hops` and `probe` carried beside the index, as a holding's claims (the toy charges no bytes for them, the research harness's Go path a flags byte and a hops byte, 43 bytes in all, where `probe` would be a second bit of the flags byte) |
-| CHUNK | as defined | `partialMessage` | a gossipsub message per chunk |
-| EVIDENCE | as defined | a full message on the rendezvous topic | – |
-| rendezvous | gossipsub topics per family, with the ENR beside them `[D11]` | the topics | the topic |
+A node may speak more than one, and negotiates per link which one a peer takes. This section says what
+every binding provides, and what the rules do where a binding lacks a capability.
 
-The standalone binding is where X2's gains are had: interest without
-subscription, a push relation per family and colour with a floor and a direction, scoring on these
-messages. The extension binding gives up the first two, but for a sampler's interest (below), and
+**What every binding provides:**
+- *Links:* a link per connected peer, with its open and its close, which start and end §3's
+  per-connection lifetimes.
+- *Whole messages, in order:* what a node writes to a peer arrives as whole messages, in the order
+  written for each object type at least (Waggle's framing has a stream per type). How a binding marks
+  where each ends is its own: its frames.
+- *The queue and the write:*
+  - `send(p, msg, urgent)` puts a message into the per-peer queue (§3), or reports that a full queue
+    refused it;
+  - the writer chooses the next entry when it writes (§4.12);
+  - a write completes as §4.11's "Below the writer" says.
+- *Limits before state:* a bound on each message kind's size, checked before the receiver holds any
+  state for the message (X6), after the binding's own bound on its frame.
+- *The header:* a cell group's header reaches a peer before or with its first cell of the group (§2).
+  A binding validates a block's cell header no later than it installs the block (§4.2). It validates a
+  header a chunk carries apart from the chunk, before the chunk is handled. A copy whose id is already
+  seen or waiting still brings its header (`on_header_validated`), and a header that fails never marks
+  the chunk's id as seen, so an honest copy of the chunk is still taken.
+- *The fork:* a link carries an object type only where both ends run it at the same fork, since a
+  type's header and limits change at forks.
+- *A chunk's id and size:* `chunk_id(f)`, and `wire_size(p, entry)`, the bytes its write to `p` will
+  take, a header included (§3).
+
+Rendezvous and discovery are outside the bindings (§0).
+
+**The capabilities the bindings differ in**, and what the rules do without each:
+
+| capability | standalone | extension | v0.3's wire | without it |
+|---|---|---|---|---|
+| interest without subscription: a JOIN per link, `DECLARED` interest told only to the peers asked (§1.2) | yes | for a sampler only | for a sampler only | a sampler subscribes to nothing, its WANTs are its interest, and their answers are admitted by their WANT (`protocol-v2-bindings.md` §4) |
+| relations per family and colour, with a direction and a floor per colour (§1.3, §4.1) | yes | `BOTH` only, a colour field, no floor per colour | stock: `BOTH`, one colour | the relation is the topic's mesh |
+| the answered GRAFT, and `PRUNE_BACKOFF` this document's (§4.1) | yes | no: accepted in silence, gossipsub's backoff | no (the toy runs it under `--upkeep on`) | a GRAFT's sender is in the relation from its GRAFT, and the ends' agreement rests on the backoff after a PRUNE (§4.1) |
+| a holding's claims; the WANT's `standing`, `hops` and `probe` (§2) | yes | in extension fields | beside the bitmap or the index | – (every binding carries them) |
+| EVIDENCE (§2) | its kind reserved | a full message on the rendezvous topic | no | none in this version (`[D6]`) |
+| a frame of one message, or several (§4's `on_frame`) | one | several (gossipsub's frame) | several | the handling order of one frame is §4's; where a frame holds one message, the IHAVE limits (§4.3) count messages, and one answer per id per frame (§4.5) is one per message |
+| merging queued entries (`merge_waiting`, §4.2, permitted; §4.1's one GRAFT or PRUNE of a relation per frame) | the client's | the client's | the client's | – (a choice, not a capability) |
+| how a cell's header travels (§2) | with the first eager push of its group on a link | the partial columns' own rule | beside the chunk, charged nothing in the toy | – |
+| an urgent lane at the transport, beside the writer's (§4.12) | for later study (a second stream) | no | no | the writer's urgent lane alone, as one stream per peer gives |
+| scoring on these messages (P7) | yes | gossipsub's | gossipsub's | gossipsub's scoring of its own messages |
+
+**Where the gains are.** The standalone binding is where X2's gains are had: interest without
+subscription, a push relation per family and colour with a floor and a direction, and scoring on
+these messages. The extension binding gives up the first two, but for a sampler's interest, and
 keeps the rollout inside existing topics; it is the binding for columns while the extension is the
 deployed path. A mixed network needs a bridge between a binding and the stock path that does not
 double the bytes; it is outside this version (`[D1]`, §8).
 
-**A sampler on gossipsub's wires.** On both gossipsub bindings a JOIN is a subscription, and a
-subscription is announced to every peer. A sampler's `(DECLARED, NONE)` therefore cannot be one: a
-subscription to the topic of a family it samples would disclose the sample to every peer (I6), and
-would make the node a receiver of the whole family, pushed all of it. A sampler subscribes to
-nothing for the families it only samples, and these rules make that work:
-
-- **No JOIN on the wire.** The JOIN `(DECLARED, NONE)` that `send_join` sends writes nothing on
-  these wires and counts as queued at once, so a sampler's links for a type are the peers from
-  which it has received a subscription to one of the type's topics. A peer that has subscribed to
-  none of a type's topics is read as `(DECLARED, NONE)` for that type: its WANTs are its interest
-  and stand (§4.5), and nothing is pushed or offered to it; it receives only the answers to its
-  WANTs. A node that subscribes to some of the type's topics, a custodian, samples another family
-  through the WANT's `standing` flag, which every sampler sets (§4.10).
-- **Answers admitted by their WANT.** A node accepts a chunk on a topic it has not subscribed to
-  only as the answer to a WANT it sent: the group's chunk at that index, from the peer the WANT
-  went to, until the group expires. Nothing else on such a topic is accepted, no other index and no
-  other peer; a copy from a peer asked earlier is accepted and acknowledged like any duplicate
-  (§4.10). A forwarder's own WANT for a routed request (§4.5, `route_want`) is admitted the same
-  way, so a forwarder subscribes to nothing new either. Where a receive path drops a message on a
-  topic the node has not subscribed to, the admission is an exception to that drop, and an
-  admitted chunk is then checked and validated as any other.
-- **On the extension binding** the extension ties `requestsPartial` to a subscription, so a peer
-  could answer an asker that has not subscribed only with the full message. The WANT's extension
-  field also asks for the part as a partial message, and the asker does not downscore a partial
-  message it asked for this way as unrequested.
-
-Rejected: approximating `DECLARED` interest by subscribing, either to the sampled families (the
-disclosure above) or to every family of the type (every family pushed to the sampler). The
-standalone binding needs none of this: its JOIN goes per link and names no sample (§1.2).
-
 **A fetch outside the links** `[D12]` (possible, binding-dependent). A binding may offer one
 capability beyond its links: fetching a sample quickly from a node of the known node set, a node
-whose custody the sampler computes from its node id, that is not a link. Its transport is the
-binding's: an ephemeral libp2p connection, short-lived and admitted above the peer limit (FullDAS's
-"libP2P-ephemeralConnect"), plain UDP (PANDAS's one-hop requests to nodes in a crawled view), a fast
-QUIC connection, or a discv5 request in a handshake of two round trips (FullDAS's "new primitive
-outside of the libp2p framework", implemented in its simulator). Each reaches a custodian directly
-where §4.10 would route: one hop instead of two, nothing disclosed to a forwarder, and fewer links
-kept for the coverage floor, which matters most where a node's connection budget is small (at 16
-links the floor of the fewest links costs 13 more, §6.3). The protocol needs only the notion of such
-a fetch, a WANT answered by a CHUNK from a node that is not a link, and its privacy rule: one sample
-per node, as on links (§4.10); the serving limit and the second phase's cap apply as on a link. How
-the fetch is carried is the transport's, so the protocol's rules do not depend on it.
-
-**The standalone binding in Waggle's framing.** Waggle, libp2p's working draft of a pubsub protocol
-for incrementally reconstructed objects (`/waggle/1.0`), is a transport: one stream per topic to
-each connected peer, one message, `ObjectPieces{objectID, piecesMetadata, pieces}`, whose fields
-are opaque, no mesh and no scoring. The standalone binding can travel in it with every rule of its
-own, as in an RPC of its own; only the framing changes:
-
-- **Topics are per object type, never per family.** A Waggle subscription is a stream to the
-  node's connected peers, one per topic, so with a topic per family a sampler would subscribe to
-  the families it samples and disclose them to every peer (I6). A topic per type says only that
-  the node takes part in the type; what it receives is said per link, in its JOIN and its WANTs,
-  and the group tells one family's chunks from another's.
-- **JOIN** is a control message on the type's topic, the first the node sends that peer, with its
-  interest, `custody_count`, duty and `M`. Waggle sends to a peer only on the stream of its
-  subscription, so a link forms once both ends have subscribed and each has sent its JOIN.
-- **Every message is an `ObjectPieces`.** HAVE (holding and offer), WANT and EVIDENCE travel
-  without pieces, `objectID` the group and the message in `piecesMetadata`. A CHUNK carries the
-  chunk as its piece, with its index, its proof and, with the first eager push of a group on a
-  link, the header in `piecesMetadata`. JOIN, GRAFT and PRUNE, which name no group, travel without
-  pieces under an `objectID` that names none. The bytes are the binding's encoding, as on every
-  binding.
-- **Whom a node pushes, tells and asks is §4's.** SEACAST's rules take the place of the draft's
-  dissemination prose (a new piece to the peers whose metadata shows it missing, metadata to some
-  others), which lets the application choose the peers ("latency or other application-defined
-  criteria").
-- **The urgent lane at the transport.** Where the framing keeps the messages without pieces on a
-  stream of their own (a second stream, or a second topic per type), a holding, a claim or an
-  acknowledgement no longer waits behind a chunk being written to the same peer, which one stream
-  per peer, as gossipsub's, cannot give.
-- **What it does not give:** scoring, which the draft leaves to the application and the standalone
-  binding has on its own messages (P7), and the fetch outside the links, whose transports are the
-  paragraph above's.
-
-Waggle's `ObjectPieces` has the shape of the extension binding's partial message (a group id, the
-parts' metadata and the parts), so a client can move between the two changing mostly where the
-topic lives.
+whose custody the sampler computes from its node id, that is not a link.
+- *What it gives:* it reaches a custodian directly where §4.10 would route. That is one hop instead of
+  two, nothing disclosed to a forwarder, and fewer links kept for the coverage floor, which matters
+  most where a node's connection budget is small (at 16 links the floor of the fewest links costs 13
+  more, §6.3).
+- *What the protocol needs:* only the notion of such a fetch, a WANT answered by a CHUNK from a node
+  that is not a link, and its privacy rule: one sample per node, as on links (§4.10). The serving
+  limit and the second phase's cap apply as on a link.
+- *How it is carried* is the binding's (`protocol-v2-bindings.md` §5), so the protocol's rules do not
+  depend on it.
 
 ## 8. Decisions, and where they bite
 
 | decision | where in this document |
 |---|---|
-| `[D1]` identity and bindings (decided: a protocol of its own, carried by §7's three bindings; a bridge to the stock path is outside this version) | §7; §0's "what is assumed" |
+| `[D1]` identity and bindings (decided: a protocol of its own, carried by three bindings, in their own document since 2026-11-17; a bridge to the stock path is outside this version) | §7, `protocol-v2-bindings.md`; §0's "what is assumed" |
 | `[D2]` two bitmaps, WANT per recipient, no need bitmap (decided, as written) | §2 `Want`, `on_want`, `wants_from_me` |
 | `[D3]` two claims (decided, as written) | §2 `Have`, §1.5, §4.6 |
 | `[D4]` repair's parameters (decided: EIP-8371's phases, rebuilt cells pushed to the custodians lacking them, `DEFER_WINDOW` 1 s, `REPAIR_BUDGET` an option, off; the repair floor at least one link to a custodian of each column) | `TypeParams.DECODE_AT_K`, `DECODE_LATER`, `REPAIR_TO`, `DEFER_WINDOW`; §6.3's `REPAIR_SAMPLE`, `REBUILT_SEEN`, `ALARM_WAIT`; §4.6 `check_completion`, `reconsider`, `push_rebuilt` |
@@ -3000,17 +3074,19 @@ topic lives.
 | `[D8]` the row pull delay (decided: 1 s; shorter at a cost under liars) | `TypeParams.START_DELAY`, §4.3 `on_offer` |
 | `[D9]` one document or a sibling (decided: a sibling) | this file; §6.1 is the merge path |
 | `[D10]` colours (decided: a parameter, with no default) | `TypeParams.M`, `F_LO`, `F_HI`, `D_OUT`, `SYMMETRIC`, §1.4, §4.1 |
-| `[D11]` join = (interest, duty); topics as rendezvous (decided: the join as written; the rendezvous gossipsub topics per family, with the ENR beside them) | §2 `Join`, §1.2, §7's last row |
+| `[D11]` join = (interest, duty); topics as rendezvous (decided: the join as written; the rendezvous gossipsub topics per family, with the ENR beside them) | §2 `Join`, §1.2, `protocol-v2-bindings.md` §0's rendezvous row |
 | `[D12]` a sampler's reach (decided: a coverage floor with `SAMPLE_COVER` set at 2, LiteDAS's second phase, routed sample requests of one step) | §1.3; §2 `Want`; §4.1 `keep_coverage`; §4.5 `route_want`; §4.10; `TypeParams.SAMPLE_RETRY2`, `SAMPLE_OUTSTANDING`, `SAMPLE_COVER`, `COVER_HIGH`, `ROUTE_HOPS`, `FORWARD_LIMIT`; §6.3's `ROUTE_FLOOR`; §7's last paragraph |
 | the promise's length (§4.13) (decided: 400 ms the default; the per-peer promise permitted as local policy) | v0.3 §6.1's `PROMISE`; §6.3's `PROMISE` row |
 | a source's links in a family it does not custody (decided: it never waits for links; three layers on top of its fanout; a refused push to a fallback link owed) | §4.7 `source_pool`, `candidates_for_source`, `origin_acked`, `unpush`; §6.3's `SOURCE_FLOOR` row |
-| the probe of a claim (R5) (decided: the claimant judged by its own copy; the probe marked and answered whatever the asker holds, once per asker and group; the asker's queue keeps it; its cell drawn at random) | §2 `Want.probe`; §4.2 `on_chunk`, `fill`; §4.5 `on_want`; §4.6 `reconsider`, `defer_on_claim`, `probe_answer`, `probe_promise`, `probe_waits`, `probe_of_claim`, `serve_probe`, `filter_entry`; §7's WANT row |
+| the probe of a claim (R5) (decided: the claimant judged by its own copy; the probe marked and answered whatever the asker holds, once per asker and group; the asker's queue keeps it; its cell drawn at random) | §2 `Want.probe`; §4.2 `on_chunk`, `fill`; §4.5 `on_want`; §4.6 `reconsider`, `defer_on_claim`, `settle_probe`, `probe_answer`, `probe_promise`, `probe_waits`, `probe_of_claim`, `serve_probe`, `filter_entry`; `protocol-v2-bindings.md` §0's WANT row |
 
 **Decided on 2026-11-13.** Six of the decisions above were chosen, each with what was not taken:
 - **`[D1]` identity and bindings.** v2 is a protocol of its own, defined on its own messages and
-  carried by §7's three bindings: the standalone one, the binding onto gossipsub's Partial Messages
-  Extension, and v0.3's wire. §7 states what each binding gives up. Not taken: the extension alone,
-  which gives up interest without subscription and the push relation's floor and direction (§7);
+  carried by three bindings, defined in their own document (`protocol-v2-bindings.md`, since
+  2026-11-17): the standalone one, the binding onto gossipsub's Partial Messages Extension, and v0.3's
+  wire. §7 states what every binding provides and the capabilities each gives up. Not taken: the
+  extension alone, which gives up interest without subscription and the push relation's floor and
+  direction (§7);
   and deciding after a paired cell of the signalling cost on both wires, which neither
   implementation here can run, since neither speaks the extension's wire. A bridge between a
   binding and the stock path, which a mixed network needs, is a deployment question no measurement
@@ -3141,9 +3217,9 @@ answers it whatever the asker's holdings say, once per asker and group, the exem
 answer and spent when it is written; the asker's queue keeps its marked WANT while the probe waits;
 and the probed cell is drawn at random among those the member lacks. In the toy's rows (60 nodes,
 three blocks, `--send-buffer 0`), over five cells and three seeds, no honest or hoarding claimant
-failed its probe (none of 1 298 verdicts with the rules of 2026-11-16; before them, 3 of 1 289
-failed without the mark and the kept WANT), and liars passed 3, 1 and 61 times in the three liar
-cells. Since 2026-11-16, the probe's wait starts at its write, a probe not written when the duty
+failed its probe (none of 1 281 verdicts with the rules as they stand, none of 1 298 with those of
+2026-11-16; before them, 3 of 1 289 failed without the mark and the kept WANT), and liars passed 1,
+0 and 65 times in the three liar cells. Since 2026-11-16, the probe's wait starts at its write, a probe not written when the duty
 next fires gets no verdict unless the claimant's own copy came first, and is not written later, a
 claimant still decoding keeps the first probe per asker and group and answers it once when the cell
 is stored, and a claimant that leaves before the verdict gets none; without a verdict, the member's
@@ -3156,7 +3232,8 @@ cannot hide a cell already named before the probe; and the lowest lacked index, 
 read from the member's holdings. The random index's purpose, against a claimant that keeps only the
 cell it expects to be asked, is not measured: the toy's liars do not aim. The standalone binding
 carries `standing` and `probe` in one `Bitvector[8]`, its other bits zero when sent and ignored when
-received, so that a later flag fits without breaking older readers (§7). Not taken there: a byte of
+received, so that a later flag fits without breaking older readers (`protocol-v2-bindings.md` §1.3).
+Not taken there: a byte of
 its own for the mark, which every WANT would pay, and a message of its own for the probe, which
 every binding would have to carry.
 
@@ -3206,7 +3283,7 @@ fetch outside the links (§7). For later study:
   under withholders 7 sampler-blocks did not confirm. Two covers add 8 links on top of 70 and 29 on
   top of 16; one cover adds 2 and 13. Three covers (99.99 %, and the floor that holds for sixteen
   samples) would add 17 to 20 and 47 to 49. How many sampling-only links a custodian accepts is a
-  limit stated by its bound (§6.3); the serving load they bring it is not measured.
+  bound, each node's within it (§6.3); the serving load they bring it is not measured.
 - *The floor's lifetime.* Kept across slots, chosen from custody alone; whether and how often it
   rotates, and what churn costs it (not measured).
 - *The route and its privacy.* Without routing neighbours a first hop is any link with duty

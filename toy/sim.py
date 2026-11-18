@@ -78,6 +78,8 @@ class Sim:
                                                #   payload, COLUMNS groups for a block of columns
         self.pubs = []                         # the publisher per message: node 1 unless the harness's dump names one
         self.gtype = {}                        # group -> object type id, for groups whose id names one ("column", "row")
+        self.wire = cfg.get("wire", "v03")     # the binding the links charge: v0.3's wire, or the standalone one
+        self.headers_sent = set()              # --wire standalone: (sender, receiver, epoch, group) a cell header went
         self.gcol = {}                         # column group -> column index
         self.ghdr = {}                         # column or row group -> its header
         self.gsub = {}                         # row group -> its row subnet
@@ -322,12 +324,45 @@ class Sim:
         for x, y in ((a, c), (c, a)):
             self.nodes[x].on_open(y)                        # each end's JOINs (§4.1 send_join)
 
+    def is_cell(self, f):
+        return self.gtype.get(f.group) in ("column", "row")
+
+    def header_key(self, node, p, e):
+        """--wire standalone: the key under which entry e's chunk would carry its block's header, or None: a cell,
+        pushed (not an answer), the first of its group to p on this connection (protocol-v2-bindings.md §1.3)."""
+        f = e.chunk
+        if f is None or e.solicited or not self.is_cell(f):
+            return None
+        key = (node.id, p, self.epoch.get((min(node.id, p), max(node.id, p)), 0), f.group)
+        return None if key in self.headers_sent else key
+
+    def chunk_bytes(self, node, p, e):
+        """The bytes entry e's chunk will take on the wire to p, as the links charge them (protocol-v2.md §4.11's
+        wire_size): on the standalone binding with the header a first push carries."""
+        f = e.chunk
+        if self.wire != "standalone":
+            return Wm.chunk_wire(f)
+        return Wm.standalone_chunk(f, self.is_cell(f), self.cfg["blobs"] if self.header_key(node, p, e) else None)
+
+    def standalone_wire(self, node, p, e):
+        """(data, control) bytes of entry e on protocol-v2-bindings.md §1's stream, each message a frame of its own.
+        A cell carries the block's header with the first eager push of its group on the link (§1.3; protocol-v2.md
+        §2, P2): an unsolicited cell, once per group and connection, with every blob's commitment."""
+        data = 0
+        f = e.chunk
+        if f is not None:
+            key = self.header_key(node, p, e)
+            if key is not None:
+                self.headers_sent.add(key)
+            data = Wm.standalone_chunk(f, self.is_cell(f), self.cfg["blobs"] if key is not None else None)
+        return data, Wm.standalone_control(e.control) if e.control else 0
+
     def transmit(self, node, p, e):
         if self.churn:                                     # the connection this entry leaves on
             if p not in node.peers:
                 return
             self.entry_epoch[id(e)] = self.epoch.get((min(node.id, p), max(node.id, p)), 0)
-        data, ctrl = Wm.entry_wire(e)
+        data, ctrl = self.standalone_wire(node, p, e) if self.wire == "standalone" else Wm.entry_wire(e)
         node.tx_data += data
         node.tx_ctrl += ctrl
         if self.inv is not None:
@@ -426,7 +461,7 @@ class Sim:
         nd.rx_ctrl += ctrl
         if self.inv is not None:
             self.inv.deliver(src, dst, e)
-        nd.ns["on_frame"](src, Wm.RPC(e))
+        nd.ns["on_frame"](src, Wm.Frame(e))
 
     # ---- the heartbeat (stock duties the pseudocode assumes, then §6.4)
 

@@ -30,6 +30,11 @@ names how SEACAST diffuses.
   §4.12), that a row member needs a custodian link for every column, to gather its row and to
   repair the columns (its §4.6: the repair floor, which EIP-8371's fanout presumes), and that a
   rebuilt cell must complete the groups it fills (its §4.6).
+- [`protocol-v2-bindings.md`](protocol-v2-bindings.md): the next version's bindings, a companion of
+  `protocol-v2.md`, whose §7 says what every binding provides. The standalone binding, SEACAST's own
+  protocol (`/seacast/2.0.0`), is defined to the byte, on a stream of its own or in Waggle's framing.
+  The bindings onto gossipsub's wires, with the Partial Messages Extension and v0.3's, are defined to
+  the field.
 - [`toy/`](toy/): runs every `python` block of `protocol.md`, once per node, on a simulated
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.

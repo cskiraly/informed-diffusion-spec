@@ -100,10 +100,10 @@ digest of the document with the source of before that rule put back (v0.8's `pub
 `origin_sent`, from `c9881d3`'s parent), and none gives its recorded digest (2026-11-18). That
 needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting, `loss-thin` and
 `late-block` differ, since there a chunk is acknowledged before the source writes it. `--doc v2`
-refuses `publish`: the draft here has no `SOURCE_OFFERS`. The option's other values, `off` and
+takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Sixteen scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Twenty-eight scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -144,6 +144,13 @@ where one has a control that must come out the other way, it is named:
     the kept deferred copy, the controls, stay.
   - A probed claimant that leaves gets no verdict and no penalty, and the duty is re-armed at its own
     time, here already passed, so at once; a connected claimant beside it, the control, is judged.
+  - The closed peer leaves the window's line, the writer behind it is woken, and the room its chunk
+    held in flight is released.
+- `alarm_member_known.py`: the custodian alarm's member (`--alarm-wait`). Its ask's promise and the
+  alarm's wait start at the write, not at the decision; a full queue's refusal and a claimant gone
+  before the alarm, before the write or after it penalise nobody, and the member rebuilds; a
+  close before the write also takes the ask out of the stop-pull exemption. Controls: a silent
+  connected claimant is penalised once, and a claimant's own copy leaves no penalty and no rebuild.
 - `late_drain_known.py`: the `late-block` cell with a leak put in by hand must fail, and so must
   the cell with a node that gets no chunk; as it is, it must pass.
 - `late_draw_known.py`: `--late-block`'s draw and its argument.
@@ -159,20 +166,77 @@ where one has a control that must come out the other way, it is named:
   claims, the probe's tables, the repair sample's and the sampler's), which read without creating
   since 2026-11-16.
 - `probe_decode_known.py`: a marked probe that reaches a claimant still decoding is kept, the
-  first per asker and group, and answered with its exemption when the decode stores the cell; a
-  second probe from the same asker, and a plain ask beside it, must not be answered then.
+  first per asker and group, and answered with its exemption when the decode stores the cell. A
+  second probe from the same asker is not kept as a probe and gets no exemption; on its `DECLARED`
+  link it stands, and the decode answers it as a standing WANT. A plain ask beside them must not be
+  answered.
+- `standing_decode_known.py`: standing WANTs for cells of a group the node is still decoding, a
+  `DECLARED` link's plain one and a `DERIVED` link's flagged one, are answered when the decode stores
+  the cells, each charged once against the serving limit; a `DERIVED` link's plain WANT beside them,
+  the control, must not be.
 - `probe_write_known.py`: the probe's promise and the verdict's wait start when its WANT is
   written; a probe a full queue refuses, or one still unwritten when the wait ends, gets no verdict
   and penalises nobody. A probe written and not answered beside them must be judged and penalised.
 - `probe_settle_known.py`: a probe given no verdict while still queued is not written later; a
   refused probe, and one whose claimant closes, return the duty to its own time when that is later;
-  after a probe given no verdict, a plain ask of the probed cell that the claimant answers leaves no
-  promise open. A marked ask kept while decoding is answered and charged once, with its exemption:
+  after a probe given no verdict, a plain ask of the probed cell queued to the claimant is not
+  written, since stop-pull gates it again, and a promise under the probe's key is closed by the
+  claimant's copy. A marked ask kept while decoding is answered and charged once, with its exemption:
   alone, repeated, or beside a standing ask of the same asker sent before it or after it, and
   repeated with one slot of the serving limit left. A probe not yet settled must still be written,
   the claimant's own copy before the write must pass it, another peer's copy must leave a written
   probe's promise open, a close when the duty was due must reconsider at once, and a plain standing
-  ask must be answered once.
+  ask must be answered once. Askers on links that are not `DECLARED`, whose marked asks do not
+  stand: one, two (each kept and answered once), and one that marks another index too (its first
+  stays the one kept). `--controls` runs three broken texts, each caught by its own line.
+- `probe_asks_known.py`: once the probe is settled, by a failure or by no verdict (the probe still
+  queued, the claimant closed, or a full queue refusing it), a complete member does not ask for the
+  probed cell when another peer offers it. Controls: before the verdict the offer is asked for (the
+  probe's exemption), an offer of another lacked cell never is (stop-pull), and after a pass the
+  cell is held.
+- `note_push_known.py`: a send is noted under every group the chunk fills from the ids alone, so a
+  chunk of a dropped group, not stored, can be noted; and `unpush` clears every mark `note_push` made,
+  the row's as well as the column's. The control: the payload's push undone as before.
+- `dropped_group_known.py`: a chunk of a group the node dropped is not stored, sent under the group to
+  anyone, or put in the gossip history, as `protocol.md`'s `on_validated` returns. The control: with the
+  group live, the same chunk is stored, pushed or offered, and put there. And a row's repair
+  (`push_rebuilt`) sends nothing under a dropped column; the control, the column live, sends.
+- `close_source_known.py`: a source's link closing with a copy in flight releases the copy's room, and the
+  chunk is not acknowledged for it: it does not join the source's holding and is not offered. The control: the
+  copy's window timeout does acknowledge it.
+- `source_offers_known.py`: at `SOURCE_OFFERS = PUBLISH` an acknowledgement neither grows the source's
+  holding nor offers, also for a chunk a peer rebuilt before the source wrote it (a 10 Mbps source among
+  faster peers). The control: at `ACK` the same run's acknowledgements act, some before a first write.
+- `pull_source_known.py`: the source of a pull-only type (`EAGER` off) pushes nothing at its publish,
+  offers every chunk, and its holding names every chunk; every node completes by asks alone. The
+  control: with the type eager, the source pushes.
+- `rebuilt_once_known.py`: a cell answered through its row, to a peer that stands for it there, is
+  not pushed again through its column by the repair, where that peer is a custodian short of it
+  (`note_push` under every group the chunk fills). The control: a custodian that made no WANT is
+  pushed the cell once.
+- `standalone_wire_known.py`: an encoder written from `protocol-v2-bindings.md` §1.
+  - Every message kind round-trips at its smallest and largest.
+  - §1.3's layout, read from the document, must be the encoder's, field by field, with its fixed
+    sizes. The largest bodies equal §1.6's bounds, and §1.7's sizes hold, both tables read from the
+    document.
+  - A reader refuses a frame over its kind's bound before reading its body, and an unknown kind's
+    frame over the largest known kind's room. It refuses a chunk whose stated decompressed length
+    is over the bound, snappy input that ends inside an element, and bodies that do not decode.
+  - It skips an unknown kind, on the stream and in Waggle's carriage, which reads every kind back.
+  - `BINDINGS_DOC=<path>` reads another copy of the document: one with a wrong number, a widened
+    field, two fields swapped, a line the check cannot read, or a name defined twice must fail.
+  - snappy's reader refuses a length preamble over five bytes, and Waggle's carriage holds an unknown
+    kind to the largest known room.
+- `standalone_charge_known.py`: under `--wire standalone`, every message kind is charged the length
+  of the frame the encoder writes: JOIN, GRAFT, PRUNE, a holding and an offer, WANTs plain and
+  flagged, the payload's chunk, and a cell. The cell carries its header on the first push of its
+  group to a peer, not on the next push nor on an answer, and again to another peer. An entry
+  is charged the sum of its messages, and the window's size of a cell is what its write will
+  charge: the header with a first push, none with an answer or a later push.
+- `probe_kept_known.py`: while a claimant still decoding keeps an asker's marked probe, that
+  asker's marked ask of another, stored, cell of the group is answered as a plain ask, without the
+  exemption, and the kept probe is answered with it when its cell is stored; also in the order a
+  standing ask, the marked ask, then the other marked ask. The control: one marked probe alone.
 - `refusal_report_known.py`: the report of asks left unanswered does not count a marked probe of a
   claimed index as claimed, since it is answered (R5); a plain ask beside it, and a second marked
   probe past the cap, must be counted.
@@ -419,7 +483,7 @@ offer handlers, `on_want`, completion and repair, `publish`, the heartbeat) and 
 carries over (the ask discipline, `choose_push`; the window and the writer as its §4.11 and §4.12 adapt them). `node.py` supplies what
 the next version leaves to the environment under its tier 4 setting (its §6.1): the payload object type
 with its parameters, the join tables, the push relation behind the mesh, and the binding of its
-messages onto v0.3's wire (its §7, last column): a holding is an IDONTWANT bitmap, an offer an
+messages onto v0.3's wire (`protocol-v2-bindings.md` §3): a holding is an IDONTWANT bitmap, an offer an
 IHAVE bitmap, an ask a `WantIndex`. Relations are static, as the mesh is for v0.3.
 
 `check.py --doc v2` runs the fifteen cells against the next version's own recording,
@@ -994,7 +1058,7 @@ versions that differ in nothing the liars touch.
 
 `--fault hoard<pct>` is the claimant the probe cannot catch: a node that rebuilds and claims as the
 document says, pushes none of its rebuilt cells, drops a standing WANT for one, and answers an ask
-for one only once per peer and group and only when it is the RPC's one ask on that group, which is
+for one only once per peer and group and only when it is the frame's one ask on that group, which is
 what a probe looks like; it forwards what it receives. The hoarders line counts them by role, the
 rows they rebuilt, and the asks for their rebuilt cells answered (the probes) and refused.
 The member check (`protocol-v2.md` §4.6, decided 2026-10-09, on by default; `--member-check off`
@@ -1114,6 +1178,11 @@ which changes no event).
   `--alarm-max`.
 - **The member.** A member that deferred on a claim its probe verified asks that claimant for the
   index, once, as the probe is asked. If that promise breaks, it penalises the claimant and rebuilds.
+  Since 2026-11-17 the promise starts at the ask's write, as the probe's does. A claimant that cannot
+  be asked (its connection closed, or a full queue refuses the ask), or whose connection closes
+  before the ask is written or before the promise ends, is not judged, and the member rebuilds if
+  the cell is still missing. The
+  figures below were measured before.
 - Faulty nodes neither alarm nor act on one (`node.py`, `_alarm`).
 
 **`--fault hoardcol<pct>`**, with `--rebuilt-seen on`, is a hoarder that repairs every withheld
@@ -1141,6 +1210,38 @@ every row was rebuilt by an honest node).
 - Without a fault, under `hoardm20` with the member check alone, and under `claim20`, no alarm was
   sent at seed 11.
 
+**`--wire standalone`** (with `--doc v2`) charges the links the standalone binding's bytes
+(`protocol-v2-bindings.md` §1) in place of v0.3's wire, which stays the default and the recordings'.
+It is a model of bytes: what reaches the receiver, and when, follows from those bytes, but an entry
+is still delivered as one unit, as on v0.3's wire.
+- *Each message is a frame of its own:* a uvarint length, a kind byte and its SSZ, sized before
+  compression. The payload's chunk is `protocol.md`'s `Chunk`; a cell is a `CellChunk`.
+- *One WANT per ask:* several asks of one group to one peer are charged a frame each, where one
+  bitmap could carry them, so the asks' bytes are an upper bound.
+- *An entry is delivered as one unit:* `on_frame` sees the entry's messages together, so the IHAVE
+  limits (`protocol-v2.md` §4.3) count entries, not each offer's frame. Only the `ihave-limits` cell
+  sets them.
+- *A cell carries the block's header* (every blob's commitment) with the first eager push of its
+  group on a link: an unsolicited cell, once per group and connection. The default wire charges none.
+  The header's bytes are an upper bound: consensus's partial columns also skip it for a peer that
+  has already sent a message of the block, which the toy does not.
+- *The window's chunk size follows the wire* (`wire_size(p, entry)`), a first push's header
+  included. "copies" keeps its denominators, so a cell's copies compare bytes on both wires.
+- *Measured* (2026-11-17; `check.py`'s 15 cells under `--doc v2`, and two 60-node custody cells, one
+  with a fifth of the nodes sampling; seed 7, one run each). The same numbers, to the byte, after the
+  window began counting the header: in the custody cell the window sized 5 649 writes with a header
+  and never refused one, so its size changed no event.
+  - control bytes −30 to −36 %: no topic in an offer, no protobuf tags, a few bytes a relation
+    message;
+  - data within ±0.8 %;
+  - all bytes −1.5 to −3.0 % in the 15 cells and −4.2 % in both custody cells;
+  - the warm medians within 11 ms and the 99th percentiles within 28 ms, either way, one seed each.
+  - In the custody cells data moved by +0.0 and −0.7 %. At 32 blobs one header (1 880 bytes) costs
+    what about 13 cells save (143 bytes each), and the header goes once per group and link
+    (`protocol-v2.md` §2). This is a balance of magnitudes at one seed, with the two wires running
+    different events, not a measurement of either. Per block instead of per group, as consensus's
+    partial columns allow, is for later study.
+
 `--answers-first` sets the writer's order (`protocol-v2.md` §4.12). The default sends a source's
 own chunks first, past its offers and answers, by rarity, and `on` adds the option of answers
 before pushes. `v03` is v0.3's order, rarest-first up to the first control-only entry. The other
@@ -1149,7 +1250,8 @@ values are forms checked against it on 2026-10-07, kept so that the check can be
 chunks too; `line` does that and puts the answer's writer ahead of the window's line; `others`,
 `fresh`, `late` and `othersans` protect a source's own chunks in weaker ways. `--source-offers off`
 drops the source's offers and `late` queues them after the pushes of every group it published at
-the same instant. The table gives each form's change against v0.3's order, at the median and the
+the same instant. Both act only on offers `publish` itself makes, so since v0.9's rule moved the offers
+to the acknowledgement they change nothing; their columns are from before it. The table gives each form's change against v0.3's order, at the median and the
 99th percentile in ms, the mean over seeds 7, 8 and 9, paired by seed, at 60 nodes:
 
 | cell | own chunks first (default) | and answers first (`on`) | oldest answer first (`oldest`) | ahead of the line (`line`) | no source offers | source offers late |
@@ -1203,6 +1305,13 @@ The choice follows a toy check of v0.9's rules in this document, at 60 nodes (se
 500 (seeds 7 to 9). Offers per object type (the payload's at the acknowledgement, a column's at
 publish) were chosen first, on 2026-11-10. They were replaced on 2026-11-11, once the 500-node
 seeds showed the rows' cost to be a 60-node finding. The tables keep them as "offers per type".
+
+`--source-offers publish` (2026-11-18) is the draft's `SOURCE_OFFERS = PUBLISH` (§4.7), the document
+before these rules (spec 11b9143) as a source's choice: the source offers each chunk at publish, to the
+peers it offers it to at the acknowledgement, and its holding grows at a chunk's first write. It gives
+11b9143's digests: the
+custody cell above at seed 7 with `--send-buffer 0` (`a5260b63…`), and the research harness's 100-node
+custody graph at seed 7 (`--topology`, `--ihave-limits 4096,5000`, `--send-buffer 0`: `05f64359…`).
 
 At 60 nodes, the median of the seeds and its range: p50 in ms, against the document before.
 

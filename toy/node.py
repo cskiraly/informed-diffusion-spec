@@ -286,12 +286,17 @@ class Node:
         the cell is missing, up to --alarm-max members. The member (on_want): a standing ask for an index of its own
         row that it lacks, from a peer not DECLARED, is kept as the document keeps it (§4.10); if the member
         deferred on a claim its probe verified, it asks that claimant for the index once, as the probe is asked
-        (exempt from stop-pull, DEFER_WINDOW as the promise); if that promise breaks and the row is still COMPLETE,
-        it penalises the claimant and decodes as reconsider's rebuild does. Nothing new on the wire."""
+        (exempt from stop-pull until the ask is settled; DEFER_WINDOW as the promise, started at the ask's write, as
+        the probe's is); if that promise breaks and the row is still COMPLETE, it penalises the claimant and decodes
+        as reconsider's rebuild does. A claimant that cannot be asked (its connection closed, or a full queue refuses
+        the ask) or whose connection closes before the ask is written (alarm_close, from drop_peer) or before the
+        promise ends is not judged: the member rebuilds the row if the cell is still missing, at once or when the
+        promise would have ended. Nothing new on the wire."""
         node, sim, c = self, self.sim, self.cfg
         ROW, Want = self._types["row"], ns["Want"]
         doc_on_want, Ask = ns["on_want"], ns["Ask"]
         asked = lazy(LazySet)                           # row group -> indices asked of the claimant on an alarm
+        pending = {}                                    # (ask, claimant) -> (row group, index): queued, not yet written
         alarms = set()                                  # (row group, index, peer): standing asks kept as alarms
 
         def alarm_check(root, k):
@@ -326,21 +331,66 @@ class Node:
             if not (ns["deferred"][g] and ns["received"][g].has(ns["probe"][g])) or i in asked[g]:
                 return                                  # a verified claim only, and once per index
             asked[g].add(i)
-            T, q, a = ns["type_of_group"](g), ns["probed"][g], Ask(g, i)
+            q, a = ns["probed"][g], Ask(g, i)
+            if sim.churn and q not in node.peers:       # the claimant has left: nobody to ask or to judge
+                node.alarm["not judged"] += 1
+                return rebuild(g, i)
             ns["add_offer"](a, q)                       # a claim is an offer of every index (§4.6's probe)
             ns["tried"][a][q] = ns["now"]
-            ns["probe_asks"].add(a)                     # past stop-pull, as the probe
-            ns["promises"][(a, q)] = ns["now"]
-            ns["after"](T.params.DEFER_WINDOW, ns["promise_due"], a, q, ns["now"])
-            ns["after"](T.params.DEFER_WINDOW, alarm_due, g, i, q)
+            ns["probe_asks"].add(a)                     # past stop-pull, as the probe, until settled
+            pending[(a, q)] = (g, i)                    # its promise and wait start at its write (filter_entry)
             node.alarm["asks of a claimant"] += 1
-            ns["send"](q, Want(group=g, bits=bitmap({i})), urgent=False)   # as defer_on_claim sends the probe
+            if not ns["send"](q, Want(group=g, bits=bitmap({i})), urgent=False):   # as defer_on_claim sends the probe
+                pending.pop((a, q), None)               # refused by a full queue, never written: not judged
+                ns["probe_asks"].discard(a)
+                node.alarm["not judged"] += 1
+                return rebuild(g, i)
 
-        def alarm_due(g, i, q):
+        def filter_entry(p, entry):                     # the write: the alarm's ask gets the probe's promise, not
+            ks = [(a, p) for cx in entry.iwants() for a in cx.ids if (a, p) in pending]   # a plain ask's 400 ms
+            for k in ks:
+                ns["promises"].pop(k, None)
+                ns["promises"][k] = None                # the document starts no promise of its own for it
+            out = doc_filter_entry(p, entry)
+            written = {(a, p) for cx in (out.iwants() if out is not None else ()) for a in cx.ids}
+            for k in ks:
+                if k in ns["promises"] and ns["promises"][k] is None:
+                    del ns["promises"][k]
+                g, i = pending.pop(k)
+                if k not in written:                    # dropped at the write (held meanwhile, or expired)
+                    ns["probe_asks"].discard(k[0])
+                    continue
+                now, W = ns["now"], ns["type_of_group"](g).params.DEFER_WINDOW
+                ns["promises"][k] = now
+                ns["after"](W, alarm_due, g, i, p, now)  # before promise_due, which runs at the same time
+                ns["after"](W, ns["promise_due"], k[0], p, now)
+            return out
+        doc_filter_entry = ns["filter_entry"]
+        ns["filter_entry"] = filter_entry
+
+        def alarm_close(q):                             # q's connection closed (drop_peer): its queued asks went with
+            for k in [k for k in pending if k[1] == q]: #   the queue, never written, so they are settled here: not judged,
+                g, i = pending.pop(k)                   #   gated by stop-pull again, and the member rebuilds
+                ns["probe_asks"].discard(k[0])
+                node.alarm["not judged"] += 1
+                rebuild(g, i)
+        self.alarm_close = alarm_close
+
+        def alarm_due(g, i, q, at):
+            a = Ask(g, i)
+            ns["probe_asks"].discard(a)                 # settled: gated by stop-pull again
             if ns["received"][g].has(i) or ns["rebuilt"][g].has(i) or ns["state"][g] != ns["COMPLETE"]:
                 return                                  # answered, rebuilt, or decoding already
+            if ns["promises"].get((a, q)) != at:        # its promise went with the claimant's connection
+                node.alarm["not judged"] += 1
+                return rebuild(g, i)
             node.alarm["broken"] += 1
             ns["penalise"](q)
+            rebuild(g, i)
+
+        def rebuild(g, i):
+            if ns["received"][g].has(i) or ns["rebuilt"][g].has(i) or ns["state"][g] != ns["COMPLETE"]:
+                return                                  # held, or decoding already
             T = ns["type_of_group"](g)                  # reconsider's rebuild: the late decode claim
             ns["state"][g] = ns["DECODING"]
             ns["mine"][g] = all_bits(T.index_count(ns["hdr"][g]))
@@ -573,7 +623,7 @@ class Node:
             "HAVE_TTL": c["HAVE_TTL"], "PUSH_TTL": c["PUSH_TTL"],
             "CANCEL": c["card8"], "RAREST": c["card9"], "PROJECT": c["card12"], "PACED": c["card15"],
             "ANSWERS_FIRST": c.get("answers_first", "off") == "on",
-            "ACK": "ACK", "PUBLISH": "PUBLISH",                      # protocol.md §5.1's SOURCE_OFFERS: ACK, unless
+            "ACK": "ACK", "PUBLISH": "PUBLISH",                      # SOURCE_OFFERS (protocol.md §5.1, protocol-v2.md §4.7): ACK, unless
             "SOURCE_OFFERS": "PUBLISH" if c.get("source_offers") == "publish" else "ACK",   #   --source-offers publish
             "DESCRIPTOR_IN_CHUNK": True,
             # state (§8.1); missing entries read as empty
@@ -1135,7 +1185,7 @@ class Node:
     def _v2(self, ns):
         """What protocol-v2.md leaves to the environment, under the tier 4 setting (its §6.1): the
         payload object type and its parameters, the join tables, the relations behind the mesh,
-        and the binding of the v2 messages onto v0.3's wire (its §7, last column)."""
+        and the binding of the v2 messages onto v0.3's wire (protocol-v2-bindings.md §3)."""
         node, c = self, self.cfg
         Have, Want, Graft, Prune, Join = ns["Have"], ns["Want"], ns["Graft"], ns["Prune"], ns["Join"]
         ns.update(ALL="ALL", DERIVED="DERIVED", DECLARED="DECLARED", FORWARD="FORWARD", NONE="NONE",
@@ -1513,13 +1563,13 @@ class Node:
         def choice(xs):
             return ns["shuffled"](xs)[0]
 
-        def wire_size(f):                               # §4.11: the chunk's bytes on the wire, as the links charge them
-            return Wm.chunk_wire(f)
+        def wire_size(p, e):                            # §4.11: the entry's chunk's bytes on the wire to p, as the links
+            return node.sim.chunk_bytes(node, p, e)     #   will charge them
 
         def send(p, msg, urgent=False):                 # the v0.3-wire binding (protocol-v2.md §7); true if the
             if isinstance(msg, Have):                   #   queue admitted it, as v0.5's enqueue
                 hb = Wm.HaveBitmap(msg.group, msg.bits)
-                if not msg.offer:                       # the two claims ride in the version byte (§7, last column)
+                if not msg.offer:                       # the two claims ride in the version byte (bindings §3)
                     hb.claim_all, hb.complete = msg.claim_all, msg.complete
                 return ns["enqueue"](p, (Wm.IHAVE if msg.offer else Wm.IDONTWANT)(hb), urgent)
             elif isinstance(msg, Want):
@@ -1562,7 +1612,7 @@ class Node:
         ns["keep_floor"] = keep_floor
         doc_on_frame = ns["on_frame"]
 
-        def on_frame(p, frame):                         # v0.3's RPC read as v2's messages
+        def on_frame(p, frame):                         # a gossipsub frame read as v2's messages
             haves = []
             for hb in frame.ihave.ids:
                 if isinstance(hb, Wm.HaveBitmap):
@@ -1685,7 +1735,7 @@ class Node:
                                     ns["note_push"](q, g2, i2)
                 ns["push_rebuilt"] = push_rebuilt
             spec_on_want, probed = ns["on_want"], set() #   and an ask for one is answered once per peer and group, and only
-                                                        #   when it is the RPC's one ask on that group: what a probe looks like
+                                                        #   when it is the frame's one ask on that group: what a probe looks like
             def on_want(p, asks):
                 per_group = Counter(gi.group for gi in map(ns["group_index"], asks) if gi is not None)
                 keep = []
@@ -1819,8 +1869,10 @@ class Node:
         included), q's offers (in every ordered
         list, by the counted removal that keeps `listed`, and in `offered`), its tries, its places in the last
         resort's counts, its promises (the retry, whose timer is per ask, moves on without parking q) and its
-        ties with their slot. Its claims go through the document's `claims_close` (R5). Kept: q's park, across
-        reconnections as scores are, and the deferred copies with their reservations, kept by block root."""
+        ties with their slot, its place in the window's line, and the room its chunks hold in flight (released as
+        WINDOW_TIMEOUT releases it, without the acknowledgement a timeout gives). Its claims go through the
+        document's `claims_close` (R5). Kept: q's park, across reconnections as scores are, and the deferred
+        copies with their reservations, kept by block root."""
         ns = self.ns
         for name in ("join_recv", "join_sent", "push_out", "push_in", "grafted_out", "grafted_in",
                      "owed_relations", "backoff", "peer_has", "pushed", "sent_to", "served", "want_p", "forwarded",
@@ -1849,12 +1901,22 @@ class Node:
             if not tied[root]:
                 tied.pop(root, None)
         ns["claims_close"](q)
+        if getattr(self, "alarm_close", None):      # --alarm-wait: the alarm's asks to q not yet written are settled
+            self.alarm_close(q)
         for name in ("holders", "standing"):
             for idx in ns[name].values():
                 for s in idx.values():
                     s.discard(q)
         if isinstance(ns.get("mesh"), set):
             ns["mesh"].discard(q)
+        ns["leave_line"](q)                         # its place in the window's line, per connection (§8.1)
+        sent = ns["sent"]                           # the room its chunks hold in flight: released when its queue
+        for key in [k for k in sent if k[0] == q]:  #   closes (§8.1), as WINDOW_TIMEOUT releases it; but a close
+            e = sent.pop(key)                       #   is not the chunk's acknowledgement, which a holding or a
+            if isinstance(e, tuple):                #   window timeout gives (protocol-v2.md §4.7), so not through
+                ns["free_room"](e[1])               #   window_timeout, which also acknowledges
+            else:
+                ns["free_slot"]()
         pq = ns.get("pace_queue")                   # paced gossip queued for q goes with the link
         if pq:
             kept = [x for x in pq if x[0] != q]

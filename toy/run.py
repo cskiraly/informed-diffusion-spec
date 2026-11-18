@@ -132,7 +132,8 @@ def run(cfg, out=sys.stdout):
               f"{cells} cells (at most {cells * cfg['ALARM_MAX']}), {got} of the cells held at the end; members kept "
               f"{tot['kept']} as standing asks, {tot['answered']} answered, {tot['held at once']} answered at once "
               f"(held), {tot['alarms refused by a hoarder']} refused by a hoarder; {tot['asks of a claimant']} asks of a claimant "
-              f"(at most {tot['kept']}), {tot['broken']} broken, {tot['rebuilds']} rebuilds on an alarm; "
+              f"(at most {tot['kept']}), {tot['broken']} broken, {tot['not judged']} not judged (claimant gone or "
+              f"ask refused), {tot['rebuilds']} rebuilds on an alarm; "
               f"{tot['no member left']} cells with no member left to ask", file=out)
     if cfg.get("hoard_column"):                 # the fault's known answer: per block, the custodians of each row's hidden
         tot = Counter()                         #   column but the row's rebuilders, where no honest node rebuilt the row
@@ -227,6 +228,11 @@ def main(argv):
                     help="rule: STRIPE_UPLINK as §5.1 sets it; on: every source stripes, as the harness's tier-4 cells did")
     ap.add_argument("--uplink", default="ps", choices=("ps", "rr"),
                     help="ps: processor sharing over busy connections (FQ-CoDel's fluid limit); rr: whole entries in turn")
+    ap.add_argument("--wire", default="v03", choices=("v03", "standalone"),
+                    help="the binding the links charge: v03, protocol.md's wire (gossipsub frames, the recorded cells); "
+                         "standalone, protocol-v2-bindings.md §1's bytes, each message a frame of its own, a cell's "
+                         "header with the first eager push of its group on a link (--doc v2). A model of bytes: an entry is "
+                         "still delivered as one unit, as on v0.3's wire")
     ap.add_argument("--send-buffer", type=int, default=None,
                     help="bytes a connection's transport accepts ahead of the link; a writer waits while its backlog "
                          "is at it, as a QUIC stream write blocks. Default 1, one entry at a time per connection: "
@@ -352,8 +358,8 @@ def main(argv):
                     help="off: publish does not offer the chunks to the peers it did not push them (card 3 at the source); "
                          "late: publish queues those offers after the pushes of every group published at the same instant; "
                          "both act only on offers publish itself makes, so since v0.9's rule (offers at the acknowledgement) "
-                         "they change nothing; publish: protocol.md's SOURCE_OFFERS = PUBLISH (§5.1), the offers at publish "
-                         "and the HAVE growing at a chunk's first write, as before v0.9's rule; not with --doc v2")
+                         "they change nothing; publish: SOURCE_OFFERS = PUBLISH (protocol.md §5.1, protocol-v2.md §4.7), the "
+                         "offers at publish and the HAVE growing at a chunk's first write, as before v0.9's rule")
     ap.add_argument("--answer-due", type=float, default=0.100, help="--answers-first late: seconds an answer waits before it goes ahead of pushes")
     ap.add_argument("--promise", type=float, default=0.400, help="seconds an offer's promise runs before the peer is parked for the group (v0.3 §6.1's PROMISE)")
     ap.add_argument("--promise-mode", default="fixed", choices=("fixed", "uplink", "peer"),
@@ -406,8 +412,6 @@ def main(argv):
                MAX_IHAVE_MESSAGES=limits[0], MAX_IHAVE_LENGTH=limits[1],
                late_block=(int(late[0]), late[1] / 1000, int(late[2]) if len(late) == 3 else 2) if late else None,
                ALARM_WAIT=a.alarm_wait, ALARM_JITTER=a.alarm_jitter, ALARM_NEXT=a.alarm_next, ALARM_MAX=a.alarm_max)
-    if a.source_offers == "publish" and a.doc == "v2":
-        ap.error("--source-offers publish is protocol.md's SOURCE_OFFERS: protocol-v2.md here has none")
     if a.fault.startswith("hoardcol") and a.rebuilt_seen != "on":
         ap.error("--fault hoardcol is meant strict: with --rebuilt-seen on")
     if a.payload:
@@ -422,6 +426,9 @@ def main(argv):
     cfg["send_buffer"] = a.send_buffer or None
     cfg["classes"] = scenario.net(a.net, a.up * 1e6, a.down * 1e6, a.dc_mbps * 1e6, a.builder_mbps * 1e6)
     cfg.update(rebuilt=a.rebuilt, rb_jitter=a.rb_jitter_ms / 1000, rb_max=a.rb_max, fault=a.fault, loss_data=a.loss_data)
+    if a.wire == "standalone" and a.doc != "v2":
+        ap.error("--wire standalone binds protocol-v2.md's messages: it needs --doc v2")
+    cfg["wire"] = a.wire
     cfg["latency"] = scenario.geo_latency(a.seed)
     cfg["topology"] = scenario.topology
     cfg["xcheck"] = a.xcheck or bool(a.topology)
@@ -455,7 +462,7 @@ def main(argv):
     recon = (f"{a.reconstructors}%" if cfg.get("das_dump") is None
              else f"{len(cfg['das_dump']['reconstructors'])} (dump)")
     supers = f"{a.supernodes}% ({a.supernode_link})" if cfg.get("das_dump") is None else f"{cfg['supernodes']} (dump)"
-    print(f"toy: doc={a.doc}{' setting=' + a.setting if a.doc == 'v2' else ''}"
+    print(f"toy: doc={a.doc}{' setting=' + a.setting if a.doc == 'v2' else ''}{' wire=standalone' if a.wire == 'standalone' else ''}"
           f"{f' blobs={a.blobs} cgc={a.cgc} floor={a.floor}/{a.source_floor}' if a.setting in ('custody', 'rows') else ''}"
           f"{f' subnets={a.row_subnets} reconstructors={recon} withhold={a.withhold} row-delay={a.row_delay:g}s phase3={a.phase3:g}+{a.phase3_jitter:g}s defer={a.defer_window:g}s repair-floor={a.repair_floor}' if a.setting == 'rows' else ''}"
           f"{f' samplers={a.samplers}% samples={a.samples} retry={a.sample_retry:g}s' if a.samplers else ''}"

@@ -11,12 +11,14 @@ decode takes 5 ms, so no run meets the case; it is made by hand.
 On one node of a small rows run (protocol-v2.md, one block, run to its end), for a row the node holds whole:
 three of its cells are taken out of its store, as if it were still decoding, its claim on them kept. Then:
 - peer 1 sends a marked probe of the first cell, and a second marked probe, of the second cell (only the first
-  per asker and group is kept);
+  per asker and group is kept as a probe; peer 1 is a `DECLARED` link, so the second stands, as any WANT on
+  such a link does, §2);
 - peer 3 sends a plain ask of the third cell (the control: a plain ask of a cell not stored is not kept);
 - the row is decoded (`decode_group`, the document's), which stores the three cells again.
 
 After the decode, peer 1's queue holds a solicited answer of the first cell, its exemption taken (`probe_served`
-and `probe_answers`), and none of the second; peer 3's queue holds no solicited answer of the third.
+and `probe_answers`). The second is answered as peer 1's standing WANT, without the exemption (`serve_standing`,
+from `decode_group` since 2026-11-17); peer 3's queue holds no solicited answer of the third.
 """
 import sys
 from pathlib import Path
@@ -64,6 +66,8 @@ def main():
     ans += ns["on_want"](p1, [Wm.FlaggedWant(g, i2, False, 0, probe=True)])
     ans += ns["on_want"](p3, [Wm.WantIndex(g, i3)])
     line("while decoding: answers given at once", ans, [])
+    line(f"while decoding: peer {p1}'s kept probe, and who stands for the second cell",
+         (dict(ns["probe_waiting"][g]), sorted(ns["standing"][g].get(i2, ()))), ({p1: i1}, [p1]))
     ns["state"][g] = "DECODING"
     ns["decode_group"](g)
     line("after the decode: the three cells stored again", [i in ns["chunks"][g] for i in cells], [True] * 3)
@@ -71,7 +75,8 @@ def main():
     line(f"peer {p1}'s first marked probe: answered (solicited, in its queue), its exemption taken",
          (answered(p1, f1), bool(ns["probe_served"][p1][g]), ns["probe_answers"][p1][f1.group].has(f1.index)),
          (True, True, True))
-    line(f"peer {p1}'s second marked probe: answered", answered(p1, cells[i2]), False)
+    line(f"peer {p1}'s second marked probe: answered as its standing WANT (solicited), with no exemption",
+         (answered(p1, cells[i2]), ns["probe_answers"][p1][cells[i2].group].has(cells[i2].index)), (True, False))
     line(f"peer {p3}'s plain ask (the control): answered", answered(p3, cells[i3]), False)
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0

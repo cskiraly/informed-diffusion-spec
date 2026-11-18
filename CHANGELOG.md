@@ -11,6 +11,108 @@ The repository is renamed `seacast-spec`, from `informed-diffusion-spec`, which 
 `protocol.md`'s title is now *SEACAST: the protocol in pseudocode*; the README's heading, its release
 link and its line on the old title follow. No rule, value or code changes.
 
+The next version's draft carries `protocol.md` v0.10.3's changes, lets any source offer its chunks at publish,
+its own choice as in `protocol.md`, closes the probe's last open cases, and measures its probe and alarm
+figures again. Its bindings move to a document of their own, which defines the standalone binding to the
+byte.
+
+The draft's bindings, in a new document, `protocol-v2-bindings.md`:
+- **`protocol-v2.md` §7 now says what every binding provides:** links with their open and close,
+  whole messages in order per object type at least, the queue and the write, limits before state,
+  the header before or with a group's first cell, agreement on the fork, and a chunk's id and size. It also lists the capabilities the three bindings differ in, with what the
+  rules do without each.
+- **The new document** takes the old §7's mappings, and its rules for a sampler on gossipsub's wires.
+- **It defines the standalone binding to the byte:**
+  - the protocol id `/seacast/2.0.0`, one outbound stream per peer;
+  - one encoded message, a kind byte and its SSZ: after a uvarint length on its own stream, and in
+    Waggle's `ObjectPieces` without one;
+  - snappy on chunks only;
+  - one 35-byte group id for every object type, and `protocol.md`'s bitmap;
+  - the payload's chunk as `protocol.md`'s, and a cell chunk with the consensus column header;
+  - the fork digest in the JOIN, with the transition at a fork left open;
+  - a chunk's id without a topic, and one id per cell whichever group carries it;
+  - the header with a group's first eager push, none with an answer; a node pushed nothing, such as a
+    sampler, takes it from the block; a carried header validated apart from the cell, never marking its
+    id;
+  - a bound per message kind, an unknown kind held to the largest, and the bitmap's bit order.
+- **Terms:** the prose says frame, a binding's unit on the wire, where it said RPC.
+- **A carried header that fails its checks is rejected** and counts against its sender; one that cannot be
+  judged yet waits and counts against no one, as consensus ignores it (§1.3).
+
+The draft of SEACAST's next version (`protocol-v2.md`), changed since v0.10.3:
+- **When a source offers is its own choice** (§4.7, §6.3's `SOURCE_OFFERS`): at the acknowledgement by
+  default, as `protocol.md` has it, or at publish, its holding then growing at each chunk's first write
+  (`origin_written`) and an acknowledgement doing nothing. No other node depends on it. A fast source finishes sooner offering at publish, a
+  slow one later, and offers at publish name the source. In the toy's custody cell a 1 Gbps proposer
+  offering at publish completes 13 to 114 ms sooner and answers 4.7 to 12 times as many asks; copies move
+  either way with the graph. `toy/run.py --source-offers publish` sets it; `toy/source_offers_known.py`.
+- **"Acknowledged", as `protocol.md` now says it** (§4.7): the source's holding names the chunks
+  acknowledged so far, where the draft said "known to have arrived"; wording and comments only.
+- **`protocol.md` §8.3's kinds:** §6.3's four rows that said "a limit, stated by its bound" (`FORWARD_LIMIT`,
+  groups tracked per slot, relations per link, sampling-only links accepted) say "a bound", each node's
+  within it: in §8.3's terms a limit is the same at every node, and a value each node sets within a stated
+  bound is a bound. Wording only.
+- **The IHAVE limits at `protocol.md`'s reference values** (§4.3, §6.3): 4096 offer-bearing frames and 5000
+  ids per peer and heartbeat hold back no ask in the toy's 60-node cells under the tier 4 setting,
+  variant C and custody, with or without samplers. The busiest peer reached 248 frames and 58 asks
+  in a heartbeat. Under the rows setting (seeds 7 to 9, with and without half the columns withheld) none
+  is held back either, the busiest peer at 1 254 frames and 178 asks. The draft chooses no values of its
+  own; 500 nodes, other seeds outside the rows setting and a peer that floods offers are not yet run.
+- **A dropped group's chunk is not acted on** (§3, §4.4, §4.6): `on_validated`, `forward` and `push_rebuilt`
+  skip an axis whose group was dropped, as `protocol.md`'s `on_validated` returns. The draft forwarded such a chunk and
+  offered it, so an asker's promise broke against an honest node, and put it in the gossip history.
+  The cell's other axes go on. No recorded cell drops a group. `toy/dropped_group_known.py`.
+- **A pull-only type's source offers at publish** (§4.7, §6.3's `EAGER` row): `EAGER` off covers the
+  source too. It pushes nothing, so no acknowledgement can come, and it offers every chunk at publish to
+  the peers it would offer at the acknowledgement; its holding names every chunk (`offer_at_publish`).
+  The draft pushed `R` copies whatever `EAGER` said. No setting publishes a pull-only type.
+  `toy/pull_source_known.py`.
+- **A decode answers its own group's standing WANTs.** `decode_group` stored a group's rebuilt chunks
+  without answering the standing WANTs that waited for them; only the other groups a rebuilt chunk
+  fills answered theirs, through `fill`. It now calls `serve_standing` as `fill` does (§4.5). No
+  recorded cell moves, and the sampler cells behind §4.10's figures decode nothing.
+- **The window counts what a write carries** (`wire_size(p, entry)`, §3, §4.11): the binding's size of
+  the entry's chunk to that peer, with the header a cell's first push carries on the standalone binding.
+- **A send is noted under every group the chunk fills** (`note_push`, §4.4, R4), from the ids alone
+  (`fills`), and a push not made is undone under each (`unpush`): a cell answered through its row is not
+  pushed again through its column by the repair, and the other way round.
+- **A note, not a rule** (§4.2): the pseudocode scans whole tables to find what names one chunk
+  (`drop_beyond`, and `protocol.md`'s `close_promises`), and an implementation is expected to index them
+  by group and index.
+- **The probe's figures measured on this draft** (§4.6): the five rows cells at seeds 7 to 9, on the rules as
+  they stand. None of 1 281 verdicts on honest or hoarding claimants failed, liars passed 1, 0 and 65
+  times, and the mark cost 5 duplicate cells in 2 417 probes; every probe was written, the longest wait
+  163 ms. The figures with the rules of 2026-11-16 are kept, labelled as such, and the paragraph that said
+  what those runs did not show is gone.
+- **The alarm measured again where it acts** (§4.6): the one-column hoarder's 500-node cells at seeds 11, 12
+  and 16. Without the alarm 2 of 6 blocks are short (108 custodians), one fewer than before; with it none,
+  for 61 alarms and 10 rebuilds, as before. The ten-seed figures are kept, labelled as measured earlier.
+- **A settled probe's ask is no longer exempt from stop-pull** (`settle_probe`, §4.6): after the verdict the
+  member pulls the probed cell from nobody, as it pulls no other cell of the row once complete.
+- **An asker's second marked ask is a plain ask** (`probe_of_claim`, §4.6): while a claimant still decoding
+  keeps an asker's probe, that asker's marked ask of another index of the group takes no exemption, so the
+  kept probe is still answered, which a faulty asker's second marked ask could prevent before.
+
+The toy:
+- **`--wire standalone`** charges the links the standalone binding's bytes (`protocol-v2-bindings.md`
+  §1), each message a frame of its own and a cell's header with the first eager push of its group on
+  a link; v0.3's wire stays the default. On `check.py`'s 15 cells under `--doc v2` control bytes fall
+  30 to 36 % and all bytes 1.5 to 3 %, and 4.2 % in two custody cells, where the header spends what
+  the smaller cells save (`toy/README.md`). The toy's frame names replace its RPC names.
+- **The custodian alarm (an option, off)**: the member's ask of the claimant starts its promise at the
+  write, as the probe's does, not at the decision. A claimant that cannot be asked, because its
+  connection has closed or a full queue refuses the ask, or whose connection closes before the promise
+  ends, is no longer penalised; the member rebuilds if the cell is still missing. The alarm's figures
+  were measured before (§4.6).
+- **A connection's close (`--churn`)** also takes the closed peer out of the window's line, where at the head
+  it stalled every writer behind it, and releases the room its chunks held in flight, as `WINDOW_TIMEOUT`
+  releases it (`protocol.md` §8.1), but without the acknowledgement a timeout gives (`close_source_known.py`).
+- **Known answers** for the changes above: `toy/standing_decode_known.py`, `toy/probe_asks_known.py`,
+  `toy/probe_kept_known.py`, `toy/alarm_member_known.py`, `toy/standalone_wire_known.py`,
+  `toy/standalone_charge_known.py`, `toy/rebuilt_once_known.py` and `toy/note_push_known.py`, and those named
+  in their items.
+- **Unchanged:** every recorded cell's digest in `golden.txt` and `golden-v2.txt`.
+
 ## v0.10.3, 2026-11-18
 
 `protocol.md` sorts its constants into limits, bounds and defaults, gives gossipsub's two IHAVE limits

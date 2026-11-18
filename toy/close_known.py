@@ -26,6 +26,10 @@ On one node of a small network (protocol-v2.md, one payload, run to its end), wi
 
   The control: the same deferral with peer 3 probed and connected, judged when the duty fires, penalises
   peer 3.
+- **A closed peer leaves the window** (since 2026-11-17). Peer 1 is first in the writers' line with peer 3
+  behind it, and a chunk to peer 1 holds room in flight. After the close, peer 1 is out of the line and peer 3
+  is woken, and the room is released, as `WINDOW_TIMEOUT` releases it (`protocol.md` §8.1: window slots end
+  "when the peer's queue closes"). Before, a closed peer at the head of the line stalled every writer behind it.
 """
 import copy as C
 import sys
@@ -100,7 +104,23 @@ def main():
     if "duty_at" in ns:                                     # the duty's own time: due at the deferral, as when
         ns["duty_at"][g] = ns["now"]                        #   reconsider defers it (protocol-v2.md §4.6)
 
+    # the window: peer 1 first in the writers' line, peer 3 behind it, and room in flight with a chunk to peer 1
+    ns["waiters"].clear(); ns["waiters"].extend([P, Q])
+    need = 1000
+    ns["sent"][(P, G, 7)] = (ns["now"], need)
+    ns["in_flight"] += need
+    room = ns["in_flight"]
+    woken = []
+    doc_wake = ns["wake"]
+    ns["wake"] = lambda p: (woken.append(p), doc_wake(p))
+    line("before the close, the window: the line, room in flight with peer 1's chunk",
+         (list(ns["waiters"]), sum(k[0] == P for k in ns["sent"])), ([P, Q], 1))
+
     nd.drop_peer(P)
+    ns["wake"] = doc_wake
+    line("after the close, the window: the line, peer 3 woken, peer 1's chunks in flight, the room it held",
+         (list(ns["waiters"]), Q in woken, sum(k[0] == P for k in ns["sent"]), room - ns["in_flight"]),
+         ([Q], True, 0, need))
     after = state()
     line("after the close, what goes with the connection", {k: after[k] for k in gone}, {k: 0 for k in gone})
     line("after the close, the park (kept across reconnections)", after["park"], ["555555"])
