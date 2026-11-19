@@ -1098,7 +1098,7 @@ class Node:
             if c.get("silent"):
                 put = ns["gossip_history"].put
 
-                def forward(f, from_peer):             # forwards nothing; heartbeat gossip still announces
+                def forward(f, from_peer, axes=None):  # forwards nothing; heartbeat gossip still announces
                     put(f)
                 ns["forward"] = forward
                 if c.get("rebuilt", "push") == "push":  # nor pushes what it rebuilt, as the
@@ -1366,19 +1366,10 @@ class Node:
         def type_of_group(g):
             return types.get(node.sim.gtype.get(g), P)
 
-        _doc_authenticable, _doc_filter_entry = ns["authenticable"], ns["filter_entry"]
+        _doc_authenticable = ns["authenticable"]
 
         def authenticable(g):                           # §4.2: the gate is the type's; a cell's header rides
             return _doc_authenticable(g) if type_of_group(g) is P else True   # with it (P2)
-
-        def filter_entry(p, entry):                     # v0.5 §7.2 starts an ask's promise at its write; a
-            fresh = [(a, p) for m in entry.iwants() if getattr(m, "want", False)   # WANT starts none (§4.5),
-                     for a in m.ids if (a, p) not in ns["promises"]   # but the probe, whose promise starts at
-                     and not ns["probe_waits"](a, p)]   #   its write (R5, §4.6)
-            out = _doc_filter_entry(p, entry)
-            for k in fresh:
-                ns["promises"].pop(k, None)             # its timer finds no promise and does nothing
-            return out
 
         def type_of(tid):
             return types[tid]
@@ -1633,7 +1624,7 @@ class Node:
         doc_on_frame = ns["on_frame"]
 
         def on_frame(p, frame):                         # a gossipsub frame read as v2's messages
-            haves = []
+            haves, stock = [], []
             for hb in frame.ihave.ids:
                 if isinstance(hb, Wm.HaveBitmap):
                     haves.append(Have(group=hb.group, bits=hb.bits, offer=True, claim_all=False, complete=False))
@@ -1643,12 +1634,17 @@ class Node:
                     full = d is not None and hb.bits.v == all_bits(ns["N"](d)).v
                     haves.append(Have(group=hb.group, bits=hb.bits, offer=False,
                                       claim_all=full or hb.claim_all, complete=full or hb.complete))
+                else:                                   # any other entry is a stock id (protocol-v2-bindings.md §3)
+                    stock.append(hb)
             for j in frame.join:                        # --upkeep on: a JOIN first, as on the wire (§4.1)
                 ns["on_join"](p, j)
             r = Obj()
             r.chunks, r.haves, r.asks = frame.chunks, haves, list(frame.iwant.ids)
             r.grafts, r.prunes = list(frame.graft), [x for x in frame.prune if hasattr(x, "family")]
-            return doc_on_frame(p, r)
+            out = doc_on_frame(p, r)
+            for h in stock:                             # kept as stock keeps it, after the frame's asks (an ask and a
+                ns["unwanted"][p].add(h)                #   stock IDONTWANT for one id: the ask first, protocol.md §4.1);
+            return out                                  #   only on_want reads unwanted[p]
         ns["on_frame"] = on_frame
         doc_check = ns["check_completion"]
 

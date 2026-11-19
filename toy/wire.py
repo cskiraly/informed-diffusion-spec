@@ -183,6 +183,7 @@ class _IHave(_Msg):
 
 class _IWant(_Msg):
     kind = "iwant"
+    want = False                                # protocol-v2.md: true where the IWANT carries a WANT (§2), set by its send
 
 
 class _IDontWant(_Msg):

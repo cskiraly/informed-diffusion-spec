@@ -103,7 +103,7 @@ needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting
 takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Thirty-four scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Thirty-eight scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -121,6 +121,24 @@ where one has a control that must come out the other way, it is named:
 - `idontwant_id_known.py`: §4.1, an IDONTWANT entry that is not a HAVE bitmap is a stock id, kept in
   `unwanted[p]` with no penalty; a bitmap beside it must still be read as a HAVE, and not be kept in
   `unwanted[p]`. The toy tells a bitmap by its type, not by the string's first bytes and length.
+  With `--doc v2`, the same on v0.3's wire (`protocol-v2-bindings.md` §3): the toy reads the frame
+  as v2's messages and keeps the stock id in `unwanted[p]`, which v2's `on_want` reads.
+- `want_promise_known.py`: `protocol-v2.md` §4.5 and §4.10, an ask sent as a `Want` starts no
+  promise at its write: such an ask sent through v0.3's wire and written by `filter_entry` gets
+  none, and the control, an ask on an offer written the same way, gets v0.5's; a claim's probe gets
+  one at its first write and at a write again. It runs `protocol-v2.md`; the document's
+  `filter_entry` started a promise for every ask until the rule was in its code, which the toy had
+  kept in a wrapper.
+- `second_id_known.py`: §4.2, in both documents, a copy under an id the node has not seen, at an
+  index it has already received, is acknowledged and neither forwarded nor put in the gossip
+  history; a copy of an index held only as rebuilt is still forwarded, and the publisher's first
+  copy is (the controls); a further id at that rebuilt index is forwarded by `protocol-v2.md`, which
+  stores no copy there, and only acknowledged by `protocol.md`, which stored the first
+  (`protocol-v2.md` §6.1); and a repeat of a first copy at a rebuilt index under an id not the
+  rebuilt chunk's own is acknowledged by `protocol.md` and ignored by `protocol-v2.md`, while one
+  under the rebuilt chunk's own id is acknowledged by both. The toy's ids hash the chunk's identity,
+  so the second id is made by changing it, and level 1 is taken as passed. `protocol-v2.md`
+  forwarded the second id's copy until 2026-11-19.
 - `tie_read_known.py`: a peer that was only asked about has no tie; the tied peer beside it must
   lose its park.
 - `tie_helpers_known.py`: `tie_room`, `drop_offer`, and `close_promises` with `of`, by the values

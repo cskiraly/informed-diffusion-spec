@@ -8,7 +8,12 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 ## After v0.10.5, not yet released
 
 `protocol.md` names an open question in §1: whether the protocol fixes a coded group's compressed
-bytes. No rule, value or code changes.
+bytes. No rule, value or code of `protocol.md` changes.
+
+The next version's draft carries `protocol.md` v0.10.4's rule on an IDONTWANT entry that is not a
+HAVE bitmap onto v0.3's wire, is rewritten for readers, and makes two code changes: an ask sent as a
+`Want` starts no promise, but a claim's probe; and a second id for a received index goes no further,
+as in `protocol.md`. It carries v0.10.5, whose toy fix changes none of its text (§5).
 
 `protocol.md`:
 - **Open: the compressed bytes** (§1). A coded group's root commits the bytes its builder's
@@ -17,6 +22,82 @@ bytes. No rule, value or code changes.
   descriptor, so that a node that got the body from elsewhere could build and serve them, at the
   cost of every client reproducing that compressor's output byte for byte. The glossary gains
   **canonical compressor**.
+
+`protocol-v2-bindings.md`:
+- **An IDONTWANT's entries on v0.3's wire** (§3) are read as `protocol.md` §4.1 reads them: one that
+  `is_have_bitmap` accepts is a holding, and any other is a stock id, kept in `unwanted[p]`, where
+  `on_want` reads it. The standalone and the extension bindings put no stock ids beside a holding.
+- **The backoff on the gossipsub bindings** (§2, §3): where a GRAFT is accepted in silence,
+  gossipsub's backoff after a PRUNE keeps the two ends of a relation together (each end holds it
+  from a PRUNE sent or received, and refuses a GRAFT within it). It must outlast the link's longest
+  round trip at each end that may prune: a shorter one can fail, and with a longer one the toy's
+  abstract model finds the ends agreed in every state at rest it reaches (a bounded check).
+  Gossipsub's recommended minute meets that on any link whose round trip is shorter; the bindings
+  set no backoff of their own.
+- **v0.3's wire** (§3) reads as a holding an entry with `HaveBitmap`'s MAGIC at either version it
+  writes (at version 4 with its flags byte), and ignores an IHAVE entry that is not a bitmap.
+- **The payload's chunk under either design** (§1.3, §1.7): it carries the descriptor under design
+  A, 33 351 bytes, and not under design B, where the bid carries it, 33 300 bytes; `protocol.md` §1
+  leaves the choice open.
+
+`protocol-v2.md`:
+- **Where the descriptor travels, left open** as `protocol.md` §1 leaves it: in the chunk (design A,
+  which the toy runs) or in the bid (design B), in §1.1's `header_of` row, §2 and `publish`'s
+  comment, where the draft had taken A.
+- **§1.1's `decode` row points to `protocol.md` §1's "Open: the compressed bytes"**: the root
+  commits the body as its builder's compressor produced it, and whether a canonical compressor
+  should fix those bytes is open.
+- **Rewritten for readers, in the form `protocol.md` has since v0.10.1.** The rules stay with their
+  code, each a paragraph or an item with a bold lead. Dates, reasons, earlier drafts and the toy's
+  figures move to a Rationale closing each section, and what is left open to **Open:** items. §6.3's
+  table keeps each parameter's decision and bound, with its figures in a Rationale and what is for
+  later study in an Open list. The record of each `protocol.md` version carried moves to §5. The
+  rewrite leaves the code the same, comments included but one, and changes no rule.
+- **An ask not made on an offer starts no promise, in the code** (§4.6's `filter_entry`). The rule
+  §4.10 and §5 state was kept by the toy in a wrapper; the document's own `filter_entry` started
+  v0.5's promise for every ask it wrote. Now it starts one only for an ask the pull discipline makes
+  on an offer, not for one sent as a `Want` (`want`, defined with `send` in §3); a claim's probe
+  keeps its own at its first write, and gets v0.5's at a write again once that one is gone.
+  `want_promise_known.py` checks the promise of each kind, and fails on the document before. Runs of
+  the toy with samplers, routed requests and the repair sample send the same, at the same times, as
+  before.
+- **A second id for a received index goes no further** (§4.2's `on_validated`, §4.4's `forward`).
+  Axis by axis: a copy under an id the node has not seen, at an index it has already received on an
+  axis, is acknowledged there and is no longer forwarded on that axis, as `protocol.md` §4.2 does,
+  nor kept for heartbeat gossip unless some axis forwards it. A copy of an index held only as
+  rebuilt, or one the node published, is still forwarded. `second_id_known.py` checks both
+  documents, and fails on this one before. No recorded cell has two ids for one index.
+- **Statements made true to the code.** §4.6: what `note_push` notes (a push, and an answer to a
+  standing WANT or a kept probe) and what the note stops. §4.7: a chunk that is never acknowledged,
+  as `protocol.md` §5.1's open item names it, in place of a copy lost with its connection. §4.7,
+  §4.8 and §5: heartbeat gossip only for a type whose `ANNOUNCE_EXTRA` is `SAMPLE`. §1.6, §4.7 and
+  §5: no cap over whole messages, which `protocol.md` does not have. §6.1: three differences in the
+  rules, which no recorded cell exercises (a source with an empty mesh, more ids for a rebuilt
+  index, each of which this document forwards, and an IHAVE entry by id). And conditions the code
+  has where the text left them out: the coverage floor's links and a routed request's steps (§1.3),
+  who asks without an offer (§4.1), the holding's acknowledgement, a start-delayed offer and the
+  last resort (§4.3), the probe's draw and write, its refusal at the serving limit and a kept
+  probe's answer, the repair sample's cells and re-ask, a sample with no cell to ask, and the
+  alarm's answer (§4.6), what carries over at the source and its pool (§4.7), card 12's pushes only
+  (§4.9), what `SERVE_LIMIT` counts, which WANT starts a promise, a first-phase sample with no peer
+  and when the hunt ends (§4.10), the writer's order (§4.12), v0.3's two clocks (§4.13), and in §6.3
+  the IHAVE row's values as `protocol.md`'s and `PROMISE` as one value per node.
+- **Its line on v0.10.4** (now in §5) says what it carries: the IDONTWANT rule above; the source's
+  heartbeat gossip, which §4.7 names for a type that gossips; and §4.7's open item on a chunk that
+  is never acknowledged, `protocol.md` §5.1's. Its line on v0.10.5 says what the toy's `accepted`
+  fix changes under this draft; §6.1 adds the one difference it opens: a repeat, under an id not the
+  rebuilt chunk's own, of the first copy at an index held only as rebuilt is acknowledged by
+  `protocol.md`, which stored it, and ignored here (`second_id_known.py`).
+
+The toy:
+- **`--doc v2` keeps an IDONTWANT's stock id in `unwanted[p]`**, after the frame's asks, where it
+  dropped it. `idontwant_id_known.py --doc v2` checks it and fails on the toy before. No recorded cell
+  sends such an entry, and every recorded cell gives its recorded events.
+- **`--doc v2` runs the document's `filter_entry` unwrapped**, now that the document keeps an ask
+  sent as a `Want` from starting a promise; the IWANT such an ask is written as carries `want`. The
+  recorded cells send none and give their recorded events. In the runs compared that send them, the
+  only events gone are promise timers that found nothing, so a run's event digest changes and
+  nothing it sends does.
 
 ## v0.10.5, 2026-11-19
 

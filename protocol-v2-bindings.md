@@ -161,8 +161,10 @@ class CellChunk(Container):            # 0x07
 - **The enums.** A value outside `Direction`'s, `InterestKind`'s or `Duty`'s list is a violation. A
   `TypeId` a node does not know names a type the link has not joined, and is ignored (§1.2).
 - **The payload's chunk (`0x06`)** is `protocol.md` §2's `Chunk`, unchanged: its proof a
-  `List[Bytes32, 14]`, its header the descriptor it carries (design A). It is the same bytes on this
-  binding as on v0.3's wire, compression aside, and its group is `GroupId(0, chunk.group, 0)`.
+  `List[Bytes32, 14]`, its header the descriptor it carries under design A; under design B the bid
+  carries the descriptor and the chunk does not, a choice `protocol.md` §1 leaves open. It is the
+  same bytes on this binding as on v0.3's wire, compression aside, and its group is `GroupId(0,
+  chunk.group, 0)`.
 - **The consensus types:** `ForkDigest`, `KZGProof`, `BYTES_PER_CELL` and `PartialDataColumnHeader`
   are consensus-specs' (the header from Fulu's partial columns, `specs/fulu/partial-columns/
   p2p-interface.md`, at `2ea9d96a`). The header is optional as partial columns make it optional: a
@@ -222,7 +224,7 @@ Each kind has a bound on its body, from its types' static sizes (X6, limits befo
 |---|---|
 | JOIN, GRAFT, PRUNE | 17, 7, 6 (fixed) |
 | HAVE, WANT | 1 064, 1 065 (a full bitmap) |
-| CHUNK of the payload | 33 351 (`MAX_SEGMENT_SIZE`, 14 proof steps, the descriptor) |
+| CHUNK of the payload | 33 351 under design A (`MAX_SEGMENT_SIZE`, 14 proof steps, the descriptor's 51 bytes); 33 300 under design B, without the descriptor (`protocol.md` §1, open) |
 | CHUNK of a cell | 199 091 (the header with `MAX_BLOB_COMMITMENTS_PER_BLOCK` commitments) |
 
 - **On the stream,** a receiver reads a frame's length and kind, and refuses a frame that cannot fit
@@ -305,6 +307,20 @@ existing topics.
   - the push relation's floor and direction;
   - the answered GRAFT: it is accepted in silence;
   - scoring on SEACAST's own messages: gossipsub's applies.
+- **The two ends of a relation agree through gossipsub's backoff.** With the GRAFT accepted in
+  silence, what keeps the ends' views of a relation together is gossipsub's backoff after a PRUNE:
+  each end holds it from a PRUNE it sends or receives, and refuses the peer's GRAFT within it.
+  (`protocol-v2.md`'s own `PRUNE_BACKOFF`, held only by the end that receives a PRUNE and refusing
+  no GRAFT, needs neither, since its GRAFT is answered.) The ends must be able to rely on it, so it
+  must outlast the link's longest round trip at each end that may prune (`protocol-v2.md` §4.1's
+  Rationale). With a shorter one, a GRAFT that crosses a PRUNE can reach its peer as the backoff
+  ends and be accepted at that end alone; at exactly the round trip it turns on whether a GRAFT at
+  the backoff's last instant is within it, which gossipsub does not say. With a longer one, the
+  ends agree in every state at rest that `toy/graft_check.py --model` reaches (up to four upkeep
+  steps per end; a bounded check, not a proof). A wait added to a node's own GRAFTs after the
+  backoff does not cover it, since the disagreement comes from a GRAFT accepted. Gossipsub's
+  recommended backoff of one minute meets the bound on any link whose round trip is shorter; this
+  binding sets no backoff of its own.
 - **What it depends on:** libp2p's Partial Messages Extension (libp2p specs, pull request 685), and
   consensus-specs' partial columns (`specs/fulu/partial-columns/p2p-interface.md`, and Gloas's of the
   same name). The partial message's group id is theirs, a version byte `0x00` and the block root,
@@ -329,8 +345,20 @@ message type. The toy runs `protocol-v2.md` on it.
 
 - **What it gives up** (`protocol-v2.md` §7's capabilities): the same as the extension binding (§2),
   and EVIDENCE.
+- **The two ends of a relation** agree through gossipsub's backoff, as on the extension binding (§2).
 - **The fork** is in the topic's name.
 - **A chunk's id** is `protocol.md` §2's structured `message_id`.
+- **An IDONTWANT's entries** are read as `protocol.md` §4.1 reads them. An IDONTWANT names no topic, so
+  beside the `HaveBitmap`s its entries can be stock message ids, another topic's say. An entry that
+  opens with `HaveBitmap`'s MAGIC and a version this wire writes (`protocol.md` §2's 1, which its
+  `is_have_bitmap` tests, or the research harness's 4, below), and holds a group after them, and at
+  version 4 the claims' flags byte, is a holding (`protocol-v2.md` §4.3's `on_holding`). Any other
+  entry, one cut short included, is an opaque id, kept in
+  `unwanted[p]` with stock gossipsub's admission and lifetime, where `on_want` reads it
+  (`protocol-v2.md` §4.5); it is not read as a holding. Both are handled after the frame's asks, as
+  `protocol-v2.md` §4's `on_frame` handles holdings.
+- **An IHAVE's entries** are offers only as `HaveBitmap`s. Any other entry is ignored, without
+  penalty, where `protocol.md` §4.4 reads it as a structured id: this draft offers by bitmap only.
 - **The extra fields** are carried beside the bitmap or the index: a holding's `claim_all` and
   `complete`, and the WANT's `standing`, `hops` and `probe`. The toy charges no bytes for them. The
   research harness's Go path writes a flags byte after the root for the claims, and a flags byte and a
