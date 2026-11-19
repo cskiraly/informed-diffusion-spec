@@ -37,7 +37,7 @@ solver; the plain-Lean files are theorems.
   `NoStallEquiv.lean`, `NoStallTransportAdv.lean` and `NoStallEquivAdv.lean`: a run goes quiet (Q3).
   With finitely many nodes and weak fairness, in every run whose environment eventually stops (with
   malicious peers, their actions included), the transport and v0.8's asking (with `NO_REASK_OPEN`)
-  eventually have nothing left to do, for good.
+  eventually have nothing left to do, for good (with malicious peers, the honest nodes' machinery).
 
 The Quint model next door (`../diffusion.qnt`) checks the claim rule (A1's `noPenalty`), Q1 and Q3
 on three or four nodes, and not agreement or integrity (`../README.md` lists its checks).
@@ -47,10 +47,11 @@ which `NoStallEquiv.lean` and `NoStallEquivAdv.lean` take to v0.8's). Each heade
 and the version it follows. `protocol.md` has changed since, and the models do not have these
 changes; whether each result carries over to them is not checked:
 - **v0.9, the source's announcements at the acknowledgement** (§5.1): the source announces a chunk,
-  and its HAVE names it, at the chunk's acknowledgement. In the transport model the source pushes or
-  announces each chunk at publish, as v0.8 did. Since v0.10.3 that is the timing of
-  `SOURCE_OFFERS = PUBLISH`, with any choice of the chunk's push targets and without the source's
-  HAVE growing at each chunk's first write (`origin_written`); the default, `ACK`, is not modelled.
+  and its HAVE names it, at the chunk's acknowledgement. In the transport model publishing makes the
+  source's forwarding to each mesh peer due, a push or an announcement, as in v0.8. Since v0.10.3
+  that is the timing of `SOURCE_OFFERS = PUBLISH`, with any choice of the chunk's push targets and
+  without the source's HAVE growing at each chunk's first write (`origin_written`); the default,
+  `ACK`, is not modelled.
   v0.9's §7.3, on what the transport below the writer should hold, is not modelled either: the
   models' queues may refuse any entry, and drain.
 - **v0.10, four rules for what waits for its block** (§4.2, §6.1, §8.1):
@@ -70,9 +71,9 @@ changes; whether each result carries over to them is not checked:
   any unparked announcer, so they cover every order.
 - **v0.10.3, the constants in three kinds** (§8.3), with reference values for gossipsub's two IHAVE
   limits: no rule changed, and the models take those limits as any values. `GOSSIP_RETRANSMISSION`
-  is now a bound, at least 3. The v0.7 asking models answer the first ask and any later one or not,
-  and the equivocation models the first three and any later one or not, so each covers every value
-  the bound allows.
+  is now a bound, at least 3. The v0.7 asking models answer a peer's first eligible ask, and any
+  later one or not, as the run chooses; the equivocation models the first three, and any later one
+  or not; so each covers every value the bound allows.
 - **v0.10.4** (§4.1, §5.1, §5.4):
   - an IDONTWANT entry that is not a HAVE bitmap is kept as stock gossipsub keeps an id, where every
     entry went to `on_have`. The models have no stock ids as state; `NoStallAskAdv.lean`'s header
@@ -598,9 +599,10 @@ honest node, the honest nodes' machinery eventually has nothing to do, for good.
   fresh asks needs the announcer tied to no root (`tied ∨ tiedElse`).
 - **Fairness is per honest node** (`∀ m, ⌜ hon m ⌝ → 𝒲ℱ (act m · …)`): an adversary's steps of the
   same actions are not forced, and when taken they lower the ranking as an honest node's do.
-- **With Q1 with malicious peers**, by inspection, under Q1's assumptions: every offer from an honest
-  node to an honest node that installed the block is eventually resolved once the environment, the
-  adversaries included, stops. Completion also takes decodes that return, as in the honest case.
+- **With Q1 with malicious peers**, by inspection, under Q1's assumptions: once the environment, the
+  adversaries included, stops, the run reaches a quiet state, in which every offer still pending from
+  an honest node to an honest node that installed the block is resolved (`offers_resolve`).
+  Completion also takes decodes that return, as in the honest case.
   While the adversaries keep acting, F14 (above) is a run that never goes quiet.
 
 The proofs and the facts are counted among each model's theorems in the tables above: 93 in each

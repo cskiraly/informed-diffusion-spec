@@ -57,7 +57,8 @@ names how SEACAST diffuses.
     parked holds the last resort off, which `protocol.md` §6.1 leaves open;
   - a run goes quiet (Q3): with finitely many nodes and weak fairness, once the environment stops
     (with malicious peers, their actions included), the transport and v0.8's asking (with
-    `NO_REASK_OPEN`) eventually have nothing left to do, for good;
+    `NO_REASK_OPEN`) eventually have nothing left to do, for good (with malicious peers, the honest
+    nodes' machinery);
   - agreement and integrity: level 2 is all or none, a check that succeeds recovers the bytes the
     root commits, and two honest nodes never deliver different payloads for a group, under the
     codec's assumptions its README lists, an MDS code and a binding hash among them.
