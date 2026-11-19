@@ -220,6 +220,15 @@ where one has a control that must come out the other way, it is named:
   failing (level 3); the HAVE then names every index. The controls: a copy after the claim and before
   the drop is acknowledged the same way, and a copy of a chunk whose first copy came after the drop,
   seen and not stored, is not.
+- `accepted_id_known.py`: `accepted(mid)` asks after the id, not the index (§8.1: "the id was stored"),
+  in both documents. Two ids can name one index, since the id holds the content id (§2). A later copy
+  of a copy level 1 rejected is not acknowledged though its index is stored, nor is a later copy of a
+  second copy with its own id, which `on_validated` acknowledged once and did not store (protocol.md;
+  under protocol-v2.md `fill` acknowledges it). A rebuilt chunk, stored and never seen, is accepted.
+  The controls: copies of the stored chunks are acknowledged. `accepted` reads `known_id`, the id
+  stored at the index now; where a copy with its own id is stored over a rebuilt one (protocol.md
+  only; no run does this), the rebuilt id is no longer accepted. That case belongs to relabelled
+  copies, which protocol.md names open.
 - `discard_queued_known.py`: `drop_group` takes the group's chunks, IHAVEs and IWANTs out of both
   lanes of every queue, by index and by id, with what is owed of it, and keeps its HAVEs (§4.6, §8.1),
   in both documents. Where an entry carries another group's part too (an answer with the frame's asks

@@ -43,6 +43,7 @@ def main():
     q = sorted(nd.peers)[0]
     ns["state"][g] = "INVALID"                              # dropped at level 2: nothing more is stored
     ns["chunks"][g].pop(i, None)
+    ns["known_id"][g].pop(i, None)                          # store() writes both: not stored, so not accepted
     ns["pushed"][q].pop(g, None)
     try:
         ns["note_push"](q, g, i)

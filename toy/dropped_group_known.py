@@ -41,6 +41,7 @@ class History:                                              # the gossip history
 def arrive(ns, peers, g, i, f, p, dropped):
     """node's state as if it lacked chunk i and its peers but p lacked it too; then f arrives from p, accepted."""
     ns["chunks"][g].pop(i, None)
+    ns["known_id"][g].pop(i, None)                          # store() writes both: not stored, so not accepted
     ns["received"][g].clear(i)
     for q in peers:
         if q != p:

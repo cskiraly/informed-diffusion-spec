@@ -60,6 +60,7 @@ def main():
     for gg, j in ((g2, i2),):
         ns["received"][gg].clear(j); ns["rebuilt"][gg].clear(j)
         ns["chunks"][gg].pop(j, None)
+        ns["known_id"][gg].pop(j, None)                     # store() writes both: not stored, so not accepted
     for x in (q, r):                                        # nothing of either group known of q and r, nothing sent
         for gg in (g, g2):
             ns["peer_has"][x].pop(gg, None)

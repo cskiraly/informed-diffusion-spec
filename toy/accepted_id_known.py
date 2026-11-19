@@ -11,7 +11,9 @@ and so its own id (§2: the group, the index and the content id). Only the id th
 - a copy with its own id that passes level 1 after the index was received is acknowledged by `on_validated` as a
   second copy (§4.2: "a second copy of a chunk we received: acknowledge") and is not stored; a later copy of it is
   seen, and is not acknowledged, since its id was not stored. (The toy's level 1 does not check proofs, so such a
-  copy passes it. That a first copy is acknowledged and a later one is not is the text's.)
+  copy passes it. That a first copy is acknowledged and a later one is not is the text's. Under protocol-v2.md the
+  first copy's acknowledgement is `fill`'s.)
+- a rebuilt chunk is stored and never seen, and is accepted: `accepted` does not ask whether the id was seen.
 The controls: a copy of the stored chunk is acknowledged; `accepted` answers yes for the stored id.
 
 The check, on one node of a small network that is built and not run, its one payload published (K = 4, N = 8), as
@@ -96,6 +98,11 @@ def check(doc):
     line("accepted: the stored id of index 0, the rejected one, the second copy's of index 1",
          (ns["accepted"](a), ns["accepted"](b), ns["accepted"](c)), (True, False, False))
     line("the control: a copy of chunk 1 as stored is still acknowledged", copy_from(Q, chunks[1]), ([every], 0))
+
+    ns["decode_group"](g)                                   # the decode the claim started (`start`), run now
+    r = ns["message_id"](ns["chunks"][g][K]) if K in ns["chunks"][g] else None
+    line(f"index {K} after the decode: rebuilt and stored, never seen, and accepted (stored, whether or not seen)",
+         (r is not None, r is not None and ns["seen"](r), r is not None and ns["accepted"](r)), (True, False, True))
     return bad
 
 
