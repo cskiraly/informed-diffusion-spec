@@ -229,6 +229,15 @@ where one has a control that must come out the other way, it is named:
   stored at the index now; where a copy with its own id is stored over a rebuilt one (protocol.md
   only; no run does this), the rebuilt id is no longer accepted. That case belongs to relabelled
   copies, which protocol.md names open.
+- `probe_replay_known.py`: under protocol-v2.md, the claimant's copy of the probed cell that level 1
+  rejected does not pass the probe (§4.6, R5) when it comes again, though another peer's good copy of
+  the cell was stored meanwhile: its id, of the same group and index (other content, another slot,
+  which the cell's slot check rejects), was seen and never stored, so `accepted` says no and the
+  duplicate path neither answers the probe nor acknowledges the copy. On one node of a small rows run,
+  made by hand as in `probe_settle_known.py`. The controls: the probe is written; the rejected copy
+  costs a penalty, is seen and not stored; the good copy, stored in both its groups, leaves the probe's
+  promise open with no verdict; the claimant's copy of the cell as stored passes the probe and is
+  acknowledged. It fails on the toy whose `accepted` asked whether the index was stored.
 - `discard_queued_known.py`: `drop_group` takes the group's chunks, IHAVEs and IWANTs out of both
   lanes of every queue, by index and by id, with what is owed of it, and keeps its HAVEs (§4.6, §8.1),
   in both documents. Where an entry carries another group's part too (an answer with the frame's asks
