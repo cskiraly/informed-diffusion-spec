@@ -9,7 +9,8 @@ resolves the offer). A node that has not stopped holds only chunks it received: 
 after its decode claim (`NoStallTransport`'s `stored`). The step from there to Q1 is counting, here
 in plain Lean, without Veil:
 
-- a node stops pulling at its K-th received chunk, and the source has published at least K;
+- a node stops pulling at its K-th received chunk, and the source, stopped, has at least K in `rcv`
+  (published, or received);
 - with nothing pending, a node that has received K chunks has made its decode claim (§4.2 makes it at
   the K-th, so it is not left pending);
 - so, by induction along mesh paths from the source, every node connected to it has stopped: its
