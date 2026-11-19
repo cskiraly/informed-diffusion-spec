@@ -44,17 +44,18 @@ again; at any time once the gate is open, any number of times, where §4.2 allow
 root that never installs (the tie stays), or one whose bid commits another group (`dropTie`: dropped
 with the adversary's offers, the retry armed once the gate is open). A sender tied to any root is
 passed over (`tiedToRoot`, §4.2's `tied_to_root`). **F13**: where `drop_tie` drops the sender's
-offers and leaves its asks (without v0.8's rule below), an ask still queued is written once the tie
-is gone, the retry, finding no announcer, ends, and the sender's next offer is recorded with nothing
-scheduled, the ask outstanding (§4.4); while it is, the last resort for a parked honest announcer
-returns at once (§6.1), and the promise falls due and only parks (`ka_drop_keeps_asks`). An offer's
-expiry, 30 s after the announcer's last offer of the group (§6.1, §8.1), leaves the ask the same way
-(`ka_expiry_keeps_asks`); an adversary's offers expire here at any time (`advExpire`), since it
-chooses when it last offers, and an honest announcer's outlast diffusion, as Q1 assumes. F13's
-rule, v0.8's `drop_offer` (§6.1: dropped offers take their ask with them): where a peer's offers of
-an index are dropped, by `drop_tie` or by their expiry, its queued asks of it go (`dropAsks`) and
-its promise for it closes (`dropPromises`); an ask written just before the expiry keeps the sender
-outstanding through its promise (`ka_expiry_keeps_promise`). **Under level 1 by group** (`byGroup`:
+offers and leaves its asks (the known answers turn `dropAsks`, below, off), an ask still queued is
+written once the tie is gone, the retry, finding no announcer, ends, and the sender's next offer is
+recorded with nothing scheduled, the ask outstanding (§4.4); while it is, the last resort for a
+parked honest announcer returns at once (§6.1), and the promise falls due and only parks
+(`ka_drop_keeps_asks`). An offer's expiry, 30 s after the announcer's last offer of the group (§6.1,
+§8.1), leaves the ask the same way (`ka_expiry_keeps_asks`); an adversary's offers expire here at
+any time (`advExpire`), since it chooses when it last offers, and an honest announcer's outlast
+diffusion, as Q1 assumes. With `dropPromises` off instead, an ask written just before the expiry
+keeps the sender outstanding through its promise (`ka_expiry_keeps_promise`). F13's rule, v0.8's
+`drop_offer` (§6.1: dropped offers take their ask with them), has both parts: where a peer's offers
+of an index are dropped, by `drop_tie` or by their expiry, its queued asks of it go (`dropAsks`)
+and its promise for it closes (`dropPromises`). **Under level 1 by group** (`byGroup`:
 a candidate rule, off for the spec's rules; one of the options `protocol.md` §4.6 lists for
 relabelled copies, F12, which it leaves open): a copy passes level 1 against either block, so the
 first installation of either is the node's installation (the `install` actions), a copy waits only
@@ -831,9 +832,9 @@ its new connection it is an announcer that is not parked. The retry would find e
 announcer parked only at the one state between the close and the new offer; enabled there alone,
 it is not forced by weak fairness, and the last resort never arms. The loop's four steps lead from
 a state `f14` back to one; the assertions say which of the honest nodes' machinery events are
-pending at each of the loop's states, so the run that repeats the loop is weakly fair. F14 is open:
-`protocol.md` §6.1 names it ("an announcer that is never parked holds the last resort off") and
-does not address it. -/
+pending at each of the loop's states, so the run that repeats the loop is weakly fair, by
+inspection. F14 is open: `protocol.md` §6.1 names it ("an announcer that is never parked holds the
+last resort off") and does not address it. -/
 
 -- the three roles, in an instance of three nodes
 ghost relation f14Roles (n : node) (h : node) (a : node) :=
@@ -2047,8 +2048,8 @@ sat trace [ka_expiry_keeps_promise] {
 -- `f14` again, with the same three nodes and a close behind. One trace per state of the loop, each
 -- asserting at its end (Veil's simplification of one trace with the five assertions exceeds its
 -- steps); in an instance of three nodes with these roles every step's arguments are forced but the
--- order of `close`'s two nodes, which changes only the trace marker `closedAsk`, so the five are one
--- run, cut at each state
+-- order of `close`'s two nodes, which changes only the trace marker `closedAsk`, so the five are
+-- prefixes of one run, once `close`'s order is chosen the same
 sat trace [ka_f14_s0] {
   installTakenIn
   install
