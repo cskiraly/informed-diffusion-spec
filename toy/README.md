@@ -103,7 +103,7 @@ needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting
 takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Thirty-eight scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Thirty-nine scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -309,6 +309,14 @@ where one has a control that must come out the other way, it is named:
 - `refusal_report_known.py`: the report of asks left unanswered does not count a marked probe of a
   claimed index as claimed, since it is answered (R5); a plain ask beside it, and a second marked
   probe past the cap, must be counted.
+- `line_stall_known.py`: §7.1 and §7.3, a peer that stops reading does not hold the node's chunks to
+  its other peers. On the cell `push`'s network, when the source's line first holds two writers, the
+  peer at its head stops reading (its link stops draining, in the script; the toy is not changed) and
+  an urgent entry for it is written, so its writer blocks while it heads the line. The source still
+  sends its other peers their chunks, or has none left for them; the stalled peer gets no more
+  chunks, and control still flows. The control: the same run with the peer reading. It fails on the
+  toy whose `acquire_slot` admitted only the line's first writer: every slot free, the line held, and
+  chunks left waiting in the other peers' queues.
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then

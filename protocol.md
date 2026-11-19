@@ -1723,12 +1723,19 @@ in_flight = 0                         # slots taken: held by a writer, or travel
 waiters = deque()                     # peer writers waiting for a slot, first come first served
 sent = {}                             # (peer, group, index) -> send time
 
+def front():                          # the first in line whose writer can write: a writer whose write has
+    return next((q for q in waiters if not writing(q)), None)    #   not completed (§7.3) keeps its place
+
+def wake_front():                     # the first in line that can write tries again (§7.2)
+    q = front()
+    if q is not None: wake(q)
+
 def acquire_slot(p):                  # True: p's writer holds a slot; False: it waits in line
     global in_flight
-    if in_flight < W and (not waiters or waiters[0] == p):
-        if waiters: waiters.popleft()
+    if in_flight < W and front() in (None, p):    # no writer that can write is ahead of p
+        if p in waiters: waiters.remove(p)
         in_flight += 1
-        if waiters and in_flight < W: wake(waiters[0])    # slots remain: the next in line takes one too
+        if in_flight < W: wake_front()            # slots remain: the next in line takes one too
         return True
     if p not in waiters: waiters.append(p)        # a writer keeps its place while it waits
     return False
@@ -1736,7 +1743,7 @@ def acquire_slot(p):                  # True: p's writer holds a slot; False: it
 def release_unused_slot(p):           # p's writer has no chunk to send now
     if p in waiters:
         waiters.remove(p)                         # it leaves the line, and the next may take a free slot
-        if waiters and in_flight < W: wake(waiters[0])
+        if in_flight < W: wake_front()
     if slot_held[p]:
         slot_held[p] = False
         free_slot()
@@ -1759,7 +1766,7 @@ def window_timeout(key, at):
 def free_slot():
     global in_flight
     in_flight -= 1
-    if waiters: wake(waiters[0])                  # the first writer in line tries again (§7.2)
+    wake_front()                                  # the first writer in line that can write tries again
 ```
 
 **The window** bounds the chunks a node has in flight, to all its peers together. It has `W` slots,
@@ -2056,6 +2063,8 @@ This document decides at the moment of sending, so it needs the backlog to be in
 *The writer:*
 - `slot_held`: whether a peer's writer holds a slot it has not used; false at first;
 - `wake`: runs a peer's writer again (§7.2);
+- `writing`: whether a peer's writer has a write that has not completed (§7.3): the transport has
+  not yet taken all but about one chunk of it;
 - `WAIT`: what `next_to_send` returns while the writer waits in line.
 
 *Timing and sets:*

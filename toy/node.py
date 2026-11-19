@@ -867,6 +867,9 @@ class Node:
         def wake(p):
             node.kick(p)
 
+        def writing(p):                         # p's writer has a write the transport has not completed (§7.3):
+            return p in node.writer_blocked     #   --send-buffer's backlog; none without a send buffer
+
         # ---- codec, crypto and timing
         def snappy_block_encode(body):
             return Wm.Blob(round(len(body) / c["COMPRESSION"]), ("snappy", body.tag))
