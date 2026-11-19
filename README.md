@@ -38,8 +38,11 @@ names how SEACAST diffuses.
 - [`toy/`](toy/): runs every `python` block of `protocol.md`, once per node, on a simulated
   network. It shows that the document is complete enough to run, and is a place to try a rule
   before implementing it. Its numbers are not measurements.
-- [`formal/`](formal/): a model of §4–§7 of `protocol.md`, at v0.5's rules, checked on small
-  instances.
+- [`formal/`](formal/): the checks of `protocol.md` beyond the toy, and the map of how they fit
+  together. Beside the proofs and the twin below: a Quint model of §4–§7 at v0.5's rules, checked on
+  small instances by TLC and random simulation; monitors of five of its safety properties on the
+  toy, recorded at v0.5 and not brought up to date since; and a check of §1–§2's arithmetic over
+  every compressed length of a coded group and the extremes of each plain one.
 - [`formal/veil/`](formal/veil/): properties of v0.8's rules, proved in Veil for any number of
   nodes, groups and chunks:
   - A1, an honest node is never penalised: for an ask, for a chunk that fails level 1, or for a
@@ -64,6 +67,13 @@ names how SEACAST diffuses.
     codec's assumptions its README lists, an MDS code and a binding hash among them.
 
   The models do not have the rules `protocol.md` changed since v0.8; their README lists them.
+- [`formal/twin/`](formal/twin/): **a draft**: a transcription of `protocol.md`'s Python into Lean,
+  function by function, executable, checked against the toy by trace replay. `check.sh`, which
+  builds the twin, replays small traces of the toy through it and runs controls that must fail,
+  passes at this commit. Its record (every cell of the toy traced under both documents, the
+  directed sets, and the mutants' matrix, which shows which mutants the traces it replays tell from
+  the twin) follows in a later release; refinement, its link to the Veil models, is not in this
+  repository yet.
 
 ## Where SEACAST stands
 
@@ -81,6 +91,9 @@ names how SEACAST diffuses.
   implementation; `protocol.md` §9 lists where it does as this text does and where it does not, and
   each results record names its code.
 - **SEACAST's next version is a draft**, `protocol-v2.md` (above), checked in the toy only.
+- **What the checks show.** How the toy, the Quint model, the Veil proofs and the Lean twin fit
+  together, and what each shows at this commit:
+  [`formal/README.md`](formal/README.md#how-the-checks-fit-together).
 - **Results.** The announcement post, *[SEACAST: fast, lean broadcast for Ethereum, with an executable
   spec and a formal model](https://ethresear.ch/t/seacast-fast-lean-broadcast-for-ethereum-with-an-executable-spec-and-a-formal-model/26167)*
   (2026), stays as published. Its text is kept current, with the latest results and the data and

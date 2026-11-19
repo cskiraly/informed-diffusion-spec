@@ -9,7 +9,9 @@
 # --out    where everything it makes goes (default: formal/twin/out/check; removed first)
 # -j       how many traces, or how many compilations, at a time (default: 4)
 # --steps  only these steps, in this order, on what earlier runs left in --out (a part is no pass: it says so)
-# `lake`, `lean` and `python3` are the ones on PATH. It runs under the caller's limits and writes nothing outside --out.
+# `lake`, `lean` and `python3` are the ones on PATH. It runs under the caller's limits and writes its output under
+# --out; the self-tests of content.py and matrixdiff.py write fixtures to the system's temporary directory, and
+# matrixdiff.py's are left there.
 #   perturbed a tracer that perturbs what the toy reads (perturb3.py), on the cell `push`: another digest than
 #             golden.txt's, or the digests of the cells show nothing
 # It asks git nothing: a trace names what it was made from by its content line (tools/content.py), and every replay

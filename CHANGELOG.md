@@ -5,6 +5,35 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
+## After v0.10.6, not yet released
+
+The Lean twin of `protocol.md`'s Python comes into the repository as a draft, and `formal/README.md`
+opens with a map of how the checks fit together. No rule, value or code of `protocol.md` changes.
+
+`formal/`:
+- **The Lean twin, a draft** (`formal/twin/`): a transcription of `protocol.md`'s Python into Lean,
+  function by function, executable, with the tracer that records the toy's calls, the replay, and
+  `check.sh`, which builds the twin, replays small traces of the toy through it and runs controls
+  that must fail. Its README says what it covers and what the replay cannot see. Its record (every
+  cell of the toy traced under both documents, the directed sets, and the mutants' matrix, which
+  shows which mutants the traces it replays tell from the twin) follows in a later release;
+  refinement, its link to the Veil models, is not in this repository yet.
+- **How the checks fit together** (`formal/README.md`): a map at the top, with a diagram and a
+  paragraph per link, says what the toy's tests, the Quint model with its monitors and the wire's
+  check, the Veil proofs and the twin with its replay each show at this commit, that refinement is
+  not here yet, and what none of them yet proves: that `protocol.md`'s code has the properties
+  proved of the models. The Quint model's text follows under its own heading, unchanged but for its
+  headings' level and the dates of the toy monitors' results, and the list of files gains `twin/`.
+- **The toy's monitors, dated** (`formal/README.md`): their recorded run is of the document at v0.5,
+  and they have not been brought up to its later versions. At this commit the monitor of the
+  window's wake-up (W2) reports violations, about as many with its known answer as without, and two
+  of the three known answers no longer find the lines they change, which left the document in v0.8
+  and v0.9. Whether the W2 reports come from the monitor or from the document is not yet examined.
+
+`README.md`:
+- **`formal/`'s bullets**: `formal/` is no longer described as the Quint model alone, `formal/twin/`
+  gains a bullet, and "Where SEACAST stands" points to the map.
+
 ## v0.10.6, 2026-11-19
 
 `protocol.md` names an open question in §1: whether the protocol fixes a coded group's compressed

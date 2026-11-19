@@ -1,4 +1,118 @@
-# formal/: a model of the protocol, and what was checked
+# formal/: models of the protocol, proofs, and a Lean twin
+
+## How the checks fit together
+
+`protocol.md`'s rules come with their code, in Python. Some of the checks run that code or
+transcribe it; the others check models of the rules written by hand. The diagram shows the toy, the
+twin and the models, and the links between them; a paragraph below says what each link shows at this
+commit. Paths in this section are from the repository's root.
+
+```text
+                    protocol.md: the rules, with their code in Python
+                          |                                     |
+                  the code, as written                  the rules, by hand
+                          |                                     |
+    +---------------------+                                     +----------------------+
+    |                     v                                                            |
+    |  +--------------------------------+  five monitored  +-------------------------+ |
+    |  | toy/: runs it, with recorded   |<-----------------| formal/diffusion.qnt:   |<+
+    |  | cells and known answers        |    properties    | Quint, v0.5's rules,    | |
+    |  +--------------------------------+                  | small instances         | |
+    |                     ^                                +-------------------------+ |
+    |                     | trace replay                                               |
+    |                     v                                                            |
+    |  +--------------------------------+    refinement    +-------------------------+ |
+    +->| formal/twin/: transcribes it   | - - - - - - - -> | formal/veil/: Veil,     |<+
+       | into Lean, function by         |  (not in this    | v0.8's rules, any       |
+       | function; a draft              |  repository yet) | number of nodes         |
+       +--------------------------------+                  +-------------------------+
+```
+
+**The toy runs the code.** [`toy/`](../toy/) executes every `python` block of `protocol.md` as
+written, once per simulated node. Two kinds of check watch what the code does: recorded cells
+(`toy/check.py` runs small networks and compares with `toy/golden.txt` a digest of every event, its
+time, node, function and arguments, so that a change in what a node does moves a digest, though a
+change of state that alters no event does not), and known answers (`toy/*_known.py`: scenarios
+whose outcome is stated beforehand, for what a digest cannot show). This is testing: it shows what
+the code does in those runs, not that the rules are right, and the toy's numbers are not
+measurements. The next version's draft, `protocol-v2.md`, runs in the toy too, with recorded cells
+of its own (`toy/golden-v2.txt`), known answers on its own functions, and the invariants its §6.2
+names: `toy/invariants.py` checks three on every run and two under its row setting, and
+`toy/check.py --doc v2 --golden golden.txt` holds its tier 4 setting to `protocol.md`'s cells.
+Outside the toy, nothing here checks its own functions.
+
+**The Quint model checks the rules on small instances.** [`formal/diffusion.qnt`](diffusion.qnt)
+models §4–§7 for one group, written by hand at v0.4's rules with v0.5's as switches. TLC explores
+its smallest instances, exhaustively or to a depth, and random simulation samples runs of three or
+four nodes; checking v0.4 and the fixes proposed for it this way found the ten gaps that v0.5 and
+v0.8 closed. Runtime monitors (`formal/toy/monitor.py`) were written to check five of its safety
+properties on the code itself, on twelve of `toy/check.py`'s cells: W1 and W2 after each event, S1
+and P4 (in a weaker form) at each transmission, and A1 on the run's count of penalties. Their
+recorded run, below, is of the document at v0.5, and they have not been brought up to its later
+versions: at this commit the monitor of W2 reports violations, about as many with its known answer
+as without, and two of the three known answers no longer find the lines they change. Whether the
+W2 reports come from the monitor or from the document is not yet examined. Beside the model,
+`formal/wire/check_wire.py` checks §1–§2's arithmetic, restated in the script from v0.4's and v0.5's
+rules, for every compressed length of a coded group and, for plain groups, the shortest and the
+longest of each K. [The Quint model](#the-quint-model), below, gives the instances, the results and
+their limits.
+
+**The Veil models prove properties at any size.** [`formal/veil/`](veil/) holds state machines of
+the rules, written by hand, each with the state its property needs, and proofs for any number of
+nodes, groups and chunks: A1 (an honest node is never penalised) and the per-chunk pieces of no
+stall (Q1) as inductive invariants whose conditions Lean's kernel checks, with the count that
+completes Q1 in plain Lean; that the transport and the asking go quiet once the environment stops
+(Q3), with finitely many nodes, under weak fairness; and agreement, in plain Lean. These are proofs
+about the models, which have v0.8's rules: their README lists the rules `protocol.md` changed since,
+and whether each result carries over to them is not checked. Each result holds under the
+assumptions that README states (with malicious peers, relabelled copies are excluded). The models'
+traces also show a run that `protocol.md` §6.1 leaves open, an announcer that is never parked
+holding the last resort off; that the run is fair is read from the traces by inspection, not
+proved. Being written by hand, the models can drift from the code, and nothing in this repository
+checks them against it yet.
+
+**The twin transcribes the code into Lean.** [`formal/twin/`](twin/), **a draft**, is a
+transcription of `protocol.md`'s Python into Lean, function by function, executable: every function
+the document's code blocks define, matched by name (its README counts them by section), but not the
+helpers the document names without writing them out (one aside, `held`), nor the events it gives in
+prose (a connection's close, an announcer's offers ageing out, a group's expiry), nor
+`protocol-v2.md`'s own functions. It is not an abstract model: it follows the code's functions and
+branches, but for a few narrowings its README names, and holds the code's tables, some in a form of
+its own; on its own it proves nothing. It is there to be checked against the code on one side, by
+trace replay, and linked to the Veil models on the other, by refinement.
+
+**Trace replay checks the twin against the code.** A tracer runs the toy and records, for each
+top-level call of a function the twin has, what the call read and wrote of the node's tables, what
+it asked of the rest of the node, and what it returned; the twin replays each call from the
+recorded state, with the recorded answers, and must read the entries the Python read, leave those it
+wrote as the Python left them, and return what it returned. `formal/twin/check.sh` passes at this
+commit. It builds the twin from nothing; traces one of `toy/check.py`'s cells, whose digest must be
+the recorded one, a few short runs under both documents, each giving the digest of the same run
+untraced, and directed sets, states generated to reach what the cells do not, with the toy's own
+functions called on them; replays every trace through the twin with no record mismatched; and runs
+controls that must fail, among them altered records, a mutant (a twin with one rule changed) and a
+trace of another tree. Replay is evidence on the calls traced, not on every input, and a faithful
+twin copies a mistake of the code: it checks the copying, not the rules. The record (every cell of
+`toy/check.py` traced under both documents, the directed sets, and the mutants' matrix, which shows
+which mutants the traces it replays tell from the twin) is not in this repository yet and follows in
+a later release. The twin's README says what `check.sh` checks and what the replay cannot see.
+
+**Refinement, from the twin to the Veil models, is not in this repository yet.** A refinement proof
+would show that the twin's initial states and each of its steps, projected onto a model's state, are
+states and steps the model allows; the model's invariants would then hold for the twin, and its
+other results where their assumptions, fairness among them, hold for the projected runs. It is under
+way.
+
+**At this commit.** Together, the links are meant to carry the proofs to the code: properties proved
+of the models, refinement showing that the twin behaves as the models do, and replay that the code
+behaves as the twin does on every call traced. At this commit refinement is not here, the twin is a
+draft whose record follows, and the models have older rules than `protocol.md`'s (v0.5's and
+v0.8's). So the proofs are about the models, the replay is evidence on what it traces, and the toy's
+checks are tests: none of them yet proves that `protocol.md`'s code has the properties proved of the
+models. Even with refinement and the record, the last link, from the twin to the code, stays replay:
+evidence on the calls traced, not a proof.
+
+## The Quint model
 
 A [Quint](https://github.com/informalsystems/quint) model of §4–§7 of
 [`protocol.md`](../protocol.md) for one group, checked by random simulation and, on the smallest
@@ -13,7 +127,7 @@ N = 4. TLC explores every reachable state only at K = 1; at K = 2 it covers ever
 steps. Random simulation samples runs, which is evidence, not proof. Nothing here says how often a
 finding occurs in a real network, or how fast the protocol is.
 
-## What is modelled
+### What is modelled
 
 - **Events.** One step is one event: a link delivers its oldest RPC, a writer runs, a timer fires,
   a node finishes decoding, a block installs, a group expires, the source publishes. Node 0 is the
@@ -45,7 +159,7 @@ finding occurs in a real network, or how fast the protocol is.
   (card 13) need no model of their own: any choice among the push candidates covers every order
   they produce.
 
-## v0.5's rules, as switches
+### v0.5's rules, as switches
 
 The constants of `diffusion.qnt` select the rules: all false is v0.4 as written, and v0.5 is v0.4
 with these on (`PICK` in `tools/gen_instances.py`, the rules picked for v0.5; the instances named
@@ -72,7 +186,7 @@ disconnects, and `*_LATE` gates that hold an event back until its case is reacha
 runs until it has nothing to send or waits for a slot, in one step), which keeps it small enough
 for TLC; and known answers, switches that bring back bugs found earlier.
 
-## What was checked, and the result for v0.5
+### What was checked, and the result for v0.5
 
 Four ways of checking:
 
@@ -100,8 +214,9 @@ Four ways of checking:
   closes at any time, a withholder's closes, expiry while asks are out, a group that expires while
   it decodes, an inconsistent code, and equivocation (with a store that keeps copies or refuses
   them, the switch late, and the providers' answers spent before the switch).
-- **Toy**: monitors wrapped around the toy (`toy/monitor.py`) check after every event of
-  `check.py`'s twelve 60-node cells, seeds 7–9, about 36 million events; every node completes. The
+- **Toy**, on the document at v0.5 (for this commit, see the map above): monitors wrapped around the
+  toy (`toy/monitor.py`) check after every event of twelve of `check.py`'s 60-node cells, seeds 7–9,
+  about 36 million events; every node completes. The
   toy installs every block at its publish, nothing expires or closes there and its queues have no
   limit, so C′, D′ and the last three rules above do not act there: the model checks them.
 
@@ -149,11 +264,12 @@ check catches it. The sweep has a row for each of F1 to F10 where the finding sh
 writer's ask filter, S1 and A1 fail (in TLC at the 14th state at K = 2); without either wake-up,
 W2; with IDONTWANT handled before IWANT on a coalescing transport, A1; with the source's HAVE
 unpaced, P4 (in TLC at the third state at K = 1); and without fairness TLC finds a run that stutters
-before it is quiet. L4 has no known answer. In the toy, three rules taken out of the extracted
-document make their monitors fire (`--break askfilter`: S1 and A1; `wake`: W2; `p4`: P4); W1 has no
-known answer there.
+before it is quiet. L4 has no known answer. In the toy, at v0.5, three rules taken out of the
+extracted document made their monitors fire (`--break askfilter`: S1 and A1; `wake`: W2; `p4`: P4);
+W1 has no known answer there. The lines `askfilter` and `p4` take out left the document in v0.8 and
+v0.9.
 
-## The findings, and v0.5
+### The findings, and v0.5
 
 F1 to F5 were found in v0.4 as written. F6 to F10 were found with the fixes A′ to E on, once the
 model had equivocation, disconnects, a refusing deferred store and expiry; F7 and F10 are in v0.4
@@ -176,7 +292,7 @@ F6 to F10 are existence results: how often they occur in real networks is not me
 written, TLC found no safety violation (A1, S1, P4, W1, W2) within depth 33 on the triangle at
 K = 2, N = 4 (270 M distinct states).
 
-## Running the checks
+### Running the checks
 
 Node.js 18 or later (for Quint), Java 17 or 21 (for TLC), Python 3, and curl. In `formal/`:
 
@@ -223,8 +339,8 @@ writes the same for the invariants it is given:
 The toy's monitors and the wire's arithmetic, from the repository's root:
 
 ```
-python3 -I formal/toy/monitor.py --seeds 7,8,9 -j 6                       # no violation expected
-python3 -I formal/toy/monitor.py --cells push --seeds 7 --break askfilter  # known answer: S1, A1
+python3 -I formal/toy/monitor.py --seeds 7,8,9 -j 6                       # at v0.5: no violation
+python3 -I formal/toy/monitor.py --cells push --seeds 7 --break askfilter  # at v0.5: S1, A1
 python3 -I formal/wire/check_wire.py
 ```
 
@@ -241,3 +357,5 @@ python3 -I formal/wire/check_wire.py
 - `toy/monitor.py`: the runtime monitors on the toy; `wire/check_wire.py`: §1–§2's arithmetic.
 - `package.json`, `package-lock.json`, `quint`: the pinned toolchain.
 - `veil/`: properties at any size, proved in Veil (Lean 4) for any number of nodes, groups and chunks: A1 at every place a node penalised in v0.8 (an ask: with no assumption under the live window, `protocol.md` §8.1, a group's key fixing its slot, §1, and under the fallback without a slot given the bound on its tombstone; a chunk that fails level 1; a malformed HAVE), and no stall (Q1), in three pieces: no quiet state in which an honest node reachable from the source along mesh links is incomplete, under the assumptions its README states (among them no equivocation); the mesh may change and connections close, with §5.4's announcement to a peer that joins the mesh (F9). Under equivocation it holds with §4.2's ties and §6.1's rule against a second ask (F6), for the nodes the source reaches through nodes that installed the builder's block (`NoStallEquiv.lean`, with its assumptions). The no-stall proof found an eleventh gap, F11: an IHAVE over a receiver's IHAVE limit was ignored, and nothing offered its chunks again; v0.7 closes it (`protocol.md` §4.4, and its README). Q1 also holds with malicious peers, for the honest nodes the source reaches through honest nodes that installed the block, relabelled copies (F12, open in `protocol.md` §4.6) excluded; with finitely many nodes and weak fairness, a run goes quiet (Q3) once the environment stops, adversaries' actions included (the asking with `NO_REASK_OPEN`; with malicious peers, the honest nodes' machinery); level 2 is all or none, a check that succeeds recovers the bytes the root commits, and two honest nodes that both deliver a group deliver the same payload, under the codec's assumptions its README lists, an MDS code and a binding hash among them. Two more findings are there: F13, dropped offers that leave their ask, closed in v0.8, and F14, an announcer that is never parked holding the last resort off, open (`protocol.md` §6.1). The proofs are of v0.8's rules; their README lists what changed since, and each result's assumptions.
+- `twin/`: the Lean twin of `protocol.md`'s Python, a draft. Its README says what it covers, what
+  `check.sh` checks, and what follows in a later release.
