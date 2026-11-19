@@ -215,6 +215,22 @@ def build_group(body: bytes) -> Tuple[SegmentDescriptor, List[Shard]]:     # at 
   the payload compresses well, so that its count is not twice the K a receiver derives. At the
   default `UNIT` none of these happens to a body of up to 128 MiB.
 
+**Open: the compressed bytes.** A coded group's data chunks are the body compressed with snappy's
+block format (`encoding` 1), and compressors can produce different bytes for one body. Whether the
+protocol fixes those bytes is not decided:
+- **The builder's bytes** (this document): a coded group's root commits the bytes its builder's
+  compressor produced. A node checks the group from any K of its chunks, against its descriptor, by
+  decoding (above), which needs no compressor. Decompression, which the format defines whatever
+  compressor made the bytes, then gives the same result at every node: the body that level 3 checks
+  (§3), or the same failure. No client has to reproduce another's compressor, but a node that holds
+  the body cannot count on building the group's chunks from it, even with the descriptor.
+- **A canonical compressor:** one compressor is specified exactly, so that the compressed bytes, and
+  with them a coded group's chunks, follow from the body and the group's descriptor. A node that got
+  the body from elsewhere, and has the descriptor (under design A from a chunk, since the bid has
+  only its hash), could then build the group's chunks and serve them, but every client would have to
+  reproduce that compressor's output byte for byte, in each of its versions and whatever library it
+  uses.
+
 ### Rationale
 
 **The slot in the group's key.** An honest builder never commits one descriptor at two slots, since
@@ -2369,6 +2385,9 @@ The document's terms, each with the section that defines it.
   is **outstanding** while it is queued to the peer or its promise is open (§6.1).
 - **budget**: the most mesh peers a forwarding node pushes a chunk to: `R_NODE` less the mesh peers
   known to hold it, and never below zero (§5.2).
+- **canonical compressor**: one compressor specified exactly, so that the body's compressed bytes,
+  and with them a coded group's chunks, follow from the body and the group's descriptor; whether the
+  protocol fixes the bytes this way is open (§1).
 - **card**: one mechanism of the design, numbered; a **tier** is the set of cards it enables, and
   the tiers are nested (§0). A comment `# [c8]` tags the code of card 8.
 - **chunk**: one piece of the payload, coded from tier 3 on, with its Merkle proof: the unit on the

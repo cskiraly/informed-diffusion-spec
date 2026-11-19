@@ -5,6 +5,19 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
+## After v0.10.5, not yet released
+
+`protocol.md` names an open question in §1: whether the protocol fixes a coded group's compressed
+bytes. No rule, value or code changes.
+
+`protocol.md`:
+- **Open: the compressed bytes** (§1). A coded group's root commits the bytes its builder's
+  compressor produced, and a node checks the group by decoding, which needs no compressor. The open
+  alternative is a canonical compressor: the chunks would follow from the body and the group's
+  descriptor, so that a node that got the body from elsewhere could build and serve them, at the
+  cost of every client reproducing that compressor's output byte for byte. The glossary gains
+  **canonical compressor**.
+
 ## v0.10.5, 2026-11-19
 
 The proofs in `formal/veil/` move to Veil's release v4.35.0, and gain malicious peers, runs that go
