@@ -134,9 +134,9 @@ where one has a control that must come out the other way, it is named:
   history; a copy of an index held only as rebuilt is still forwarded, and the publisher's first
   copy is (the controls); a further id at that rebuilt index is forwarded by `protocol-v2.md`, which
   stores no copy there, and only acknowledged by `protocol.md`, which stored the first
-  (`protocol-v2.md` §6.1); and a repeat of a first copy at a rebuilt index under an id not the
-  rebuilt chunk's own is acknowledged by `protocol.md` and ignored by `protocol-v2.md`, while one
-  under the rebuilt chunk's own id is acknowledged by both. The toy's ids hash the chunk's identity,
+  (`protocol-v2.md` §6.1); and at a rebuilt index a repeat of a seen id is acknowledged where that
+  id was stored: by `protocol.md` the first network copy's, by `protocol-v2.md` the rebuilt chunk's
+  own, in either order of arrival. The toy's ids hash the chunk's identity,
   so the second id is made by changing it, and level 1 is taken as passed. `protocol-v2.md`
   forwarded the second id's copy until 2026-11-19.
 - `tie_read_known.py`: a peer that was only asked about has no tie; the tied peer beside it must

@@ -24,7 +24,10 @@ with `forward` and the gossip history's `put` counted:
 - a repeat of chunk 4 under its own id, the rebuilt chunk's, is acknowledged in both;
 - chunk 5, rebuilt, comes first under an id not its own, and both forward it; a repeat of that copy is
   acknowledged by `protocol.md`, which stored it, and ignored by `protocol-v2.md`, which stored none (`accepted`
-  answers whether the id was stored, since v0.10.5's toy).
+  answers whether the id was stored, since v0.10.5's toy);
+- the reverse order, at chunk 6: under an id not its own first, then under its own, the rebuilt chunk's, which
+  `protocol.md` only acknowledges and `protocol-v2.md` forwards; a repeat under its own id is ignored by
+  `protocol.md`, which stored the other, and acknowledged by `protocol-v2.md`, which keeps the rebuilt one.
 
 The toy's content id hashes the chunk's identity (`wire.content_id`), so the second id is made by changing what
 it hashes. Level 1 is taken as passed (`on_validated` with ACCEPT), as for a relabelled copy whose other block
@@ -120,6 +123,16 @@ def check(doc):
          arrive(Q, f5, validated=True)[:2], (1, 1))
     line(f"a repeat of that copy, from peer 3 (forward, gossip put, HAVEs to it, penalties)",
          arrive(Q, f5), (0, 0, 0, 0) if doc == "v2" else (0, 0, 1, 0))
+    f6 = copy.copy(chunks[K + 2])                           # the reverse order: another id first, then the own id
+    f6.data = copy.copy(chunks[K + 2].data)
+    f6.data.tag = ("a first other id", chunks[K + 2].data.tag)
+    f6.mid = None
+    line(f"chunk {K + 2}, rebuilt, first under an id not its own (forward, gossip put)",
+         arrive(Q, f6, validated=True)[:2], (1, 1))
+    line(f"then under its own id, the rebuilt chunk's (forward, gossip put)",
+         arrive(Q, chunks[K + 2], validated=True)[:2], (1, 1) if doc == "v2" else (0, 0))
+    line(f"a repeat under its own id (forward, gossip put, HAVEs to it, penalties)",
+         arrive(Q, chunks[K + 2]), (0, 0, 1, 0) if doc == "v2" else (0, 0, 0, 0))
     return bad
 
 

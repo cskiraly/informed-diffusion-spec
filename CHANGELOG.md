@@ -13,7 +13,8 @@ bytes. No rule, value or code of `protocol.md` changes.
 The next version's draft carries `protocol.md` v0.10.4's rule on an IDONTWANT entry that is not a
 HAVE bitmap onto v0.3's wire, is rewritten for readers, and makes two code changes: an ask sent as a
 `Want` starts no promise, but a claim's probe; and a second id for a received index goes no further,
-as in `protocol.md`. It carries v0.10.5, whose toy fix changes none of its text (§5).
+as in `protocol.md`. It carries v0.10.5, whose toy fix changes none of its rules; §5 and §6.1 say
+what it shows.
 
 `protocol.md`:
 - **Open: the compressed bytes** (§1). A coded group's root commits the bytes its builder's
@@ -36,17 +37,17 @@ as in `protocol.md`. It carries v0.10.5, whose toy fix changes none of its text 
   set no backoff of their own.
 - **v0.3's wire** (§3) reads as a holding an entry with `HaveBitmap`'s MAGIC at either version it
   writes (at version 4 with its flags byte), and ignores an IHAVE entry that is not a bitmap.
-- **The payload's chunk under either design** (§1.3, §1.7): it carries the descriptor under design
-  A, 33 351 bytes, and not under design B, where the bid carries it, 33 300 bytes; `protocol.md` §1
-  leaves the choice open.
+- **The payload's chunk under either design** (§1.3, §1.6, §1.7): it carries the descriptor under
+  design A, its body at most 33 351 bytes, and not under design B, where the bid carries it, its
+  body at most 33 300; `protocol.md` §1 leaves the choice open.
 
 `protocol-v2.md`:
 - **Where the descriptor travels, left open** as `protocol.md` §1 leaves it: in the chunk (design A,
   which the toy runs) or in the bid (design B), in §1.1's `header_of` row, §2 and `publish`'s
   comment, where the draft had taken A.
-- **§1.1's `decode` row points to `protocol.md` §1's "Open: the compressed bytes"**: the root
-  commits the body as its builder's compressor produced it, and whether a canonical compressor
-  should fix those bytes is open.
+- **§1.1's `decode` row points to `protocol.md` §1's "Open: the compressed bytes"**: a coded
+  group's root commits the bytes its builder's compressor produced from the body, and whether a
+  canonical compressor should fix those bytes is open.
 - **Rewritten for readers, in the form `protocol.md` has since v0.10.1.** The rules stay with their
   code, each a paragraph or an item with a bold lead. Dates, reasons, earlier drafts and the toy's
   figures move to a Rationale closing each section, and what is left open to **Open:** items. §6.3's
@@ -85,9 +86,10 @@ as in `protocol.md`. It carries v0.10.5, whose toy fix changes none of its text 
 - **Its line on v0.10.4** (now in §5) says what it carries: the IDONTWANT rule above; the source's
   heartbeat gossip, which §4.7 names for a type that gossips; and §4.7's open item on a chunk that
   is never acknowledged, `protocol.md` §5.1's. Its line on v0.10.5 says what the toy's `accepted`
-  fix changes under this draft; §6.1 adds the one difference it opens: a repeat, under an id not the
-  rebuilt chunk's own, of the first copy at an index held only as rebuilt is acknowledged by
-  `protocol.md`, which stored it, and ignored here (`second_id_known.py`).
+  fix changes under this draft; §6.1 adds the one difference it opens: at an index held only as
+  rebuilt, a repeat of a seen id is acknowledged where that id was stored, by `protocol.md` the
+  first network copy's id, which it stores over the rebuilt one, and here the rebuilt chunk's own
+  (`second_id_known.py`).
 
 The toy:
 - **`--doc v2` keeps an IDONTWANT's stock id in `unwanted[p]`**, after the frame's asks, where it

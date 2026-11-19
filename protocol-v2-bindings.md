@@ -248,7 +248,7 @@ A message's size on the stream: its body, then its kind and its length.
 | HAVE, holding or offer | group 35, flags 1, offset 4, bitmap b | 42 + b; 43 + b from b = 87 |
 | WANT, one index i | group 35, flags 1, hops 1, offset 4, bitmap ⌊i/8⌋ + 1 | 44 + ⌊i/8⌋; 45 + ⌊i/8⌋ from i = 680 |
 | CHUNK, a cell | group 35, index 4, cell 2 048, proof 48, offset 4; header (if sent) 4 + 340 + 48 a blob | 2 142; with a 48-blob header, 4 790 |
-| CHUNK, the payload | `protocol.md`'s `Chunk`: 135 + 32 a proof step + data | 138 or 139 + 32 a proof step + data |
+| CHUNK, the payload | `protocol.md`'s `Chunk`: 135 under design A (the descriptor's 51 bytes in it), 84 under design B, + 32 a proof step + data | 138 or 139 under design A, 86 to 88 under design B, + 32 a proof step + data |
 
 A chunk's size is before compression.
 

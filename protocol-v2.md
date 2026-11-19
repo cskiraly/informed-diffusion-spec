@@ -178,8 +178,8 @@ class TypeParams:                                    # per object type; values i
 | N | `descriptor.count` | the blob count | `NUMBER_OF_COLUMNS` = 128 |
 | K | `ceil(total_length / segment_size)` | N: no code across blobs | 64 |
 | `verify` | v0.3's `validate_chunk`: the Merkle path to the committed root, and since v0.10 the copy's slot its block's; DEFER before the block | `verify_cell_kzg_proof_batch`, one cell index, many commitments, and the copy's slot its header's (REJECT otherwise, as v0.10's `validate_chunk`); DEFER before the header | the same, one commitment, many cell indices, and the same slot check |
-| `decode` | v0.3's `decode_and_reencode`: any K chunks to all N, or None if the root differs; the root commits the body as its builder's compressor produced it, and whether a canonical compressor should fix those bytes is open (`protocol.md` §1, "Open: the compressed bytes") | the cells present, if all are; nothing is rebuilt within a column (§4.6) | `recover_cells_and_kzg_proofs` from 64 |
-| `header_of` | the descriptor: carried by the chunk and checked against the bid's group id (design A, which the toy runs), or carried by the bid itself (design B); `protocol.md` §1 leaves the choice open ("Open: getting the descriptor"), and the installed block confirms it either way | `PartialDataColumnHeader`, validated once per block on any group | the same header |
+| `decode` | v0.3's `decode_and_reencode`: any K chunks to all N, or None if the root differs; a coded group's root commits the bytes its builder's compressor produced from the body, and whether a canonical compressor should fix those bytes is open (`protocol.md` §1, "Open: the compressed bytes") | the cells present, if all are; nothing is rebuilt within a column (§4.6) | `recover_cells_and_kzg_proofs` from 64 |
+| `header_of` | the descriptor: carried by the chunk and checked against the bid's group id (design A, which the toy runs), or carried by the bid itself (design B), so none before the block is installed (the gate, §4.2); `protocol.md` §1 leaves the choice open ("Open: getting the descriptor"), and the installed block confirms it either way | `PartialDataColumnHeader`, validated once per block on any group | the same header |
 | `project` | `[(g, i)]` | `[((root, c), b), ((root, row b), c)]` | the same two |
 | `cross` | none | index b of column c: `((root, row b), c)` | index c of row b: `((root, c), b)` |
 | `family` | one family | the column index | the row's subnet (EIP-8371: `ROW_SUBNET_COUNT` subnets, a node's one from its id, rows mapped to subnets per slot) |
@@ -426,10 +426,10 @@ class Evidence(Container):               # [D6]
   third field, `probe`, marks the one ask that verifies a peer's claim (§4.6): the claimant answers
   it whatever the asker's holdings say, once per asker and group. The standalone binding carries
   `standing` and `probe` in one flags byte (`protocol-v2-bindings.md` §1.3).
-- **A chunk carries its header once per group and link**, so cells can be verified before the block
-  (P2); the payload's header is the descriptor, which the chunk carries under design A and the bid
-  under design B, a choice `protocol.md` §1 leaves open, and which the installed block confirms, as
-  in v0.3.
+- **A cell carries its header once per group and link**, so cells can be verified before the block
+  (P2). The payload's header is the descriptor, which every chunk carries under design A and the bid
+  under design B, a choice `protocol.md` §1 leaves open; the installed block confirms it, as in
+  v0.3.
 
 ## 3. State
 
@@ -3126,10 +3126,11 @@ carried into them, with the date each was carried where it came later than the v
   copy that arrives under an id the node has not seen. `protocol.md` stores it, so a copy under yet
   another id is a second copy of a received index, only acknowledged; here `fill` stores none of
   them, so each such copy enters forwarding (`forward`, where the choice of peers still applies).
-  And when that first copy comes again, under an id that is not the rebuilt chunk's own, it is
-  acknowledged there, where it was stored, and ignored here, where no copy was (`accepted`, "the id
-  was stored"); under the rebuilt chunk's own id both acknowledge it. No recorded cell has two ids
-  for one index.
+  A repeat of a seen id at such an index is acknowledged where that id was stored (`accepted`):
+  there, the id of the first network copy, which `protocol.md` stores over the rebuilt one; here,
+  the rebuilt chunk's own id, since `fill` stores none. Where the two ids are the same, both
+  acknowledge it; where they differ, each acknowledges its own and ignores the other. No recorded
+  cell has two ids for one index.
 - *An IHAVE entry by id.* On v0.3's wire this document takes offers as bitmaps only
   (`protocol-v2-bindings.md` §3), where `protocol.md` records a valid structured id in an IHAVE as
   an offer, which can draw an ask under its §4.4's checks. No recorded cell names an id in an IHAVE.
