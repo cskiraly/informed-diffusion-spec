@@ -6,3 +6,5 @@ tlc/out
 out
 # the Veil model's packages and build outputs (lake)
 veil/.lake
+# the Lean twin's build outputs (lake)
+twin/.lake
