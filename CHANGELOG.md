@@ -15,13 +15,13 @@ since. No rule, value or code of `protocol.md` changes.
 - **Veil's release v4.35.0** (Lean 4.35.0), in place of a pre-release. The six models keep their
   results, with raised solver limits; the transport and the asking under equivocation gain Q3's
   actions (190 to 200 and 660 to 704 conditions).
-- **A run goes quiet (Q3).** Under weak fairness, with finitely many nodes, once the environment
-  stops, the transport and v0.8's asking (with `NO_REASK_OPEN`) eventually have nothing left to do,
-  for good (`QuietRanking.lean`, and `quiet` in `NoStallTransport.lean` and `NoStallEquiv.lean`).
+- **A run goes quiet (Q3).** With finitely many nodes and weak fairness, once the environment stops,
+  the transport and v0.8's asking (with `NO_REASK_OPEN`) eventually have nothing left to do, for
+  good (`QuietRanking.lean`, and `quiet` in `NoStallTransport.lean` and `NoStallEquiv.lean`).
 - **Malicious peers** (`NoStallAskAdv.lean`, `NoStallTransportAdv.lean`, `NoStallEquivAdv.lean`).
   Q1 holds for the honest nodes the source reaches through honest nodes that installed the block,
-  relabelled copies excluded, and Q3 once the adversaries stop. Two findings, both already in
-  `protocol.md`:
+  relabelled copies excluded, and Q3 once the environment stops, the adversaries' actions included.
+  Two findings, both already in `protocol.md`:
   - F13: dropped offers that leave their ask; v0.8's `drop_offer` (§6.1) closes it;
   - F14: an announcer that is never parked holds the last resort off; §6.1 leaves it open.
 
@@ -32,7 +32,7 @@ since. No rule, value or code of `protocol.md` changes.
   never install the block, with two known answers.
 - **Agreement and integrity** (`Agreement.lean`, plain Lean): level 2 is all or none, a check that
   succeeds recovers the committed bytes, and two honest nodes never deliver different payloads for a
-  group, given an MDS code and a binding hash.
+  group, under the codec's assumptions the README lists, an MDS code and a binding hash among them.
 - **The README** gives the results of the whole library's build, and says which of `protocol.md`'s
   changes since v0.8 the models do not have; it also corrects `SenderFault.lean`'s clause count.
   `README.md` and `formal/README.md` describe the new proofs. The new models say "the last resort",

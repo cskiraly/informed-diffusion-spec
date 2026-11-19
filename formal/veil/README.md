@@ -31,25 +31,28 @@ solver; the plain-Lean files are theorems.
   other peers do, relabelled copies excluded. `NoStallEquivAdv.lean` is v0.8's asking among them,
   and shows two findings: F13, closed in v0.8, and F14, which `protocol.md` §6.1 leaves open.
 - `Agreement.lean` (plain Lean): level 2 is all or none, a check that succeeds recovers the bytes the
-  root commits, and two honest nodes never deliver different payloads for a group.
+  root commits, and two honest nodes never deliver different payloads for a group, under the codec's
+  assumptions (below).
 - `QuietRanking.lean` (plain Lean) and the theorems `quiet` of `NoStallTransport.lean`,
   `NoStallEquiv.lean`, `NoStallTransportAdv.lean` and `NoStallEquivAdv.lean`: a run goes quiet (Q3).
-  Under weak fairness, in every run whose environment eventually stops, the transport and v0.8's
-  asking eventually have nothing left to do, for good; with malicious peers, once they stop.
+  With finitely many nodes and weak fairness, in every run whose environment eventually stops (with
+  malicious peers, their actions included), the transport and v0.8's asking (with `NO_REASK_OPEN`)
+  eventually have nothing left to do, for good.
 
-The Quint model next door (`../diffusion.qnt`) checks A1, Q1 and Q3 on three or four nodes, and not
-agreement or integrity (`../README.md` lists its checks).
+The Quint model next door (`../diffusion.qnt`) checks the claim rule (A1's `noPenalty`), Q1 and Q3
+on three or four nodes, and not agreement or integrity (`../README.md` lists its checks).
 
 **The models are of v0.8's rules** (`NoStallAsk.lean` and `NoStallAskAdv.lean` have v0.7's asking,
 which `NoStallEquiv.lean` and `NoStallEquivAdv.lean` take to v0.8's). Each header names the sections
-and the version it follows.
-`protocol.md` has changed since, and the models do not have these changes; whether each result
-carries over to them is not checked:
+and the version it follows. `protocol.md` has changed since, and the models do not have these
+changes; whether each result carries over to them is not checked:
 - **v0.9, the source's announcements at the acknowledgement** (§5.1): the source announces a chunk,
   and its HAVE names it, at the chunk's acknowledgement. In the transport model the source pushes or
-  announces each chunk at publish, as v0.8 did; since v0.10.3 that is `SOURCE_OFFERS = PUBLISH`, and
-  the default, `ACK`, is not modelled. v0.9's §7.3, on what the transport below the writer should
-  hold, is not modelled either: the models' queues may refuse any entry, and drain.
+  announces each chunk at publish, as v0.8 did. Since v0.10.3 that is the timing of
+  `SOURCE_OFFERS = PUBLISH`, with any choice of the chunk's push targets and without the source's
+  HAVE growing at each chunk's first write (`origin_written`); the default, `ACK`, is not modelled.
+  v0.9's §7.3, on what the transport below the writer should hold, is not modelled either: the
+  models' queues may refuse any entry, and drain.
 - **v0.10, four rules for what waits for its block** (§4.2, §6.1, §8.1):
   - a deferred copy beyond its sender's limit of unknown groups is ignored;
   - at installation, a tied index the group does not have is dropped;
@@ -67,11 +70,13 @@ carries over to them is not checked:
   any unparked announcer, so they cover every order.
 - **v0.10.3, the constants in three kinds** (§8.3), with reference values for gossipsub's two IHAVE
   limits: no rule changed, and the models take those limits as any values. `GOSSIP_RETRANSMISSION`
-  is now a bound, at least 3; the models' three answers per chunk and connection are its least
-  value.
+  is now a bound, at least 3. The v0.7 asking models answer the first ask and any later one or not,
+  and the equivocation models the first three and any later one or not, so each covers every value
+  the bound allows.
 - **v0.10.4** (§4.1, §5.1, §5.4):
   - an IDONTWANT entry that is not a HAVE bitmap is kept as stock gossipsub keeps an id, where every
-    entry went to `on_have`; the models have no stock ids;
+    entry went to `on_have`. The models have no stock ids as state; `NoStallAskAdv.lean`'s header
+    reads an adversary's stock IDONTWANT, by inspection, as changing only its own connection;
   - §5.1 names open a chunk that is never acknowledged, at `ACK`, which the models do not have
     (above);
   - §5.1 and §5.4 say what heartbeat gossip tells of the source outside the mesh; the models follow
@@ -185,7 +190,7 @@ them.
 
 | check | how | result |
 |---|---|---|
-| neither penalty on an honest node, any size | an inductive invariant of nine clauses; 200 verification conditions (the nine and `doesNotThrow`, for nineteen actions and the initializer), each a theorem Lean's kernel checks, the SMT solver not trusted | **holds**, also with only the two assumptions it rests on |
+| neither penalty on an honest node, any size | an inductive invariant of nine clauses; 200 verification conditions (the nine and `doesNotThrow`, for nineteen actions and the initializer), each a theorem Lean's kernel checks, the SMT solver not trusted | **holds**; in an earlier check, not this build, also with only the two assumptions it rests on |
 | the audit | as for the claim rule, the assumptions listed | 200 of 200; none trusted; all 799 theorems rest on `propext`, `Classical.choice` and `Quot.sound` |
 | not vacuous | `sat trace`, every rule on: the premises can all hold; a forger penalised for a chunk, and for a HAVE bit beyond N; a chunk ahead of its block accepted when the block installs; one node accepting chunks under two blocks of a slot whose bids commit the same group, and under two that commit different groups; an inconsistent code's authentic pieces relayed between honest nodes, unpenalised | all seven found |
 | known answers | `sat trace`, one rule off, every other on | **an honest node penalised in each**: a relay before level 1; a rebuilt chunk sent before level 2, from an inconsistent code; a chunk rejected ahead of its block; level 1 against the receiver's own block of the slot; a rebuilt chunk naming the slot's other block; a HAVE for a chunk on arrival; a HAVE judged by a forger's descriptor |
@@ -479,7 +484,8 @@ from these finite traces and the actions, by inspection, not proved. The control
 for as long as h's park lasts and the group is live, and an adversary that leaves its ask unwritten
 by not reading does the same without reconnecting, which these models leave out (their writes drain).
 `protocol.md` §6.1 names this open, and no rule for it is modelled. Q1 above holds in the quiet
-states, which such a run never reaches; Q3 with malicious peers (below) holds once they stop.
+states, which such a run never reaches; Q3 with malicious peers (below) holds once the environment,
+the adversaries included, stops.
 
 **Level 1 by group** (`NoStallEquivAdv.lean`'s switch `byGroup`): **a candidate rule, off for the
 spec's rules.** It is one of the options `protocol.md` §4.6 lists for relabelled copies (F12): the
@@ -509,9 +515,9 @@ level 1; level 2 re-encodes the recovered bytes and compares the root. Whatever 
 committed:
 - any two checks of a group succeed or fail together (`level2_all_or_none`, L3);
 - one that succeeds recovers the one byte string the root commits (`integrity`);
-- two honest nodes deliver the same payload, a function of those bytes (`agreement`, and
-  `agreement_by_key` across descriptors with one key, given that a key names one descriptor,
-  `key_inj`: the group id is the descriptor's hash, taken as collision-free);
+- two honest nodes that both deliver a group deliver the same payload, a function of those bytes
+  (`agreement`, and `agreement_by_key` across descriptors with one key, given that a key names one
+  descriptor, `key_inj`: the group id is the descriptor's hash, taken as collision-free);
 - an honest builder's group passes everywhere (`honest_succeeds`);
 - the decode claim is true of a group whose check succeeds, and wrong only of one that every node
   reaching K drops.
@@ -592,9 +598,10 @@ honest node, the honest nodes' machinery eventually has nothing to do, for good.
   fresh asks needs the announcer tied to no root (`tied ∨ tiedElse`).
 - **Fairness is per honest node** (`∀ m, ⌜ hon m ⌝ → 𝒲ℱ (act m · …)`): an adversary's steps of the
   same actions are not forced, and when taken they lower the ranking as an honest node's do.
-- **With Q1 with malicious peers**, by inspection, every honest offer is resolved once the
-  adversaries stop. Completion also takes decodes that return, as in the honest case. While they
-  keep acting, F14 (above) is a run that never goes quiet.
+- **With Q1 with malicious peers**, by inspection, under Q1's assumptions: every offer from an honest
+  node to an honest node that installed the block is eventually resolved once the environment, the
+  adversaries included, stops. Completion also takes decodes that return, as in the honest case.
+  While the adversaries keep acting, F14 (above) is a run that never goes quiet.
 
 The proofs and the facts are counted among each model's theorems in the tables above: 93 in each
 transport model, 224 in `NoStallEquiv` and 239 in `NoStallEquivAdv`.
@@ -636,12 +643,12 @@ where it is not set, as many as `getconf _NPROCESSORS_ONLN` reports; the variabl
 own task pool, for each Lean process. It does not bound the build's CPU: with
 `LEAN_NUM_THREADS=2`, an earlier build of `NoStallEquiv.lean` alone, on another machine, used about
 seven cores on average. Pin the CPUs with `taskset` and cap the memory as well, with room above the
-whole library's build's peaks: its processes together reached about 25 GiB (25,856 MiB, sampled
-every 20 seconds), and the largest of them alone 23.3 GiB (GNU time's maximum resident set size).
-For larger instances `#model_check compiled` builds a native checker, which needs `clang`, `lld`,
-`libc++-dev` and `libc++abi-dev`. In an earlier check, on the pre-release, it found the window's
-127,504 states above in about 80 seconds with its build; the library's build runs `interpreted`
-only.
+peaks of the whole library's build: its processes together reached about 25 GiB (25,856 MiB,
+sampled every 20 seconds), and the largest of them alone 23.3 GiB (GNU time's maximum resident set
+size). For larger instances `#model_check compiled` builds a native checker, which needs `clang`,
+`lld`, `libc++-dev` and `libc++abi-dev`. In an earlier check, on the pre-release, it found the
+127,504 states of the window's instance above in about 80 seconds with its build; the library's
+build runs `interpreted` only.
 
 ## Veil 2.0, as met here
 
