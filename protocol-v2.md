@@ -10,7 +10,7 @@ name since 2026-10-19; v0.4 was published as Informed Diffusion, which now names
 part (§0, "The parts").*
 
 *Draft 1, 2026-10-07. A sibling of [`protocol.md`](protocol.md), which it contains as one
-setting (§6.1). That was draft v0.3 when this was written and is v0.10.5 since 2026-11-19, with
+setting (§6.1). That was draft v0.3 when this was written and is v0.10.6 since 2026-11-19, with
 the same section numbers; "v0.3" below means that document.*
 
 *Each later version of `protocol.md` is carried into this document in the same way; §5 lists what
@@ -3094,6 +3094,9 @@ carried into them, with the date each was carried where it came later than the v
   `protocol.md`'s helper list says, so under this draft a later copy of a copy that level 1 rejected
   no longer passes the probe (R5), and a repeat of a copy under a second id, seen and not stored, is
   not acknowledged (§4.2). This draft runs on the same toy; nothing else to carry.
+- v0.10.6 (2026-11-19): `protocol.md` names an open question in §1, whether the protocol fixes a
+  coded group's compressed bytes ("Open: the compressed bytes"); this draft points to it from §1.1's
+  `decode` row, and leaves where the descriptor travels open, as `protocol.md` §1 does.
 
 ## 6. Settings
 

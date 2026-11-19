@@ -67,13 +67,14 @@ names how SEACAST diffuses.
 
 ## Where SEACAST stands
 
-- **The latest release is [v0.10.5](https://github.com/cskiraly/seacast-spec/tree/v0.10.5)**, 2026-11-19:
-  `protocol.md` at version 0.10.5, v0.10's rules with the text rewritten for readers, its constants
+- **The latest release is [v0.10.6](https://github.com/cskiraly/seacast-spec/tree/v0.10.6)**, 2026-11-19:
+  `protocol.md` at version 0.10.6, v0.10's rules with the text rewritten for readers, its constants
   in three kinds, reference values for gossipsub's two IHAVE limits, the source's choice of when it
-  announces (`SOURCE_OFFERS`), and an IDONTWANT's stock ids kept as stock gossipsub keeps them; the
-  toy and its recorded cells, the next version's draft with its decisions taken and its bindings in
-  a document of their own, and the proofs in `formal/veil/` on Veil's release, with malicious peers,
-  runs that go quiet (Q3) and agreement, which are of v0.8's rules.
+  announces (`SOURCE_OFFERS`), an IDONTWANT's stock ids kept as stock gossipsub keeps them, and an
+  open question on a coded group's compressed bytes; the toy and its recorded cells, the next
+  version's draft, rewritten for readers, with its decisions taken and its bindings in a document of
+  their own, and the proofs in `formal/veil/` on Veil's release, with malicious peers, runs that go
+  quiet (Q3) and agreement, which are of v0.8's rules.
   [`CHANGELOG.md`](CHANGELOG.md) says what each release changed; changes after the latest tag are on
   `main`, and the changelog's first entry names them.
 - **Each measurement says which code it ran.** The SEACAST post's figures ran on a research
