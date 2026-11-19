@@ -10,7 +10,7 @@ name since 2026-10-19; v0.4 was published as Informed Diffusion, which now names
 part (§0, "The parts").*
 
 *Draft 1, 2026-10-07. A sibling of [`protocol.md`](protocol.md), which it contains as one
-setting (§6.1). That was draft v0.3 when this was written and is v0.10.4 since 2026-11-18, with
+setting (§6.1). That was draft v0.3 when this was written and is v0.10.5 since 2026-11-19, with
 the same section numbers; "v0.3" below means that document.*
 
 *Each later version of `protocol.md` comes in the same way. Its changes to functions this
@@ -81,6 +81,10 @@ them; §5 lists what carries over.*
   that is never acknowledged as open, and keeps an IDONTWANT entry that is not a HAVE bitmap as stock
   gossipsub keeps an id (`on_frame`); the toy follows the documents at a dropped group and in its
   reading of bitmaps and ids. This draft runs on the same toy; it carries the rest in its next step.*
+- *v0.10.5 (2026-11-19): `protocol.md` is the same but for its version line, and the proofs in
+  `formal/veil/` move to Veil's release. The toy's `accepted` answers whether the id was stored, as
+  `protocol.md`'s helper list says, so under this draft a later copy of a copy that level 1 rejected
+  no longer passes the probe (R5). This draft's text is unchanged; nothing to carry.*
 
 *This draft defines the notions, the messages, the state and the event handlers; the scheduling
 that tier 4 measured carries over unchanged where §5 says so. Every design decision is marked

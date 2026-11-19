@@ -5,11 +5,12 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
-## After v0.10.4, not yet released
+## v0.10.5, 2026-11-19
 
 The proofs in `formal/veil/` move to Veil's release v4.35.0, and gain malicious peers, runs that go
 quiet (Q3) and agreement. They stay proofs of v0.8's rules, and their README lists what changed
-since. No rule, value or code of `protocol.md` changes.
+since. No rule, value or code of `protocol.md` changes. The toy's `accepted` now answers whether the
+id was stored, as `protocol.md` says.
 
 `formal/veil/`:
 - **Veil's release v4.35.0** (Lean 4.35.0), in place of a pre-release. The six models keep their
@@ -38,7 +39,15 @@ since. No rule, value or code of `protocol.md` changes.
   `README.md` and `formal/README.md` describe the new proofs. The new models say "the last resort",
   as `protocol.md` does.
 
-## v0.10.4, 2026-11-18
+The toy:
+- **`accepted(mid)` answers whether the id was stored**, as `protocol.md`'s helper list says, where it
+  answered whether the id's index was stored. So a later copy of a copy that level 1 rejected, or of a
+  second copy with its own id, is no longer acknowledged, and under `protocol-v2.md` it no longer
+  passes the probe. Two known answers, `accepted_id_known.py` and `probe_replay_known.py`, fail on the
+  toy before the fix; `accepted` reads the id stored at the index now, and the case where a copy with
+  its own id is stored over a rebuilt one belongs to relabelled copies, which `protocol.md` names open.
+
+## v0.10.4, 2026-11-18 (`34f60f8`)
 
 The repository is renamed `seacast-spec`, from `informed-diffusion-spec`, which GitHub redirects, and
 `protocol.md`'s title is now *SEACAST: the protocol in pseudocode*; the README's heading, its release
