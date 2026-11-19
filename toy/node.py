@@ -659,10 +659,10 @@ class Node:
             ns["chunks"][g][i] = f
             ns["known_id"][g][i] = ns["message_id"](f)
 
-        def accepted(mid):              # stored: a dropped group keeps its chunks, so a copy of one is still
-            g, i = parse_id(mid)        #   acknowledged (§4.2, §4.6)
-            fr = ns["chunks"].get(g)
-            return fr is not None and i in fr
+        def accepted(mid):              # the id was stored (§8.1): a dropped group keeps its chunks and their
+            g, i = parse_id(mid)        #   ids, so a copy of one is still acknowledged (§4.2, §4.6); another
+            ids = ns["known_id"].get(g) #   id for a stored index (a copy with other content) is not accepted
+            return ids is not None and i in ids and ids[i] == mid
 
         def expired(g):
             return False                # groups outlive these runs (GROUP_TTL > the run)
