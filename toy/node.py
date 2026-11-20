@@ -1084,8 +1084,7 @@ class Node:
                 if p in w:
                     w.remove(p)
                 ns["in_flight"] += need
-                if w and ns["in_flight"] < ns["W_BYTES"]:
-                    ns["wake"](w[0])
+                ns["wake_front"]()              # room left: the first in line that can write (§4.11)
                 return True
             if p in w:
                 w.remove(p)

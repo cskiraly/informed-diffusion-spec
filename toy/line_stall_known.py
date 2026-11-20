@@ -2,7 +2,7 @@
 """A known answer for the window's line (§7.1, §7.3): a peer that stops reading does not hold the node's chunks to
 its other peers.
 
-    python3 line_stall_known.py         # protocol.md
+    python3 line_stall_known.py [--doc v2]    # protocol.md, or protocol-v2.md's window in bytes (its §4.11)
 
 The line is first come first served, and a writer keeps its place while it waits. A writer whose write has not
 completed (§7.3: the transport has not taken all but about one chunk of it) cannot take a slot, so it keeps its place
@@ -19,11 +19,16 @@ writer blocks while it heads the line. Then, over the next two seconds:
 - the stalled peer gets no more chunks (its writer stays blocked);
 - control still flows: the source writes urgent entries to its other peers.
 The control: the same run with the peer reading; its other peers are not held up either.
+
+With `--doc v2` the same run reaches `protocol-v2.md`'s window, which counts bytes (`W_BYTES`) and has the same line
+(its §4.11, `acquire_room`): its `acquire_room` admits the first waiter whose writer can write, as `acquire_slot`
+does. Before it did, the check failed there as here.
 """
 import sys
 from pathlib import Path
 
 SEED, CELL = 7, ["--nodes", "60", "--degree", "30", "--msgs", "3"]
+V2 = sys.argv[1:] == ["--doc", "v2"]
 STEP, SPAN = 0.001, 2.0
 
 
@@ -33,7 +38,7 @@ def run(stall):
     import sim as S
     got = {}
     R.run = lambda cfg, out=sys.stdout: got.setdefault("sim", S.Sim(cfg))
-    R.main(CELL + ["--seed", str(SEED)])
+    R.main(CELL + ["--seed", str(SEED)] + (["--doc", "v2"] if V2 else []))
     sim, cfg = got["sim"], got["sim"].cfg
     sim.run(cfg["first"])
     sim.publish(1)
@@ -73,7 +78,8 @@ def run(stall):
         to_head = sum(1 for x in log if x[0] > ts and x[1] == head and x[2])
         ctrl_others = sum(1 for x in log if x[0] > ts and x[1] in others and x[3])
         return dict(head=head, t=round(ts, 4), sent_others=sent_others, waiting=waiting, to_head=to_head,
-                    ctrl_others=ctrl_others, in_flight=ns["in_flight"], W=ns["W"], line=len(ns["waiters"]),
+                    ctrl_others=ctrl_others, in_flight=ns["in_flight"], W=ns["W_BYTES" if V2 else "W"],
+                    line=len(ns["waiters"]),
                     head_writing=head in src.writer_blocked)
     finally:
         S.Sim._ps_start, S.Sim.transmit = orig_start, orig_tx

@@ -2738,13 +2738,18 @@ in_flight = 0                         # bytes taken: held by a writer for the ch
 waiters = deque()                     # peer writers waiting for room, first come first served
 sent = {}                             # (peer, group, index) -> (send time, bytes)
 
+def wake_front(past=None):            # protocol.md §7.1's, over the window in bytes: room is free, so the first
+    if in_flight >= W_BYTES: return   #   in line that can write, other than `past`, tries again (§7.2 there)
+    q = next((q for q in waiters if q != past and not writing(q)), None)
+    if q is not None: wake(q)
+
 def acquire_room(p, need) -> bool:    # True: p's writer may send `need` bytes now; False: it waits in line
     global in_flight
     fits = in_flight + need <= W_BYTES or in_flight == 0          # an empty window always takes one chunk
-    if fits and (not waiters or waiters[0] == p):
-        if waiters: waiters.popleft()
+    if fits and front() in (None, p):                            # no writer that can write is ahead of p
+        if p in waiters: waiters.remove(p)                       #   (protocol.md §7.1's front, writing)
         in_flight += need
-        if waiters and in_flight < W_BYTES: wake(waiters[0])     # room remains: the next in line tries too
+        wake_front()                                             # room remains: the next in line tries too
         return True
     if p not in waiters: waiters.append(p)                       # a writer keeps its place while it waits
     return False
@@ -2752,7 +2757,7 @@ def acquire_room(p, need) -> bool:    # True: p's writer may send `need` bytes n
 def leave_line(p):                    # p's writer has nothing to send now
     if p in waiters:
         waiters.remove(p)
-        if waiters and in_flight < W_BYTES: wake(waiters[0])
+        wake_front()
 
 def track_in_flight(p, f, need):      # the room now travels with chunk f
     key = (p, f.group, f.index)
@@ -2774,7 +2779,7 @@ def window_timeout(key, at):
 def free_room(need):
     global in_flight
     in_flight -= need
-    if waiters: wake(waiters[0])                  # the first writer in line tries again
+    wake_front()                                  # the first writer in line that can write tries again
 
 def next_to_send(p):                  # v0.3 §7.2, with the chunk chosen before the room is taken
     q = queue[p]
@@ -2782,10 +2787,14 @@ def next_to_send(p):                  # v0.3 §7.2, with the chunk chosen before
         queue_owed_relations(p)                                # JOINs, GRAFTs and PRUNEs a full queue refused, in order (§4.1)
         if owed_answers[p] and has_room(p):                    # an answer a full queue refused (v0.5 §4.1)
             enqueue(p, Entry(chunk=pop_owed_answer(p), solicited=True), urgent=False)
-        if q.urgent: return with_owed(p, q.urgent.pop(0))      # HAVEs, acks, decode claims: first
+        if q.urgent:                                           # HAVEs, acks, decode claims: first. A writer
+            if p in waiters: wake_front(past=p)                #   in line writes one, whose write may not
+            return with_owed(p, q.urgent.pop(0))               #   complete: another may take room (v0.3 §7.2)
         if not q.normal:
             out = with_owed(p, Entry()) if owed[p] else None   # owed offers on their own (v0.5 §7.2)
-            if out: return out
+            if out:
+                if p in waiters: wake_front(past=p)            # as for an urgent entry
+                return out
             leave_line(p); return None                         # nothing to send
         k = choose(q)                                          # §4.12; chosen first: its size is what the window counts
         entry = q.normal[k]
@@ -2810,6 +2819,16 @@ window is not stuck. `rarest` and `projected` (§4.9) are as before, and `filter
 `wire_size(p, entry)` is the binding's, the bytes the entry's chunk takes on the wire to `p`, with
 the header a first push of a cell's group carries on the standalone binding
 (`protocol-v2-bindings.md` §1.3).
+
+**The line skips a writer mid-write,** as `protocol.md` §7.1's does. Writers wait for room first
+come, first served over peers, and keep their place while they wait. A writer whose write has not
+completed (`writing`, as `protocol.md` §7.3 and its helpers define it) keeps its place but not the
+front: `acquire_room` admits the first waiter whose writer can write (`front`), and every wake goes
+to that one (`wake_front`, here over the window in bytes: only while room is free). A writer in line
+that writes control instead (an urgent entry, or owed offers on their own) first wakes the first
+other writer in line that can write, since its own write may not complete (`next_to_send`). Without
+this, a peer that stops reading while its writer heads the line holds all free room, and the node
+sends no chunk to any other peer.
 
 **Below the writer** (v0.9 §7.3, as written). A writer should hand a chunk to the transport only
 while the connection has less than one chunk unsent. The backlog then waits in the queue, where
@@ -2864,6 +2883,24 @@ column cells by at most 36 ms at the median (seed 7).
   - the 1 Gbps cells move by at most 4 ms;
   - at 500 nodes, the payload completes 18 ms sooner with 0.31 fewer copies (seed 7), and the rows
     2 ms sooner (1 to 21, seeds 7 to 9, sooner on every seed).
+
+**The line skips a writer mid-write** (2026-11-20, from `protocol.md` v0.10.7's §7.1).
+- *The case.* The line admitted only its first writer, and every freed room woke only it. A writer
+  whose write has not completed cannot take room, so a peer that stops reading while its writer
+  heads the line held every free byte. `toy/line_stall_known.py --doc v2` shows it on the `push`
+  cell's network: with the source's line head stalled, nine other peers' chunks waited in an empty
+  window and none was sent for two seconds. With the rule, none is held up.
+- *The control wake.* A burst of urgent entries woke writers in line that each blocked on its write,
+  and free room went to nobody. `protocol.md`'s monitor (its W2) found this in `loss-thin`. So a
+  writer in line that writes control first wakes the first other writer in line that can write, as
+  `protocol.md`'s does. `wake_front` is this document's own, since its room is counted in bytes
+  (`W_BYTES`), where `protocol.md`'s counts slots.
+- *The recorded cells* (`golden-v2.txt`, against v0.10.6's). Twelve move in their digest only:
+  `push`, `hold`, `announce`, `none`, `withholders`, `silent`, `cap-wait`, `dcb20`, `rr-stripe`,
+  `without-a`, `ihave-limits` and `push-deep`. Two move in their numbers too: `loss-thin` (p50 807
+  to 814 ms, p99 922 to 894 ms, copies 1.64 to 1.65) and `late-block` (p99 727 to 718 ms).
+  `without-b` is the same. The figures in this document measured before 2026-11-20 ran without the
+  rule.
 
 ### 4.12 Which entry goes next
 
@@ -3012,7 +3049,7 @@ median, from 2.4 % shorter to 3.3 % longer); with 30 % withholders at 10 Mbps, o
 | §6.2 `gated` | `on_offer`, `filter_entry` | per interest |
 | §6.4 `on_pace_tick` | §4.8 | |
 | §7.2 `filter_entry`, `rarest` | `send`, `enqueue`; §4.12 | `rarest` unchanged; the writer takes a source's own chunks first (§4.12); `filter_entry` is this document's (§4.6): v0.5's promise starts when an ask on an offer is written; an ask sent as a `Want` (`want`, §3), a sampler's, a routed request's or the repair sample's, starts none (§4.10), but a claim's probe starts one (§4.6), and under the alarm option the member's ask of the claimant too |
-| §7.1 the window, §7.2 `next_to_send` | §4.11 | one window per node over every object type, counted in bytes; the entry is chosen before the room is taken; JOINs, GRAFTs and PRUNEs a full queue refused are queued first, in order (§4.1) |
+| §7.1 the window, §7.2 `next_to_send` | §4.11 | one window per node over every object type, counted in bytes; the entry is chosen before the room is taken; JOINs, GRAFTs and PRUNEs a full queue refused are queued first, in order (§4.1); the line skips a writer mid-write, and a writer in line that writes control first wakes the first other writer in line that can write, as v0.3's do (`front`; `wake_front` this document's own, in bytes; since 2026-11-20) |
 | §7.1 `projected` | §4.9 | reads the type's K; off for a type without a code |
 | §8.2 limits | §6.3 | plus relations and groups per slot |
 

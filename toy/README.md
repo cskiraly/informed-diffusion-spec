@@ -316,7 +316,8 @@ where one has a control that must come out the other way, it is named:
   sends its other peers their chunks, or has none left for them; the stalled peer gets no more
   chunks, and control still flows. The control: the same run with the peer reading. It fails on the
   toy whose `acquire_slot` admitted only the line's first writer: every slot free, the line held, and
-  chunks left waiting in the other peers' queues.
+  chunks left waiting in the other peers' queues. With `--doc v2`, the same on `protocol-v2.md`'s
+  window in bytes (its §4.11, `acquire_room`), which failed the same way before it took the rule.
 
 An edit that should change nothing must leave every digest as it is. An edit that changes behaviour
 shows which cells moved, with their warm medians before and after; `python3 check.py --update` then

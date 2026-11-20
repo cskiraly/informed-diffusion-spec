@@ -9,7 +9,8 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 
 The Lean twin of `protocol.md`'s Python comes into the repository as a draft, and `formal/README.md`
 opens with a map of how the checks fit together. `protocol.md` changes one rule: a writer that
-cannot write no longer holds the window's line (§7.1). The toy's monitors are brought up to date.
+cannot write no longer holds the window's line (§7.1), and `protocol-v2.md` carries the rule into
+its window in bytes (§4.11). The toy's monitors are brought up to date.
 
 `protocol.md`:
 - **A writer that cannot write does not hold the window's line** (§7.1, §7.2). The line is first
@@ -23,13 +24,27 @@ cannot write no longer holds the window's line (§7.1). The toy's monitors are b
   changes. The helper list gains `writing`, a Rationale closes §7.1, and §9's note on the measured
   implementation's line follows the rule.
 
+`protocol-v2.md`:
+- **The window's line skips a writer mid-write** (§4.11), as `protocol.md` §7.1's does:
+  `acquire_room` admits the first waiter whose writer can write (`front`), and `leave_line` and
+  `free_room` wake that one (`wake_front`, this document's own over the window in bytes), where only
+  the line's first writer could take room; and a writer in line that writes control (an urgent
+  entry, or owed offers on their own) first wakes the first other writer in line that can write
+  (`next_to_send`). A peer that stopped reading while its writer headed the line held all free room,
+  and the node sent no chunk to any other peer.
+
 The toy:
 - **A known answer for the window's line** (`toy/line_stall_known.py`): a peer that stops reading
   while its writer heads the window's line no longer holds the node's chunks to its other peers
   (§7.1, §7.3); it fails on the toy before the fix.
 - **`golden.txt` moves** as an intended change: every cell but `without-b`, most by their digests
   alone, and `loss-thin`, `ihave-limits` and `late-block` by their printed figures too, slightly.
-  `golden-v2.txt` does not move with this rule: `protocol-v2.md`'s window is its own.
+  `golden-v2.txt` moves with `protocol-v2.md`'s own rule (its §4.11), against v0.10.6's: twelve
+  cells by their digests alone, and `loss-thin` (p50 807 to 814 ms, p99 922 to 894 ms) and
+  `late-block` (p99 727 to 718 ms) by their printed figures too; `without-b` is the same.
+- **The same known answer under `protocol-v2.md`** (`line_stall_known.py --doc v2`), on its window
+  in bytes: it fails on that document before its §4.11 took the rule. The toy's `--answers line`
+  option wakes the same way (`wake_front`).
 
 `formal/`:
 - **The Lean twin, a draft** (`formal/twin/`): a transcription of `protocol.md`'s Python into Lean,
