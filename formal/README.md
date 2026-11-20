@@ -83,8 +83,9 @@ its own; on its own it proves nothing. It is there to be checked against the cod
 trace replay, and linked to the Veil models on the other, by refinement.
 
 **Trace replay checks the twin against the code.** A tracer runs the toy and records, for each
-top-level call of a function the twin has, what the call read and wrote of the node's tables, what
-it asked of the rest of the node, and what it returned; the twin replays each call from the
+top-level call of a function that the trace selects (among those the twin has, where the node uses
+the implementation that the twin covers), what the call read and wrote of the node's tables, what it
+asked of the rest of the node, and what it returned or raised; the twin replays each call from the
 recorded state, with the recorded answers, and must read the entries the Python read, leave those it
 wrote as the Python left them, and return what it returned. `formal/twin/check.sh` passes at this
 commit. It builds the twin from nothing; traces one of `toy/check.py`'s cells, whose digest must be
@@ -98,26 +99,33 @@ twin copies a mistake of the code: it checks the copying, not the rules. The twi
 
 **The twin's record is in [`formal/twin/record/`](twin/record/).** It holds the outputs of one run
 of `record.sh`, which traces every cell of `toy/check.py` under both documents, the hand runs and
-the directed sets, and replays each trace through the twin. It also holds the matrix of the mutants,
+the directed sets, and replays each trace through the twin. The traces themselves are not kept:
+`manifest/hashes.txt` there names each by its two hashes. It also holds the matrix of the mutants,
 which shows which mutants part of those traces tell from the twin. Its
-[`RECORD.md`](twin/record/RECORD.md) says what the record ran, what it shows and what it does not
-show.
+[`RECORD.md`](twin/record/RECORD.md) says what else the directory holds, what the record ran, what
+it shows and what it does not show.
 
 **Refinement, from the twin to the Veil models, has a first piece.** A refinement proof would show
 that the twin's initial states and each of its steps, projected onto a model's state, are states and
 steps the model allows; the model's invariants would then hold for the twin, and its other results
 where their assumptions, fairness among them, hold for the projected runs.
 [`formal/refine/`](refine/) holds a first piece, whose README states its narrow scope. It relates
-the twin's side of the asking path of §6.1 to one Veil model, `NoStallEquiv`. In the cases that its
-theorems cover, and read through an abstraction, a retry timer firing in the twin (`retry_offer`) is
-a step of that model's generated transition `retryAsk` or `retryNoop`, and a promise falling due
-(`promise_due`) is its `promiseDue` or `parkOther`. For a run of the twin whose first state, read
-through the abstraction, satisfies the model's `Invariants`, the package proves that every later
-state, read the same way, does too. It takes as hypotheses the model's own statements that those
-four actions keep `Invariants` (and, for a run that starts in an initial state of the model, that
-its initializer gives them), and that `Invariants` holds again after every other change of the
-twin's state that the abstraction sees. It is not a proof that the twin satisfies the model's
-properties.
+the twin's side of the asking path of §6.1 to one Veil model, `NoStallEquiv`, through an abstraction
+of the twin at one node and one chunk. In the cases that its theorems cover, a retry timer firing in
+the twin (`retry_offer`) that changes the abstraction is a step of that model's generated transition
+`retryAsk` or `retryNoop`, and a promise falling due (`promise_due`) that changes it is `promiseDue`
+or `parkOther`. A firing that leaves the abstraction as it was, such as a retry of another chunk or
+a promise of another group, is the model's stutter. A run, as the package defines it, is a finite
+sequence of steps of three kinds: a covered retry timer firing, with the premises of its theorem; a
+change that leaves the abstraction as it was; and any other change, after which the abstraction must
+satisfy the model's `Invariants`. For a promise falling due, in the cases that its theorems cover,
+the package proves this from `Invariants` before the step. For such a run whose first state
+satisfies `Invariants`, read through the abstraction, the package proves that every later state does
+too. This result takes as hypotheses the model's own statements that `retryAsk` and `retryNoop` keep
+`Invariants`; those for `promiseDue` and `parkOther` serve the proof for a promise falling due. A
+second result, for a run whose first state is an initial state of the model, read through the
+abstraction, takes the model's statement for its initializer in place of the assumption on the first
+state. It is not a proof that the twin satisfies the model's properties.
 
 **At this commit.** Together, the links are meant to carry the proofs to the code: properties proved
 of the models, refinement showing that the twin behaves as the models do, and replay that the code

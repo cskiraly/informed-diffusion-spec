@@ -15,16 +15,19 @@ moves.
 `formal/`:
 - **The twin's record** (`formal/twin/record/`): the outputs of one run of `record.sh`, which traces
   every cell of the toy under both documents, the hand runs and the directed sets, and replays each
-  trace through the twin; and the matrix of the mutants, which shows which mutants part of those
-  traces tell from the twin. `RECORD.md` there says what the record ran, what it shows and what it
-  does not show. The twin's README and `formal/README.md` no longer call the twin a draft.
+  trace through the twin (the traces themselves are not kept: `manifest/hashes.txt` names each by
+  its two hashes); and the matrix of the mutants, which shows which mutants part of those traces
+  tell from the twin. `RECORD.md` there says what else the directory holds, what the record ran,
+  what it shows and what it does not show. The twin's README and `formal/README.md` no longer call
+  the twin a draft.
 - **The twin's tools name each document by its code** (`formal/twin/tools/content.py`, version 2).
   The first line of a trace names each document by the SHA-256 of the code that the toy runs from
   it, the text that `toy/extract.py` makes of it, and each other file of the toy and of the tools by
-  the SHA-256 of its bytes, Markdown files and `__pycache__` directories left out. So an edit of the
-  prose of a document, other than a heading over a code block, or an edit of a README, leaves the
-  first line as it was. A heading over a code block is part of the code, which holds each block
-  under its heading. The replay reads a first line of either version, and passes a trace only if its
+  the SHA-256 of its bytes, Markdown files and `__pycache__` directories left out. So the first line
+  stays as it was while the code that `toy/extract.py` makes of each document stays the same,
+  whatever else of the document or of a README changes. A heading over a code block is part of that
+  code, which holds each block under its heading, and so is which blocks are `python` blocks, as
+  their fences say. The replay reads a first line of either version, and passes a trace only if its
   first line is the one it is given. Most citations of the documents in the twin and its tools now
   name sections instead of line numbers.
 - **The twin's other tools change too.** The tracer reads its command line as the toy's own parser
@@ -34,14 +37,19 @@ moves.
   information only, and `tools/matrixdiff.py --common` compares two matrices over the mutants they
   share.
 - **The first piece of a refinement** (`formal/refine/`): a Lake package that relates the twin's
-  side of the asking path of §6.1 to the Veil model `NoStallEquiv`. In the cases that its theorems
-  cover, and read through an abstraction, a retry timer firing in the twin (`retry_offer`) is a step
-  of the model's `retryAsk` or `retryNoop`, and a promise falling due (`promise_due`) is its
-  `promiseDue` or `parkOther`. For a run of the twin whose first state, read through the
-  abstraction, satisfies the model's `Invariants`, the package proves that every later state, read
-  the same way, does too, under hypotheses its README names: the model's own statements for those
-  four actions and for its initializer, and `Invariants` after every other change of the twin's
-  state that the abstraction sees. It is not a proof that the twin satisfies the model's properties.
+  side of the asking path of §6.1 to the Veil model `NoStallEquiv`. Its abstraction reads the twin
+  at one node and one chunk. In the cases that its theorems cover, a retry timer firing in the twin
+  (`retry_offer`) that changes the abstraction is a step of the model's `retryAsk` or `retryNoop`,
+  and a promise falling due (`promise_due`) that changes it is `promiseDue` or `parkOther`; a firing
+  that leaves it as it was is the model's stutter. A run, as the package defines it, is a finite
+  sequence of covered retry timer firings, each with the premises of its theorem, of steps that
+  leave the abstraction as it was, and of other changes after which the model's `Invariants` is
+  assumed (or, for a promise falling due in the cases its theorems cover, proved). For such a run,
+  the package proves that the abstraction of every state satisfies `Invariants` if that of the first
+  does, given the model's own statements for `retryAsk` and `retryNoop`; those for `promiseDue` and
+  `parkOther` serve the proof for a promise falling due. A second result, for a run that starts in
+  an initial state of the model, takes the statement for its initializer in place of assuming
+  `Invariants` there. It is not a proof that the twin satisfies the model's properties.
 - **How the checks fit together** (`formal/README.md`): the map, the paragraphs on the Veil models,
   the twin, its record and refinement, "At this commit" and the list of files follow these changes.
 
