@@ -48,7 +48,8 @@ four nodes; checking v0.4 and the fixes proposed for it this way found the ten g
 v0.8 closed. Runtime monitors (`formal/toy/monitor.py`) check five of its safety properties on the
 code itself, on twelve of `toy/check.py`'s cells: W1 and W2 after each event, S1 and P4 (in a weaker
 form) at each transmission, and A1 on the run's count of penalties. W2 is asked of the line as
-`protocol.md` §7.1 has it: with a slot free, the first writer in line that can write will run.
+`protocol.md` §7.1 has it: with a slot free, the first writer in line that can write has a run
+queued.
 At this commit they find no violation in those cells at seeds 7 to 9, and each of their three known
 answers, a rule taken out of the document, makes its monitor fire. Beside the model,
 `formal/wire/check_wire.py` checks §1–§2's arithmetic, restated in the script from v0.4's and v0.5's
@@ -213,9 +214,10 @@ Four ways of checking:
   closes at any time, a withholder's closes, expiry while asks are out, a group that expires while
   it decodes, an inconsistent code, and equivocation (with a store that keeps copies or refuses
   them, the switch late, and the providers' answers spent before the switch).
-- **Toy**: monitors wrapped around the toy (`toy/monitor.py`) check after every event of twelve of
-  `check.py`'s 60-node cells, seeds 7–9, about 47 million events at this commit; every node
-  completes. The toy installs every block at its publish, nothing expires or closes there and its
+- **Toy**: monitors wrapped around the toy (`toy/monitor.py`) run twelve of `check.py`'s 60-node
+  cells, seeds 7–9, about 47 million events at this commit, and check W1 and W2 after each event at
+  a node, S1 and P4 at each transmission, and A1 over the run; every node completes. The toy
+  installs every block at its publish, no group expires and no connection closes there, and its
   queues have no limit, so C′, D′ and the last three rules above do not act there: the model checks
   them.
 

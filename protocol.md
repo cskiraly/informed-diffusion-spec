@@ -1773,14 +1773,14 @@ def free_slot():
 **The window** bounds the chunks a node has in flight, to all its peers together. It has `W` slots,
 shared by all of the node's peers, sized from the node's configured uplink:
 what the uplink sends in `RTT_REF` + `TARGET`, in chunks of `CHUNK_BYTES`. A peer's writer takes a
-slot before it sends a chunk (`acquire_slot`, §7.2); when none is free it waits in line, first come
-first served over the peers, and keeps its place while it waits. A slot goes to the first writer in
-line that can write (`front`): a writer whose write has not completed (`writing`, §7.3) keeps its
-place, and the writers behind it may take slots before it until its write completes. A writer in
-line that writes control instead of taking a slot first wakes the first other writer in line that
-can write, since its own write may not complete (`wake_front`, §7.2). The slot then travels with the
-chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue's closing frees it
-(below).
+slot before it sends a chunk (`acquire_slot`, §7.2). It takes a free one if it is the first writer
+in line that can write (`front`), or if no writer in line can write; otherwise it waits in line,
+first come first served over the peers, and keeps its place while it waits. A writer whose write
+has not completed (`writing`, §7.3) keeps its place, and the writers behind it may take slots before
+it until its write completes. A writer in line that writes control instead of taking a slot first
+wakes the first other writer in line that can write, if a slot is free, since its own write may not
+complete (`wake_front`, §7.2). The slot then travels with the chunk until the peer is known to hold
+it, or until `WINDOW_TIMEOUT` or the queue's closing frees it (below).
 
 - **What takes a slot:** a chunk sent on the normal lane, push or answer.
 - **What gives it back:** a HAVE from that peer that newly covers the chunk's index (§4.3), or
@@ -1800,9 +1800,9 @@ chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue
 #### Rationale
 
 **First come, first served over the peers.** One window serves all of a node's peers, and the line
-decides whose writer takes a slot that frees. In the order they came, no writer waits behind one
-that came after it. A writer keeps its place when an urgent entry wakes it (§7.2), so the control it
-writes while it waits does not send it to the back.
+decides whose writer takes a slot that frees. In the order they came, no writer that can write waits
+behind one that came after it. A writer keeps its place when an urgent entry wakes it (§7.2), so the
+control it writes while it waits does not send it to the back.
 
 **A writer that cannot write does not hold the line.** The queues are per peer; only the window is
 shared. A writer whose write has not completed cannot use a slot until its transport takes more
@@ -1823,7 +1823,7 @@ holds the last resort off").
 One writer per peer. A queue entry carries at most one chunk, and may also carry control; the writer
 writes it as one frame (§2). A client may merge the control of several entries into one frame, as
 §5.1 (HAVEs), §5.4 and §8.3 (announcements) and §6.4 (asks) allow. Each time the previous write to
-that peer has completed, and whenever the writer is woken (a slot freed for it, or an urgent entry
+that peer has completed, and whenever the writer is woken (a slot is free for it, or an urgent entry
 arrived), it calls `next_to_send`: an entry to write, `None` when there is nothing to send, or
 `WAIT` when it waits in line for a slot.
 

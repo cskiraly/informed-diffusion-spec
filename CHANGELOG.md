@@ -63,10 +63,10 @@ The toy:
   `twin/`.
 - **The toy's monitors, brought up to date** (`formal/toy/monitor.py`). W2, the window's wake-up, is
   asked of the line as §7.1 now has it: with a slot free, the first writer in line that can write
-  will run. It had asked it of the line's first writer, so it flagged a writer whose write had not
-  completed (§7.3), and all its reports were that case; reading it found the case §7.1's rule now
-  closes. The known answers take their rule out of the code, each matching once, and name the
-  property each must break; two had stopped matching the document's text, and their runs failed
+  has a run queued. It had asked it of the line's first writer, so it flagged a writer whose write
+  had not completed (§7.3), and all its reports were that case; reading it found the case §7.1's
+  rule now closes. The known answers take their rule out of the code, each matching once, and name
+  the property each is to break; two had stopped matching the document's text, and their runs failed
   while the harness still reported no violation. It now exits 1 when a run fails, when a run without
   a known answer finds a violation, or when a known answer's property is not caught. At this commit
   the twelve cells show no violation at seeds 7 to 9, and each known answer is caught.
