@@ -103,7 +103,7 @@ needs the acknowledgement to do nothing at `PUBLISH`: with `origin_acked` acting
 takes `publish` too: the draft's `SOURCE_OFFERS` (§4.7). The option's other values, `off` and
 `late`, act only on offers `publish` itself makes, so since v0.9's rule they change nothing.
 
-Thirty-nine scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
+Forty scripts hold known answers for what a digest cannot show. Each is a check that can fail, and
 where one has a control that must come out the other way, it is named:
 - `own_order_known.py`: §6.1's reference order; its control, the rank read big-endian, must differ.
 - `ihave_id_known.py`: §4.4, an IHAVE id that is not a chunk's id; a valid id beside it must leave an
@@ -129,6 +129,11 @@ where one has a control that must come out the other way, it is named:
   one at its first write and at a write again. It runs `protocol-v2.md`; the document's
   `filter_entry` started a promise for every ask until the rule was in its code, which the toy had
   kept in a wrapper.
+- `control_wake_known.py`: `protocol-v2.md` §4.11, a writer in the window's line that writes a
+  control-only entry of the normal lane first wakes the first other writer in line that can write,
+  as for an urgent entry: with two writers in line and the window empty, the second gets a run. The
+  control: the first not in line, and nothing is woken. It runs `protocol-v2.md`; it fails on the
+  document before that path woke anyone.
 - `second_id_known.py`: §4.2, in both documents, a copy under an id the node has not seen, at an
   index it has already received, is acknowledged and neither forwarded nor put in the gossip
   history; a copy of an index held only as rebuilt is still forwarded, and the publisher's first

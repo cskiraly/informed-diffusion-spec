@@ -2807,6 +2807,7 @@ def next_to_send(p):                  # v0.3 §7.2, with the chunk chosen before
             if out.chunk:
                 track_in_flight(p, out.chunk, need)            # [c14] the room travels with the chunk
                 if SOURCE_OFFERS == PUBLISH: origin_written(out.chunk)   # §4.7: the holding at the first write
+            elif p in waiters: wake_front(past=p)              # control from a writer in line: as for an urgent entry
             return with_owed(p, out)                           # owed offers ride along
 ```
 
@@ -2825,10 +2826,10 @@ come, first served over peers, and keep their place while they wait. A writer wh
 completed (`writing`, as `protocol.md` §7.3 and its helpers define it) keeps its place but not the
 front: `acquire_room` admits the first waiter whose writer can write (`front`), and every wake goes
 to that one (`wake_front`, here over the window in bytes: only while room is free). A writer in line
-that writes control instead (an urgent entry, or owed offers on their own) first wakes the first
-other writer in line that can write, since its own write may not complete (`next_to_send`). Without
-this, a peer that stops reading while its writer heads the line holds all free room, and the node
-sends no chunk to any other peer.
+that writes control instead (an urgent entry, owed offers on their own, or a control-only entry of
+the normal lane) first wakes the first other writer in line that can write, since its own write may
+not complete (`next_to_send`). Without this, a peer that stops reading while its writer heads the
+line holds all free room, and the node sends no chunk to any other peer.
 
 **Below the writer** (v0.9 §7.3, as written). A writer should hand a chunk to the transport only
 while the connection has less than one chunk unsent. The backlog then waits in the queue, where
@@ -2893,7 +2894,11 @@ column cells by at most 36 ms at the median (seed 7).
 - *The control wake.* A burst of urgent entries woke writers in line that each blocked on its write,
   and free room went to nobody. `protocol.md`'s monitor (its W2) found this in `loss-thin`. So a
   writer in line that writes control first wakes the first other writer in line that can write, as
-  `protocol.md`'s does. `wake_front` is this document's own, since its room is counted in bytes
+  `protocol.md`'s does. Here control has a third path, a control-only entry of the normal lane,
+  which takes no room and reaches the lane's head when a writer's queued chunks are discarded (a
+  dropped or expired group); it wakes the same way (`control_wake_known.py`, which fails without
+  it). `protocol.md` has no such path: its control-only entry gives back the writer's slot
+  (`release_unused_slot`). `wake_front` is this document's own, since its room is counted in bytes
   (`W_BYTES`), where `protocol.md`'s counts slots.
 - *The recorded cells* (`golden-v2.txt`, against v0.10.6's). Twelve move in their digest only:
   `push`, `hold`, `announce`, `none`, `withholders`, `silent`, `cap-wait`, `dcb20`, `rr-stripe`,

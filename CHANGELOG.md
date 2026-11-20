@@ -29,9 +29,9 @@ its window in bytes (§4.11). The toy's monitors are brought up to date.
   `acquire_room` admits the first waiter whose writer can write (`front`), and `leave_line` and
   `free_room` wake that one (`wake_front`, this document's own over the window in bytes), where only
   the line's first writer could take room; and a writer in line that writes control (an urgent
-  entry, or owed offers on their own) first wakes the first other writer in line that can write
-  (`next_to_send`). A peer that stopped reading while its writer headed the line held all free room,
-  and the node sent no chunk to any other peer.
+  entry, owed offers on their own, or a control-only entry of the normal lane) first wakes the first
+  other writer in line that can write (`next_to_send`). A peer that stopped reading while its writer
+  headed the line held all free room, and the node sent no chunk to any other peer.
 
 The toy:
 - **A known answer for the window's line** (`toy/line_stall_known.py`): a peer that stops reading
@@ -40,11 +40,15 @@ The toy:
 - **`golden.txt` moves** as an intended change: every cell but `without-b`, most by their digests
   alone, and `loss-thin`, `ihave-limits` and `late-block` by their printed figures too, slightly.
   `golden-v2.txt` moves with `protocol-v2.md`'s own rule (its §4.11), against v0.10.6's: twelve
-  cells by their digests alone, and `loss-thin` (p50 807 to 814 ms, p99 922 to 894 ms) and
-  `late-block` (p99 727 to 718 ms) by their printed figures too; `without-b` is the same.
+  cells by their digests alone, and `loss-thin` (p50 807 to 814 ms, p99 922 to 894 ms, copies 1.64
+  to 1.65) and `late-block` (p99 727 to 718 ms) by their printed figures too; `without-b` is the
+  same.
 - **The same known answer under `protocol-v2.md`** (`line_stall_known.py --doc v2`), on its window
   in bytes: it fails on that document before its §4.11 took the rule. The toy's `--answers line`
   option wakes the same way (`wake_front`).
+- **A known answer for v2's third control path** (`control_wake_known.py`): a writer in line that
+  writes a control-only entry of the normal lane wakes the first other writer in line that can
+  write; it fails on `protocol-v2.md` before that path woke anyone.
 
 `formal/`:
 - **The Lean twin, a draft** (`formal/twin/`): a transcription of `protocol.md`'s Python into Lean,
