@@ -70,10 +70,11 @@ names how SEACAST diffuses.
 - [`formal/twin/`](formal/twin/): a transcription of `protocol.md`'s Python into Lean, function by
   function, executable, checked against the toy by trace replay. `check.sh`, which builds the twin,
   replays small traces of the toy through it and runs controls that must fail, passes at this
-  commit. The twin's record is in `formal/twin/record/`: every cell of the toy traced under both
-  documents, the hand runs and the directed sets, each trace replayed through the twin, and the
-  matrix of the mutants, which shows which mutants part of those traces tell from the twin. Its
-  [`RECORD.md`](formal/twin/record/RECORD.md) says what the record shows and what it does not.
+  commit. The twin's record is in `formal/twin/record/`. It holds the hashes and the replay reports
+  of every cell of the toy traced under both documents, of the hand runs and of the directed sets,
+  each trace replayed through the twin, and the matrix of the mutants, which shows which mutants
+  part of those traces tell from the twin. Its [`RECORD.md`](formal/twin/record/RECORD.md) says
+  what the record shows and what it does not.
 - [`formal/refine/`](formal/refine/): a first piece of a refinement from the twin to a Veil model,
   on the asking path of §6.1, with the narrow scope its README states. It is not a proof that the
   twin satisfies the model's properties.

@@ -8,8 +8,9 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 ## v0.10.8, 2026-11-20
 
 The Lean twin's record comes into the repository, and the twin is no longer called a draft.
-`formal/refine/` holds the first piece of a refinement from the twin to a Veil model. `protocol.md`,
-`protocol-v2.md` and the toy do not change, so no rule and no figure moves.
+`formal/refine/` holds the first piece of a refinement from the twin to a Veil model. No rule, value
+or code of `protocol.md` or `protocol-v2.md` changes, and the toy does not change, so no figure
+moves.
 
 `formal/`:
 - **The twin's record** (`formal/twin/record/`): the outputs of one run of `record.sh`, which traces
@@ -21,17 +22,26 @@ The Lean twin's record comes into the repository, and the twin is no longer call
   The first line of a trace names each document by the SHA-256 of the code that the toy runs from
   it, the text that `toy/extract.py` makes of it, and each other file of the toy and of the tools by
   the SHA-256 of its bytes, Markdown files and `__pycache__` directories left out. So an edit of the
-  prose of a document, or of a README, leaves a trace as it was. The tools cite the documents by
-  section, not by line number.
+  prose of a document, or of a README, leaves the first line as it was. The replay reads a first
+  line of either version, and passes a trace only if its first line is the one it is given. Most
+  citations of the documents in the twin and its tools now name sections instead of line numbers.
+- **The twin's other tools change too.** The tracer reads its command line as the toy's own parser
+  reads it. With `--sample drafts`, a part of the matrix runs every mutant of the part on the
+  directed sets and a sample of them on the cells, for a draft; the merge of a matrix refuses such a
+  part. `tools/against.py` reports a difference in the SHA-256 of the bytes of a document, for
+  information only, and `tools/matrixdiff.py --common` compares two matrices over the mutants they
+  share.
 - **The first piece of a refinement** (`formal/refine/`): a Lake package that relates the twin's
-  side of the asking path of §6.1 to the Veil model `NoStallEquiv`. Read through an abstraction, a
-  retry timer firing in the twin (`retry_offer`) is a step of the model's `retryAsk` or
-  `retryNoop`, and a promise falling due (`promise_due`) is its `promiseDue` or `parkOther`. The
-  package carries the model's `Invariants` along a run of the twin, under hypotheses its README
-  names: the model's own preservation statements, and `Invariants` after every other change of the
-  twin's state. It is not a proof that the twin satisfies the model's properties.
-- **How the checks fit together** (`formal/README.md`): the map, the paragraphs on the twin, its
-  record and refinement, "At this commit" and the list of files follow these changes.
+  side of the asking path of §6.1 to the Veil model `NoStallEquiv`. In the cases that its theorems
+  cover, and read through an abstraction, a retry timer firing in the twin (`retry_offer`) is a step
+  of the model's `retryAsk` or `retryNoop`, and a promise falling due (`promise_due`) is its
+  `promiseDue` or `parkOther`. For a run of the twin whose first state, read through the
+  abstraction, satisfies the model's `Invariants`, the package proves that every later state, read
+  the same way, does too, under hypotheses its README names: the model's own statements for those
+  four actions and for its initializer, and `Invariants` after every other change of the twin's
+  state that the abstraction sees. It is not a proof that the twin satisfies the model's properties.
+- **How the checks fit together** (`formal/README.md`): the map, the paragraphs on the Veil models,
+  the twin, its record and refinement, "At this commit" and the list of files follow these changes.
 
 `README.md`:
 - **`formal/`'s bullets**: `formal/twin/` is no longer called a draft and points to its record, and

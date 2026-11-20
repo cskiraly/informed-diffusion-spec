@@ -64,13 +64,13 @@ stall (Q1) as inductive invariants whose conditions Lean's kernel checks, with t
 completes Q1 in plain Lean; that the transport and the asking go quiet once the environment stops
 (Q3), with finitely many nodes, under weak fairness; and agreement, in plain Lean. These are proofs
 about the models, which have v0.8's rules: their README lists the rules `protocol.md` changed since,
-and whether each result carries over to them is not checked. Each result holds under the
-assumptions that README states (with malicious peers, relabelled copies are excluded). The models'
-traces also show a run that `protocol.md` §6.1 leaves open, an announcer that is never parked
-holding the last resort off; that the run is fair is read from the traces by inspection, not
-proved. Being written by hand, the models can drift from the code. Nothing in this repository checks
-them against the code; a first piece of refinement (below) relates one of them to the twin, on a
-narrow scope.
+and whether each result carries over to them is not checked. Each result holds under the assumptions
+that README states (with malicious peers, relabelled copies are excluded). The models' traces also
+show a run that `protocol.md` §6.1 leaves open, an announcer that is never parked holding the last
+resort off; that the run is fair is read from the traces by inspection, not proved. Being written by
+hand, the models can drift from the code. No check compares them with the code directly: trace
+replay checks the code against the twin, and a first piece of refinement relates one of the models
+to the twin, on a narrow scope (both below).
 
 **The twin transcribes the code into Lean.** [`formal/twin/`](twin/) is a
 transcription of `protocol.md`'s Python into Lean, function by function, executable: every function
@@ -108,14 +108,16 @@ that the twin's initial states and each of its steps, projected onto a model's s
 steps the model allows; the model's invariants would then hold for the twin, and its other results
 where their assumptions, fairness among them, hold for the projected runs.
 [`formal/refine/`](refine/) holds a first piece, whose README states its narrow scope. It relates
-the twin's side of the asking path of §6.1 to one Veil model, `NoStallEquiv`. Read through an
-abstraction, a retry timer firing in the twin (`retry_offer`) is a step of that model's generated
-transition `retryAsk` or `retryNoop`, and a promise falling due (`promise_due`) is its `promiseDue`
-or `parkOther`. For a run of the twin whose first state, read through the abstraction, satisfies the
-model's `Invariants`, the package proves that every later state does too. It takes as hypotheses the
-model's own statements that its initializer gives `Invariants` and those four actions keep them, and
-that `Invariants` holds again after every other change of the twin's state that the abstraction
-sees. It is not a proof that the twin satisfies the model's properties.
+the twin's side of the asking path of §6.1 to one Veil model, `NoStallEquiv`. In the cases that its
+theorems cover, and read through an abstraction, a retry timer firing in the twin (`retry_offer`) is
+a step of that model's generated transition `retryAsk` or `retryNoop`, and a promise falling due
+(`promise_due`) is its `promiseDue` or `parkOther`. For a run of the twin whose first state, read
+through the abstraction, satisfies the model's `Invariants`, the package proves that every later
+state, read the same way, does too. It takes as hypotheses the model's own statements that those
+four actions keep `Invariants` (and, for a run that starts in an initial state of the model, that
+its initializer gives them), and that `Invariants` holds again after every other change of the
+twin's state that the abstraction sees. It is not a proof that the twin satisfies the model's
+properties.
 
 **At this commit.** Together, the links are meant to carry the proofs to the code: properties proved
 of the models, refinement showing that the twin behaves as the models do, and replay that the code
