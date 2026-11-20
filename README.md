@@ -41,8 +41,8 @@ names how SEACAST diffuses.
 - [`formal/`](formal/): the checks of `protocol.md` beyond the toy, and the map of how they fit
   together. Beside the proofs and the twin below: a Quint model of §4–§7 at v0.5's rules, checked on
   small instances by TLC and random simulation; monitors of five of its safety properties on the
-  toy, recorded at v0.5 and not brought up to date since; and a check of §1–§2's arithmetic over
-  every compressed length of a coded group and the extremes of each plain one.
+  toy; and a check of §1–§2's arithmetic over every compressed length of a coded group and the
+  extremes of each plain one.
 - [`formal/veil/`](formal/veil/): properties of v0.8's rules, proved in Veil for any number of
   nodes, groups and chunks:
   - A1, an honest node is never penalised: for an ask, for a chunk that fails level 1, or for a

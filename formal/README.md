@@ -45,13 +45,12 @@ Outside the toy, nothing here checks its own functions.
 models §4–§7 for one group, written by hand at v0.4's rules with v0.5's as switches. TLC explores
 its smallest instances, exhaustively or to a depth, and random simulation samples runs of three or
 four nodes; checking v0.4 and the fixes proposed for it this way found the ten gaps that v0.5 and
-v0.8 closed. Runtime monitors (`formal/toy/monitor.py`) were written to check five of its safety
-properties on the code itself, on twelve of `toy/check.py`'s cells: W1 and W2 after each event, S1
-and P4 (in a weaker form) at each transmission, and A1 on the run's count of penalties. Their
-recorded run, below, is of the document at v0.5, and they have not been brought up to its later
-versions: at this commit the monitor of W2 reports violations, about as many with its known answer
-as without, and two of the three known answers no longer find the lines they change. Whether the
-W2 reports come from the monitor or from the document is not yet examined. Beside the model,
+v0.8 closed. Runtime monitors (`formal/toy/monitor.py`) check five of its safety properties on the
+code itself, on twelve of `toy/check.py`'s cells: W1 and W2 after each event, S1 and P4 (in a weaker
+form) at each transmission, and A1 on the run's count of penalties. W2 is asked of the line as
+`protocol.md` §7.1 has it: with a slot free, the first writer in line that can write will run.
+At this commit they find no violation in those cells at seeds 7 to 9, and each of their three known
+answers, a rule taken out of the document, makes its monitor fire. Beside the model,
 `formal/wire/check_wire.py` checks §1–§2's arithmetic, restated in the script from v0.4's and v0.5's
 rules, for every compressed length of a coded group and, for plain groups, the shortest and the
 longest of each K. [The Quint model](#the-quint-model), below, gives the instances, the results and
@@ -214,18 +213,18 @@ Four ways of checking:
   closes at any time, a withholder's closes, expiry while asks are out, a group that expires while
   it decodes, an inconsistent code, and equivocation (with a store that keeps copies or refuses
   them, the switch late, and the providers' answers spent before the switch).
-- **Toy**, on the document at v0.5 (for this commit, see the map above): monitors wrapped around the
-  toy (`toy/monitor.py`) check after every event of twelve of `check.py`'s 60-node cells, seeds 7–9,
-  about 36 million events; every node completes. The
-  toy installs every block at its publish, nothing expires or closes there and its queues have no
-  limit, so C′, D′ and the last three rules above do not act there: the model checks them.
+- **Toy**: monitors wrapped around the toy (`toy/monitor.py`) check after every event of twelve of
+  `check.py`'s 60-node cells, seeds 7–9, about 47 million events at this commit; every node
+  completes. The toy installs every block at its publish, nothing expires or closes there and its
+  queues have no limit, so C′, D′ and the last three rules above do not act there: the model checks
+  them.
 
 | | property | spec | checked by | result |
 |---|---|---|---|---|
 | A1 | No honest node penalises an honest one: an honest ask never arrives after the asker's HAVE named the chunk ("the claim wins") | §4.5, §4.1 | TLC (K = 2), simulation, toy | holds |
 | S1 | No ask leaves for a chunk the node holds, or after its pull stopped | §6.1, §6.2, §7.2 | TLC (K = 2), simulation, toy | holds |
 | W1 | `in_flight` is the writers holding a slot plus the chunks in `sent`, and at most W | §7.1 | TLC (K = 1, 2), simulation, toy | holds |
-| W2 | With a slot free and a writer waiting, the first in line will run | §7.1 | TLC (K = 1, 2), simulation, toy | holds |
+| W2 | With a slot free and a writer waiting, the first in line will run | §7.1 | TLC (K = 1, 2), simulation, toy | holds; the toy's monitor asks it of the first writer in line that can write, as `protocol.md` §7.1 has it (§7.3) |
 | P4 | Each HAVE the source writes names only chunks it has written, plus the receiver's first | §5.1 | TLC (K = 1, 2), simulation, toy | holds; the toy's monitor checks a weaker form: each HAVE from the source names at most one chunk it has not sent |
 | O1 | An announcement an honest node writes names only chunks it can serve | §4.4, §4.5 | TLC (K = 1), simulation | holds |
 | D1 | After `drop_group`, nothing of the group but HAVEs leaves the node | §3, §4.6 | simulation (an inconsistent code) | holds |
@@ -264,10 +263,9 @@ check catches it. The sweep has a row for each of F1 to F10 where the finding sh
 writer's ask filter, S1 and A1 fail (in TLC at the 14th state at K = 2); without either wake-up,
 W2; with IDONTWANT handled before IWANT on a coalescing transport, A1; with the source's HAVE
 unpaced, P4 (in TLC at the third state at K = 1); and without fairness TLC finds a run that stutters
-before it is quiet. L4 has no known answer. In the toy, at v0.5, three rules taken out of the
-extracted document made their monitors fire (`--break askfilter`: S1 and A1; `wake`: W2; `p4`: P4);
-W1 has no known answer there. The lines `askfilter` and `p4` take out left the document in v0.8 and
-v0.9.
+before it is quiet. L4 has no known answer. In the toy, three rules taken out of the extracted
+document make their monitors fire (`--break askfilter`: S1 and A1; `wake`: W2; `p4`: P4); W1 has no
+known answer there.
 
 ### The findings, and v0.5
 
@@ -339,8 +337,8 @@ writes the same for the invariants it is given:
 The toy's monitors and the wire's arithmetic, from the repository's root:
 
 ```
-python3 -I formal/toy/monitor.py --seeds 7,8,9 -j 6                       # at v0.5: no violation
-python3 -I formal/toy/monitor.py --cells push --seeds 7 --break askfilter  # at v0.5: S1, A1
+python3 -I formal/toy/monitor.py --seeds 7,8,9 -j 6                       # no violation expected
+python3 -I formal/toy/monitor.py --cells push --seeds 7 --break askfilter  # known answer: S1, A1
 python3 -I formal/wire/check_wire.py
 ```
 

@@ -1774,7 +1774,11 @@ def free_slot():
 shared by all of the node's peers, sized from the node's configured uplink:
 what the uplink sends in `RTT_REF` + `TARGET`, in chunks of `CHUNK_BYTES`. A peer's writer takes a
 slot before it sends a chunk (`acquire_slot`, §7.2); when none is free it waits in line, first come
-first served over the peers, and keeps its place while it waits. The slot then travels with the
+first served over the peers, and keeps its place while it waits. A slot goes to the first writer in
+line that can write (`front`): a writer whose write has not completed (`writing`, §7.3) keeps its
+place, and the writers behind it may take slots before it until its write completes. A writer in
+line that writes control instead of taking a slot first wakes the first other writer in line that
+can write, since its own write may not complete (`wake_front`, §7.2). The slot then travels with the
 chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue's closing frees it
 (below).
 
@@ -1792,6 +1796,27 @@ chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue
 - **Sizing:** the node sizes the window from its configured uplink. It does not need to be exact.
   *Segmented payload diffusion, card by card* (2026, card 14) gives what a window sized for twice
   the real uplink costs.
+
+#### Rationale
+
+**First come, first served over the peers.** One window serves all of a node's peers, and the line
+decides whose writer takes a slot that frees. In the order they came, no writer waits behind one
+that came after it. A writer keeps its place when an urgent entry wakes it (§7.2), so the control it
+writes while it waits does not send it to the back.
+
+**A writer that cannot write does not hold the line.** The queues are per peer; only the window is
+shared. A writer whose write has not completed cannot use a slot until its transport takes more
+(§7.3). If only the first writer in line could take a slot, such a writer at the front would hold
+every writer behind it: with a peer that stops reading, once the chunks in flight were acknowledged
+or timed out, the node would send no chunk to any other peer, though control would still flow.
+Passing it over changes only who takes a free slot; among the writers that can write, the order is
+still first come, first served. For the same reason a writer in line that writes control first wakes
+another that can write: if its write then does not complete, a free slot does not go unused. Taking
+it out of the line while it writes, and back in at the end, would free the line too, but a writer
+that writes control whenever an urgent entry wakes it would go to the back each time.
+`toy/line_stall_known.py` builds the case. Nothing in this version drops a peer for not reading; the
+same gap lets an announcer hold the last resort off (§6.1, "Open: an announcer that is never parked
+holds the last resort off").
 
 ### 7.2 Choosing what to send, at the moment of sending [c8, c9, c12, c14]
 
@@ -1873,8 +1898,10 @@ def projected(p, g):                                           # [c12]
 
 **What the writer sends** (`next_to_send`). It first queues an answer it owes, if the queue has room
 (§4.1). Urgent entries go first: HAVEs, acknowledgements, decode claims. With nothing on the normal
-lane, it sends what it owes the peer on its own, or nothing, and gives back a slot it held. When the
-normal lane holds a chunk, the writer takes a slot of the window first (§7.1), or waits in line for
+lane, it sends what it owes the peer on its own, or nothing, and gives back a slot it held. A writer
+waiting in line that writes an urgent entry, or owed offers on their own, first wakes the first
+other writer in line that can write, if a slot is free (`wake_front`, §7.1). When the normal lane
+holds a chunk, the writer takes a slot of the window first (§7.1), or waits in line for
 one. It then takes an entry, the rarest chunk first (card 9), and filters it (`filter_entry`):
 cancel and projection may drop its chunk, and the asks it carries lose those for chunks the node
 holds, no longer pulls, or has let expire, and those to a peer whose copy of the chunk waits (§4.2).
@@ -2304,7 +2331,8 @@ rerun does as this document does, the entry says so.
 - *Control waits behind the window.* While chunks are queued to a peer, that peer's IHAVE, IWANT,
   GRAFT and PRUNE on the normal lane wait for a slot, though they do not keep it. A writer waiting
   for a slot also lost its place in line whenever an urgent message arrived for it; this document
-  keeps its place (§7.1). Whether control should bypass the window is open. At home only the
+  keeps its place, and lets the writers behind it take free slots while its write has not completed
+  (§7.1). Whether control should bypass the window is open. At home only the
   source's window filled in the measured cells, so the other nodes were not affected.
 - *A slot frees when the peer holds the chunk from anyone,* not when our copy arrives. A decode
   claim frees all of that peer's slots at once.

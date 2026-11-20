@@ -8,7 +8,28 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 ## After v0.10.6, not yet released
 
 The Lean twin of `protocol.md`'s Python comes into the repository as a draft, and `formal/README.md`
-opens with a map of how the checks fit together. No rule, value or code of `protocol.md` changes.
+opens with a map of how the checks fit together. `protocol.md` changes one rule: a writer that
+cannot write no longer holds the window's line (§7.1). The toy's monitors are brought up to date.
+
+`protocol.md`:
+- **A writer that cannot write does not hold the window's line** (§7.1, §7.2). The line is first
+  come, first served, and only its first writer could take a slot that freed. A writer whose write
+  has not completed (§7.3) cannot use a slot, yet it kept that place: with a peer that stops reading
+  while its writer headed the line, no other writer took a slot, and once the chunks in flight were
+  acknowledged or timed out the node sent no chunk to any other peer, though control still flowed.
+  Now a free slot goes to the first writer in line that can write (`front`, `wake_front`), and the
+  writer passed over keeps its place; a writer in line that writes control first wakes another that
+  can write, since its own write may not complete. Where every write completes at once, nothing
+  changes. The helper list gains `writing`, a Rationale closes §7.1, and §9's note on the measured
+  implementation's line follows the rule.
+
+The toy:
+- **A known answer for the window's line** (`toy/line_stall_known.py`): a peer that stops reading
+  while its writer heads the window's line no longer holds the node's chunks to its other peers
+  (§7.1, §7.3); it fails on the toy before the fix.
+- **`golden.txt` moves** as an intended change: every cell but `without-b`, most by their digests
+  alone, and `loss-thin`, `ihave-limits` and `late-block` by their printed figures too, slightly.
+  `golden-v2.txt` does not move with this rule: `protocol-v2.md`'s window is its own.
 
 `formal/`:
 - **The Lean twin, a draft** (`formal/twin/`): a transcription of `protocol.md`'s Python into Lean,
@@ -23,12 +44,17 @@ opens with a map of how the checks fit together. No rule, value or code of `prot
   check, the Veil proofs and the twin with its replay each show at this commit, that refinement is
   not here yet, and what none of them yet proves: that `protocol.md`'s code has the properties
   proved of the models. The Quint model's text follows under its own heading, unchanged but for its
-  headings' level and the dates of the toy monitors' results, and the list of files gains `twin/`.
-- **The toy's monitors, dated** (`formal/README.md`): their recorded run is of the document at v0.5,
-  and they have not been brought up to its later versions. At this commit the monitor of the
-  window's wake-up (W2) reports violations, about as many with its known answer as without, and two
-  of the three known answers no longer find the lines they change, which left the document in v0.8
-  and v0.9. Whether the W2 reports come from the monitor or from the document is not yet examined.
+  headings' level and the toy monitors' results, now of this commit, and the list of files gains
+  `twin/`.
+- **The toy's monitors, brought up to date** (`formal/toy/monitor.py`). W2, the window's wake-up, is
+  asked of the line as §7.1 now has it: with a slot free, the first writer in line that can write
+  will run. It had asked it of the line's first writer, so it flagged a writer whose write had not
+  completed (§7.3), and all its reports were that case; reading it found the case §7.1's rule now
+  closes. The known answers take their rule out of the code, each matching once, and name the
+  property each must break; two had stopped matching the document's text, and their runs failed
+  while the harness still reported no violation. It now exits 1 when a run fails, when a run without
+  a known answer finds a violation, or when a known answer's property is not caught. At this commit
+  the twelve cells show no violation at seeds 7 to 9, and each known answer is caught.
 
 `README.md`:
 - **`formal/`'s bullets**: `formal/` is no longer described as the Quint model alone, `formal/twin/`
