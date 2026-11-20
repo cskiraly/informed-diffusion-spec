@@ -5,7 +5,7 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
-## After v0.10.6, not yet released
+## v0.10.7, 2026-11-20
 
 The Lean twin of `protocol.md`'s Python comes into the repository as a draft, and `formal/README.md`
 opens with a map of how the checks fit together. `protocol.md` changes one rule: a writer that
@@ -84,7 +84,7 @@ The toy:
 - **`formal/`'s bullets**: `formal/` is no longer described as the Quint model alone, `formal/twin/`
   gains a bullet, and "Where SEACAST stands" points to the map.
 
-## v0.10.6, 2026-11-19
+## v0.10.6, 2026-11-19 (`de7a028`)
 
 `protocol.md` names an open question in §1: whether the protocol fixes a coded group's compressed
 bytes. No rule, value or code of `protocol.md` changes.
