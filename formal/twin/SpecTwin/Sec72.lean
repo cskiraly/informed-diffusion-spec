@@ -3,16 +3,16 @@ import SpecTwin.Sec71
 import SpecTwin.Sec52
 import SpecTwin.Sec51
 
-/-! # protocol.md §7.2, "Choosing what to send, at the moment of sending" [c8, c9, c12, c14] (v0.10.4,
-spec 34f60f8, lines 1782–1843)
+/-! # protocol.md §7.2, "Choosing what to send, at the moment of sending" [c8, c9, c12, c14] (v0.10.7,
+lines 1831–1896)
 
-next_to_send's line at PUBLISH (line 1802, `if SOURCE_OFFERS == PUBLISH: origin_written(out.chunk)`) came with
+next_to_send's line at PUBLISH (line 1855, `if SOURCE_OFFERS == PUBLISH: origin_written(out.chunk)`) came with
 v0.10.4; `origin_written` is §5.1's (Sec51.lean). Every cell runs at ACK: the line runs in
 hand5-publish and directed7p.
 
 `next_to_send`, `filter_entry`, `with_owed`, `rarest` and `projected`, line for line. §7.1's window
-(`acquire_slot`, `release_unused_slot`, `track_in_flight`) and §5.2's `unpush` are the twin's own (Sec71.lean,
-Sec52.lean); §4.1's `pop_owed_answer` is a call on the tape; `peer_has`, `pushed` and `holders` are the twin's
+(`acquire_slot`, `release_unused_slot`, `track_in_flight`, and `wake_front` for a writer in line that writes an
+urgent entry or owed offers alone, v0.10.7) and §5.2's `unpush` are the twin's own (Sec71.lean, Sec52.lean); §4.1's `pop_owed_answer` is a call on the tape; `peer_has`, `pushed` and `holders` are the twin's
 own tables, read through Readers.lean. Python's meanings kept on purpose:
 - `and` short-circuits: `CANCEL and peer_has[p][g].has(i)` reads `peer_has` only with the card on, and
   `PROJECT and not entry.solicited and projected(p, g)` calls projected only for an unsolicited chunk;
@@ -159,6 +159,9 @@ def turn (p : Peer) : M m Turn := do
   match (← lane? p .urgent).getD [] with
   | e :: rest =>
     setLane p .urgent rest
+    -- `if p in waiters: wake_front(past=p)`, before the pop in the Python (wake_front reads no lane): a writer in
+    -- line writes one, whose write may not complete (§7.3): the next may take a slot
+    if (← waitersLine .line).contains p then wakeFront (some p)
     return .done (match ← withOwed p e with | some e => .entry e | none => .nothing)
   | [] => pure ()
   let normal := (← lane? p .normal).getD []
@@ -167,6 +170,8 @@ def turn (p : Peer) : M m Turn := do
     let _ ← owedRow? p                                      -- `out = with_owed(p, Entry()) if owed[p] else None`
     let owed ← allOwed p
     let out ← if owed.isEmpty then pure none else withOwed p QEntry.blank
+    if out.isSome then                                      -- `if out: if p in waiters: wake_front(past=p)`: as for
+      if (← waitersLine .line).contains p then wakeFront (some p)  --   an urgent entry
     if let some o := out then
       branch "next_to_send: owed offers alone"
       return .done (.entry o)

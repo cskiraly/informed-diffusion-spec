@@ -16,6 +16,7 @@ TRACED = ("owe", "note_push", "unpush", "announce",                 # PART1
           "origin_written",                                         # PARTC
           "acquire_slot", "release_unused_slot", "track_in_flight", "window_release", "window_timeout",
           "free_slot",                                              # PART5B
+          "front", "wake_front",                                    # PART7
           "origin_acked",                                           # PART5C
           "publish")                                                # PART6
 
@@ -531,29 +532,29 @@ PART5B = [
      "yes", "yes", "yes",
      "no slot ever comes back",
      "directed71, any free_slot record: the writes (in_flight); a cell's release of a send"),
-    ("free-slot-no-wake", "free_slot: the first writer in line not woken", SEC71,
-     "  | q :: _ => wake q                                        --   line tries again (§7.2)\n",
-     "  | _ :: _ => pure ()\n",
+    ("free-slot-no-wake", "free_slot: the first writer in line that can write not woken", SEC71,
+     '  wakeFront none                                            -- the first writer in line that can write tries again\n',
+     "",
      "yes", "no", "open",
      "a writer in line would wait for its next arrival to try again",
-     "directed71, a free_slot record with somebody in line: the tape (wake logged, not asked)"),
+     "directed71, a free_slot record with somebody in line that can write and a slot free: the tape (wake logged, not asked)"),
     ("acquire-over-the-window", "acquire_slot: a slot taken with the window full", SEC71,
-     "  if (← underW n) && (line.isEmpty || line.head? == some p) then    -- `in_flight < W and (not waiters or waiters[0] == p)`\n",
-     "  if (line.isEmpty || line.head? == some p) then\n",
+     '  let takes ← if ← underW n then do                         -- `in_flight < W and front() in (None, p)`: no writer\n',
+     "  let takes ← if true then do\n",
      "yes", "no", "open",
      "the window [c14] bounds nothing",
      "directed71, an acquire_slot record of the kind \"the window full\" with nobody in line: the return value"),
-    ("acquire-jumps-the-line", "acquire_slot: a slot taken past the writers in line", SEC71,
-     "  if (← underW n) && (line.isEmpty || line.head? == some p) then    -- `in_flight < W and (not waiters or waiters[0] == p)`\n",
-     "  if (← underW n) then\n",
+    ("acquire-jumps-the-line", "acquire_slot: a slot taken past the writers in line that can write", SEC71,
+     '      pure (q == none || q == some p)                       --   alone)\n',
+     "      pure true\n",
      "yes", "no", "open",
      "FIFO over peers: a later writer would overtake the first in line",
-     "directed71, an acquire_slot record of the kind \"another first\" with a slot free: the return value"),
+     "directed71, an acquire_slot record of the kind \"another the front\" with a slot free: the return value"),
     ("acquire-keeps-its-place", "acquire_slot: the writer that takes a slot stays in line", SEC71,
-     "    if !line.isEmpty then setWaitersLine .line rest\n", "",
+     '    if line.contains p then setWaitersLine .line (line.erase p)    -- `if p in waiters: waiters.remove(p)`\n', "",
      "yes", "no", "open",
      "the line would never shorten",
-     "directed71, an acquire_slot record of the kind \"the peer first in line\" with a slot free: the writes (the "
+     "directed71, an acquire_slot record of the kind \"the peer the front\" with a slot free: the writes (the "
      "line)"),
     ("acquire-count-not-raised", "acquire_slot: the count not raised", SEC71,
      "    setInFlight .count (n + 1)                              -- `in_flight += 1`\n", "",
@@ -561,11 +562,10 @@ PART5B = [
      "every writer gets a slot: no window",
      "directed71, an acquire_slot record that takes a slot: the writes (in_flight); every chunk's write in a cell"),
     ("acquire-next-not-woken", "acquire_slot: the next in line not woken where slots remain", SEC71,
-     "    | q :: _ => if ← underW (n + 1) then wake q             --   slots remain: the next in line takes one too\n",
-     "    | _ :: _ => pure ()\n",
+     '    wakeFront none                                          -- slots remain: the next in line takes one too\n', "",
      "yes", "no", "open",
      "a free slot would wait for the next release",
-     "directed71, an acquire_slot record of the kind \"the peer first in line, others behind\" with two slots free: "
+     "directed71, an acquire_slot record of the kind \"the peer the front, others behind\" with two slots free: "
      "the tape (wake logged, not asked)"),
     ("acquire-joins-the-line-twice", "acquire_slot: a waiting writer joins the line again", SEC71,
      "  if !line.contains p then setWaitersLine .line (line ++ [p])   -- a writer keeps its place while it waits\n",
@@ -960,7 +960,64 @@ PART6 = [
      'directed51, a record at node 4 with a target in the mesh: what announce reaches and reads for that peer'),
 ]
 
-ROWS = PART0 + PART1 + PART2 + PART4 + PARTB + PARTC + PART5B + PART5C + PARTR + PART6
+# v0.10.7's line (protocol.md §7.1 and §7.2 at spec 903f12b, fv-67's fix): front and wake_front, and the writer in
+# line that writes control. Written before any was built; C "open" where no cell's reach was counted
+PART7 = [
+    ("front-takes-a-writer-mid-write", "front: a writer mid-write taken for the first that can write (the line before v0.10.7)", SEC71,
+     '    if ← writing q then branch "front: a writer mid-write passed"   -- a writer whose write has not completed\n    else return some q                                      --   (§7.3) keeps its place\n',
+     "    let _ ← writing q\n    return some q\n",
+     "yes", "no", "open",
+     "a writer whose write has not completed holds the line's front: the head-of-line stall v0.10.7 removes "
+     "(toy/line_stall_known.py)",
+     "directed71, a front record of the kind \"a writer mid-write passed\": the return value"),
+    ("wake-front-wakes-a-writer-mid-write", "wake_front: a writer mid-write woken for the first that can write", SEC71,
+     '    if ← writing q then branch "wake_front: a writer mid-write passed"\n    else\n      wake q                                                -- `if q is not None: wake(q)`\n      return\n',
+     "    let _ ← writing q\n    wake q\n    return\n",
+     "yes", "no", "open",
+     "a free slot wakes a writer that cannot write, and the next that can waits for another",
+     "directed71, a wake_front record of the kind \"the first passed\": the tape (the wake of the writer mid-write)"),
+    ("wake-front-past-woken", "wake_front: `past` woken like any writer in line", SEC71,
+     '    if some q == past then continue                         --   not writing(q)), None)`: `past` is not asked\n', "",
+     "yes", "no", "open",
+     "a writer in line that writes control wakes itself, and the next that can write is not woken (903f12b's rule undone)",
+     "directed71, a wake_front record past the peer, the peer first in line and able to write, a slot free: the tape "
+     "(writing asked of the peer, its wake)"),
+    ("wake-front-with-no-slot", "wake_front: a writer woken with no slot free", SEC71,
+     '  if !(← underW (← inFlight .count)) then                   -- `if in_flight >= W: return`\n    branch "wake_front: no slot free"\n    return\n',
+     "  let _ ← inFlight .count\n",
+     "yes", "no", "open",
+     "a writer is woken to find the window full and goes back to its place: a turn for nothing",
+     "directed71, a wake_front record of the kind \"no slot free\" with somebody in line that can write: the tape "
+     "(wake logged, not asked)"),
+    ("release-next-not-woken", "release_unused_slot: the next in line that can write not woken when the peer leaves", SEC71,
+     '    wakeFront none                                          --   may take a free slot\n', "",
+     "yes", "no", "open",
+     "a writer that leaves the line with a slot free leaves it to nobody until the next release",
+     "directed71, a release_unused_slot record of the kind \"the next that can write woken\": the tape (wake logged, not "
+     "asked)"),
+    ("nts-urgent-no-wake", "next_to_send: a writer in line that writes an urgent entry wakes nobody", SEC72,
+     '    if (← waitersLine .line).contains p then wakeFront (some p)\n', "",
+     "yes", "no", "open",
+     "fv-67's: the writer in line writes control, its write blocks (§7.3), and the slot stays free while the next that "
+     "can write waits (the toy monitor's W2 in loss-thin at 1dc2d93)",
+     "directed7, a next_to_send record with an urgent entry, the peer in line, a slot free and another in line that "
+     "can write: the tape (wake logged, not asked)"),
+    ("nts-urgent-wakes-itself", "next_to_send: a writer in line that writes an urgent entry may wake itself", SEC72,
+     '    if (← waitersLine .line).contains p then wakeFront (some p)\n',
+     "    if (← waitersLine .line).contains p then wakeFront none\n",
+     "yes", "no", "open",
+     "the writer that writes control is woken in place of the next that can write",
+     "directed7, a next_to_send record with an urgent entry, the peer first in line and able to write, a slot free: "
+     "the tape (the wake of the peer)"),
+    ("nts-owed-alone-no-wake", "next_to_send: a writer in line that writes owed offers alone wakes nobody", SEC72,
+     '    if out.isSome then                                      -- `if out: if p in waiters: wake_front(past=p)`: as for\n      if (← waitersLine .line).contains p then wakeFront (some p)  --   an urgent entry\n', "",
+     "yes", "no", "open",
+     "as for an urgent entry: owed offers are control too",
+     "directed7, a next_to_send record of the kind owed offers alone, the peer in line, a slot free and another in "
+     "line that can write: the tape (wake logged, not asked)"),
+]
+
+ROWS = PART0 + PART1 + PART2 + PART4 + PARTB + PARTC + PART5B + PART5C + PARTR + PART6 + PART7
 assert len({r[0] for r in ROWS}) == len(ROWS), "a name twice"
 CYCLE2 = {r[0]: (r[1], r[2], r[3], r[4]) for r in ROWS}
 PRED = {r[0]: {"D": r[5], "H": r[6], "C": r[7], "why": r[8], "witness": r[9]} for r in ROWS}

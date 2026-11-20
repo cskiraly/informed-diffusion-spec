@@ -180,7 +180,7 @@ def shardJson (s : Shard) : Json :=
 /-- The questions kept as the record writes them (`Entry.call`). -/
 def callNames : List String :=
   ["sha256", "serialize", "snappy_block_encode", "pad_each", "rs_parity", "merkle_root", "merkle_proof", "content_id",
-   "connected", "group_bits", "wake", "tiebreak", "peer_id_bytes", "gossip_put",
+   "connected", "group_bits", "wake", "writing", "tiebreak", "peer_id_bytes", "gossip_put",
    "gossip_ids", "topic_peers", "mesh_has", "gossip_eligible", "sample_without_replacement",
    "mesh", "close_promises_of_group", "discard_queued", "discard_paced", "gossip_remove_group",
    "resolve", "chunk_of", "handle_graft_prune", "on_iwant",
@@ -743,6 +743,7 @@ instance : Node61 R where
     | some (.shuffled [] []) => if xs.isEmpty then return [] else asked s!"shuffled({xs})" (some (.shuffled [] []))
     | e => asked s!"shuffled({xs})" e
   wake p := askCall "wake" [p] nothing                       -- owe's, and the window's
+  writing p := askCall "writing" [p] fun j => j.getBool?     -- the window's line (§7.1's front)
   -- the push order's keys. The tie-break is asked by the chunk's id, as the record writes it
   tiebreak c p := askCall "tiebreak" [Json.str (match c.mid with | .id raw _ _ => raw | .want .. => ""), p]
     fun j => j.getNat?
@@ -982,7 +983,11 @@ def run (c : Consts) (replaced traced : List String) (r : Record) : Except Strin
     | "announce", #[p, .str g', b] => do
       exec (announce (← nat p) (← group g') (← nat b)) fun _ => return r.ret == .null
     -- §5.3's two
-    -- §7.1's six
+    -- §7.1's eight
+    | "front", #[] => do exec front fun v => return r.ret == (match v with | some q => Json.num q | none => Json.null)
+    | "wake_front", #[past] => do       -- `past`: none, or the writer in line that writes control
+      let past ← if past == .null then pure none else some <$> nat past
+      exec (wakeFront past) fun _ => return r.ret == .null
     | "free_slot", #[] => do exec freeSlot fun _ => return r.ret == .null
     | "acquire_slot", #[p] => do exec (acquireSlot (← nat p)) fun v => return v == (← r.ret.getBool?)
     | "release_unused_slot", #[p] => do exec (releaseUnusedSlot (← nat p)) fun _ => return r.ret == .null

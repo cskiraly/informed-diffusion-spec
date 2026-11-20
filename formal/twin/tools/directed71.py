@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §7.1's window (protocol.md lines 1704-1746, at spec 34f60f8): acquire_slot,
+"""Directed records for §7.1's window (protocol.md lines 1722-1770, v0.10.7): front, wake_front, acquire_slot,
 release_unused_slot, track_in_flight, window_release, window_timeout and free_slot. The toy's own functions are
 called in a toy node's namespace on generated states, and trace3.py's tracer logs each call with the node's whole
 state.
@@ -14,13 +14,17 @@ What the records reach that the cells do not, or that few do:
 - track_in_flight with a second copy still in flight (three cells, 66 calls): the slot goes back at once;
 - acquire_slot: the window full; a slot free and nobody in line; the peer first in line, with others behind and a
   slot left for the next or none; another peer first (it joins the line, or keeps its place);
+- the line's front (v0.10.7): writers mid-write (`writing`, from the node's writer_blocked, drawn) passed over, by
+  front and wake_front called by themselves (wake_front with `past` in half, next_to_send's form, and with no
+  slot free) and through acquire_slot, release_unused_slot and free_slot: the peer behind a writer mid-write takes
+  a slot; nobody in line can write; the first can;
 - free_slot at 0 (the count goes below zero: no state of the toy's, and the signed entry's reason), and with
   somebody in line;
 - a node with no window (W infinite: card 14 off): every count is under it.
 
 The states are in the toy's own forms: the count a number, the line a deque of peers, `sent` a dict from (peer,
 group, index) to the send's time, `slot_held` a peer's flag, `planned` a group's row. The scenario answers `after`
-(it arms nothing here); `wake` and `enqueue` are the toy's own. origin_acked is the document's, the twin's own:
+(it arms nothing here); `wake`, `writing` and `enqueue` are the toy's own. origin_acked is the document's, the twin's own:
 a planned group has its `origin`, the mesh is drawn, and origin_acked is called by itself too. Three nodes of a
 5-node cell built as run.py builds it: node 2 with W set to 2 before the tracer is installed (a node's constants
 are read then), node 3 with no window, node 4 with W 2 at SOURCE_OFFERS = PUBLISH. A sample on which the Python
@@ -39,7 +43,7 @@ sys.path.insert(0, str(HERE))
 import trace3                           # noqa: E402
 
 FNS = (["acquire_slot"] * 4 + ["release_unused_slot"] * 4 + ["track_in_flight"] * 2 + ["window_release"] * 2
-       + ["window_timeout"] * 3 + ["free_slot"] + ["origin_acked"] * 2)
+       + ["window_timeout"] * 3 + ["free_slot"] * 2 + ["origin_acked"] * 2 + ["front"] * 2 + ["wake_front"] * 2)
 
 
 def main(argv):
@@ -100,6 +104,7 @@ def main(argv):
         ns["tied"]._d.clear()
         nd._by_index.clear()
         nd.writer_kicked.clear()
+        nd.writer_blocked.clear()
         ns["waiters"].clear()
         count = rng.choice([0, 0, 1, 1, 2, 2, 3])
         ns["in_flight"]._h.count = count            # the count itself, behind the tracer's cell (no record is open)
@@ -108,6 +113,11 @@ def main(argv):
         line = ([] if r < 0.35 else [p] + rng.sample(others, min(len(others), rng.randrange(0, 3))) if r < 0.6
                 else rng.sample(peers, rng.randrange(1, len(peers) + 1)))
         ns["waiters"].extend(line)
+        blocked = {q for q in peers if rng.random() < 0.35}    # writers mid-write: `writing` says so
+        nd.writer_blocked.update(blocked)
+        can = [q for q in line if q not in blocked]
+        first = can[0] if can else None                 # the line's front
+        passed = ", a writer mid-write passed" if line and line[0] in blocked else ""
         for q in peers:
             if rng.random() < 0.4:
                 ns["slot_held"][q] = True
@@ -132,17 +142,20 @@ def main(argv):
         try:
             if what == "acquire_slot":
                 kinds["acquire_slot: " + ("the window full" if not under else "nobody in line" if not line else
-                                          "the peer first in line" + (", others behind" if len(line) > 1 else "")
-                                          if line[0] == p else "another first, the peer " +
-                                          ("in line" if p in line else "not in line"))
+                                          "nobody in line can write" if first is None else
+                                          "the peer the front" + (", others behind" if len(line) > 1 else "") + passed
+                                          if first == p else "another the front, the peer " +
+                                          ("in line" if p in line else "not in line") + passed)
                       + (", no window" if math.isinf(w) else "")] += 1
                 ns["acquire_slot"](p)
             elif what == "release_unused_slot":
                 rest = [q for q in line if q != p]
+                restcan = [q for q in rest if q not in blocked]
                 kinds["release_unused_slot: " + ("the peer not in line" if p not in line else
                                                  "it leaves the line" + (", nobody left" if not rest else
-                                                                         ", the next woken" if under else
-                                                                         ", no slot for the next"))
+                                                                         ", no slot for the next" if not under else
+                                                                         ", nobody left can write" if not restcan else
+                                                                         ", the next that can write woken"))
                       + (", its slot freed" if ns["slot_held"][p] else "")] += 1
                 ns["release_unused_slot"](p)
             elif what == "track_in_flight":
@@ -164,9 +177,25 @@ def main(argv):
                                           "acknowledged before" if ns["origin"][g].has(i) else
                                           "the HAVE grows" + (", no mesh" if not ns["mesh"] else ""))] += 1
                 ns["origin_acked"](g, i)
+            elif what == "front":
+                kinds["front: " + ("nobody in line" if not line else "nobody in line can write" if first is None else
+                                   "the first can write" if first == line[0] else "a writer mid-write passed")] += 1
+                ns["front"]()
+            elif what == "wake_front":          # with `past` (next_to_send's, for a writer in line) or without
+                past = p if rng.random() < 0.5 else None
+                woke = next((q for q in line if q != past and q not in blocked), None)
+                kinds["wake_front: " + ("no slot free" if not under else "nobody in line" if not line else
+                                        "nobody in line can write" if woke is None else
+                                        "the first woken" if woke == line[0] else "the first passed")
+                      + ("" if past is None else ", past the peer" + ("" if p in line else " (not in line)"))] += 1
+                if past is None:
+                    ns["wake_front"]()
+                else:
+                    ns["wake_front"](past=p)
             else:
                 kinds["free_slot: " + ("at 0" if count == 0 else "a slot back")
-                      + (", somebody in line" if line else "")] += 1
+                      + ("" if not line else ", nobody in line can write" if first is None else
+                         ", somebody in line" + passed)] += 1
                 ns["free_slot"]()
         except Exception as e:              # noqa: BLE001: the tracer wrote it, with `raises`
             raised[type(e).__name__] += 1

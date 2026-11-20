@@ -895,7 +895,9 @@ def main():
     ok &= case("W11 `waiters.remove(p)`, the last one left: a read and a write to nothing",
                run("waiters.remove(5)\nwaiters.remove(7)"), reads=[LN + [[5, 7]]], writes=[LN + [None]], make=fresh_window)
     ok &= case("W12 `len(waiters)` is refused", run("len(waiters)"), raises="TypeError", make=fresh_window)
-    ok &= case("W13 iterating the line is refused", run("list(waiters)"), raises="TypeError", make=fresh_window)
+    ok &= case("W13 iterating the line (front's `next((q for q in waiters if not writing(q)), None)`): one read",
+               run("busy = {5}\nx = next((q for q in waiters if q not in busy), None)"), reads=[LN + [[5, 7]]],
+               make=fresh_window)
     ok &= case("W14 `waiters[1]` is refused", run("waiters[1]"), raises="TypeError", make=fresh_window)
     ok &= case("W15 `sent.pop(key, None)` that finds nothing: a read alone", run("x = sent.pop((9, 'g', 1), None)"),
                reads=[["sent", [[9, "g", 1]], None]], make=fresh_window)

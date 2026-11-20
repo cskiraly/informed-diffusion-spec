@@ -697,9 +697,10 @@ ATTR_LEVELS[LineHolder] = ("line",)
 
 
 class DequeView:
-    """`waiters` as the block sees it: the line as one entry, the peers in order. `bool`, `[0]` and `in` are reads;
-    `popleft`, `append`, `appendleft` and `remove` are a read and a write, logged before the change. `len`,
-    iteration and an index beyond the first raise while the recorder is on: no code uses them."""
+    """`waiters` as the block sees it: the line as one entry, the peers in order. `bool`, `[0]`, `in` and iteration
+    (front's, v0.10.7: the deque's own iterator, so that a change of the line while it runs raises as the deque's
+    does) are reads; `popleft`, `append`, `appendleft` and `remove` are a read and a write, logged before the change.
+    `len` and an index beyond the first raise while the recorder is on: no code uses them."""
     __slots__ = ("_r", "_t", "_h")
 
     def __init__(self, rec, table, holder):
@@ -744,6 +745,10 @@ class DequeView:
         self._log(write=True)
         self._h.line.remove(p)
 
+    def __iter__(self):
+        self._log()
+        return iter(self._h.line)
+
     def __repr__(self):
         return f"DequeView({self._t.name}: {list(self._h.line)!r})"
 
@@ -763,7 +768,6 @@ class DequeView:
         return f
 
     __len__ = _unlogged("__len__")
-    __iter__ = _unlogged("__iter__")
     del _unlogged
     __hash__ = None
 

@@ -114,8 +114,10 @@ SEC52 = ("owe", "note_push", "unpush", "announce")
 SEC53 = ("guard_fails", "choose_push")
 # forward (replaceable), candidates_for_source and on_mesh_join (no caller in the toy: a directed set's)
 SEC54 = ("forward", "candidates_for_source", "on_mesh_join")
-# §7.1's six (the window's three tables the twin's own). window_timeout is a timer's record
-SEC71 = ("acquire_slot", "release_unused_slot", "track_in_flight", "window_release", "window_timeout", "free_slot")
+# §7.1's eight (the window's three tables the twin's own). window_timeout is a timer's record; front and
+# wake_front are called by the window's own alone
+SEC71 = ("front", "wake_front", "acquire_slot", "release_unused_slot", "track_in_flight", "window_release",
+         "window_timeout", "free_slot")
 # §5.1's origin_written, which next_to_send calls at SOURCE_OFFERS = PUBLISH (no cell of check.py runs there:
 # hand5-publish and directed7p do), origin_acked, and publish
 SEC51 = ("origin_written", "origin_acked",
@@ -164,6 +166,8 @@ TAPE = ("expired", "connected_topic_peers", "own_order", "listed", "authenticabl
         "decode_and_reencode", "payload_of", "deliver",
         # owe's call of the node's writer (§7.2), which the toy's enqueue makes itself
         "wake",
+        # the window's question of a writer: whether its write has not completed (§7.1's front, §7.3)
+        "writing",
         # the push order's keys: each a question, a candidate at a time
         "tiebreak", "peer_id_bytes",
         # level 1's question of the tree (validate_chunk is the twin's own)
@@ -176,8 +180,8 @@ CALLS = ("sha256", "serialize", "snappy_block_encode", "pad_each", "rs_parity", 
          "connected", "group_bits", "topic_peers", "gossip_eligible", "sample_without_replacement",
          "close_promises_of_group", "discard_queued", "discard_paced",
          "resolve", "chunk_of", "handle_graft_prune",
-         "decode_and_reencode", "payload_of", "deliver", "wake", "tiebreak", "peer_id_bytes", "verify_merkle_proof",
-         "block_root")
+         "decode_and_reencode", "payload_of", "deliver", "wake", "writing", "tiebreak", "peer_id_bytes",
+         "verify_merkle_proof", "block_root")
 
 
 def v2_kept(names, p_src, v2_src, cut=TAPE):
@@ -628,7 +632,7 @@ class Tracer3(Tracer):
             if not isinstance(v["at_source"], bool):
                 raise TypeError(f"trace3: choose_push's at_source is no bool: {v['at_source']!r}")
             return [self.chunk(v["f"]), [int(p) for p in v["cands"]], self.nat(v["budget"]), v["at_source"]]
-        if kw and not (fn == "close_promises" and set(kw) == {"of"}):
+        if kw and not (fn == "close_promises" and set(kw) == {"of"}) and not (fn == "wake_front" and set(kw) == {"past"}):
             raise TypeError(f"trace3: {fn} called with keywords {sorted(kw)}")
         if fn in ("on_chunk",):         # a chunk is wide where it arrives or waits
             p, f = args
@@ -772,6 +776,13 @@ class Tracer3(Tracer):
         if fn in ("acquire_slot", "release_unused_slot"):           # §7.1's
             (p,) = args
             return [int(p)]
+        if fn == "front":
+            assert not args and not kw, (args, kw)
+            return []
+        if fn == "wake_front":                                      # `past`, by name or by place, or none
+            v = list(args) + ([kw["past"]] if "past" in kw else [])
+            assert len(v) <= 1, (args, kw)
+            return [None if not v or v[0] is None else int(v[0])]
         if fn == "track_in_flight":
             p, f = args
             return [int(p), self.chunk(f)]
@@ -824,6 +835,8 @@ class Tracer3(Tracer):
         if fn == "acquire_slot":
             assert isinstance(r, bool), (fn, r)
             return r
+        if fn == "front":                                           # the first in line that can write, or none
+            return None if r is None else int(r)
         if fn in SEC71:
             assert r is None, (fn, r)
             return None
@@ -1319,6 +1332,7 @@ class Tracer3(Tracer):
             "payload_of": (lambda rebuilt: [tr.rebuilt(rebuilt)], tr.payload),
             "deliver": (lambda g, payload: [g.hex(), tr.payload(payload)], tr.nothing),
             "wake": (lambda p: [int(p)], tr.nothing),               # owe's
+            "writing": (lambda p: [int(p)], tr.boolean),            # the window's front's
             # the push order's keys: a chunk's tie-break for a peer (asked by the chunk's id), a number;
             # a peer's id, bytes
             "tiebreak": (lambda f, p: [tr.mid_of(f).hex(), int(p)], tr.nat),

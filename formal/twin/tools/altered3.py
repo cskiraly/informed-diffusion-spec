@@ -2434,7 +2434,7 @@ def carried_controls(directed3v, directed1, v2trace, work, head):
 
 
 def sec71_controls(directed71, work, head):
-    """§7.1's six, the twin's own, on directed71's records. Each outcome was written before the controls first ran,
+    """§7.1's eight, the twin's own, on directed71's records. Each outcome was written before the controls first ran,
     by the replay's order of checks: a question against the tape, the tape used up, the return value, the
     functions reached, the whole state, the notes."""
     def names(d):
@@ -2469,8 +2469,9 @@ def sec71_controls(directed71, work, head):
     ent(full, "in_flight")[2] = 2                               # the count read at the window
 
     def wakes_next(d):                  # the peer first in line, another behind, two slots free: the next is woken
-        return (plain(d, "acquire_slot") and windowed(d) and d["ret"] is True and names(d) == ["wake"]
-                and len(val(d, "waiters") or []) >= 2)
+        # (v0.10.7: front asks `writing` of the peer, wake_front of the next, both able to write)
+        return (plain(d, "acquire_slot") and windowed(d) and d["ret"] is True and names(d) == ["writing", "writing", "wake"]
+                and len(val(d, "waiters") or []) >= 2 and val(d, "waiters")[0] == d["args"][0])
     _, _, aw = first(directed71, wakes_next)
     alone_in_line, uncounted = copy.deepcopy(aw), copy.deepcopy(aw)
     ent(alone_in_line, "waiters")[2] = ent(aw, "waiters")[2][:1]
@@ -2489,10 +2490,11 @@ def sec71_controls(directed71, work, head):
                 and (val(d, "in_flight") or 0) >= 2 and val(d, "waiters") is None)
     _, _, au = first(directed71, unbounded)
 
-    # ---- release_unused_slot: the peer in line leaves it; nobody is woken, no slot held
+    # ---- release_unused_slot: the peer in line leaves it; nobody is woken, no slot held (v0.10.7: wake_front is
+    # reached, and wakes nobody)
     def leaves(d):
         return (plain(d, "release_unused_slot") and d["args"][0] in (val(d, "waiters") or []) and not d["tape"]
-                and d["reached"] == ["release_unused_slot"])
+                and sorted(d["reached"]) == ["release_unused_slot", "wake_front"])
     _, _, rl = first(directed71, leaves)
     not_in_line = copy.deepcopy(rl)
     ent(not_in_line, "waiters")[2] = [q for q in val(rl, "waiters") if q != rl["args"][0]] or None
@@ -2548,11 +2550,29 @@ def sec71_controls(directed71, work, head):
     _, _, op = first(directed71, at_publish)
 
     # ---- free_slot with somebody in line
-    def frees(d):
-        return plain(d, "free_slot") and names(d) == ["wake"]
+    def frees(d):                       # (v0.10.7: `writing` asked of the first in line, which can write)
+        return plain(d, "free_slot") and names(d) == ["writing", "wake"]
     _, _, fs = first(directed71, frees)
     nobody = copy.deepcopy(fs)
     ent(nobody, "waiters")[2] = None
+
+    # ---- v0.10.7's line: the first in line mid-write, the peer behind it takes a slot; and wake_front past a writer
+    def passes_a_writer(d):
+        t = d["tape"]
+        return (plain(d, "acquire_slot") and windowed(d) and d["ret"] is True and len(t) >= 2
+                and t[0][0] == "writing" and t[0][2] is True and t[1][0] == "writing" and t[1][1] == [d["args"][0]]
+                and t[1][2] is False)
+    _, _, ap = first(directed71, passes_a_writer)
+    not_writing = copy.deepcopy(ap)
+    not_writing["tape"][0][2] = False                              # the first in line said able to write
+
+    def past_first(d):                  # past the peer, first in line and able to write; another woken
+        w = val(d, "waiters") or []
+        return (plain(d, "wake_front") and d["args"][0] is not None and w[:1] == [d["args"][0]]
+                and names(d)[-1:] == ["wake"] and d["tape"][-1][1] != [d["args"][0]])
+    _, _, wp = first(directed71, past_first)
+    no_past = copy.deepcopy(wp)
+    no_past["args"][0] = None                                       # called with no `past`
     one = (hdr, nodes)
     return check("§7.1's window", {
         "acquire_slot: a slot, nobody in line, as it is": (alone(*one, aq), 0, None),
@@ -2565,8 +2585,9 @@ def sec71_controls(directed71, work, head):
         "acquire_slot at a node with no window, as it is": (alone(*one, au), 0, None),
         "that node's W written as 2": (alone(hdr, line(nodes, au, W=2), au), 1, "return value"),
         "release_unused_slot: the peer leaves the line, as it is": (alone(*one, rl), 0, None),
-        # (the state after is then the same either way, the line without the peer: the notes tell it)
-        "the line read without the peer": (alone(*one, not_in_line), 1, "footprint, writes"),
+        # (the state after is then the same either way, the line without the peer: the notes told it until v0.10.7;
+        # since, wake_front, which the record reaches, is not reached)
+        "the line read without the peer": (alone(*one, not_in_line), 1, "reached"),
         "track_in_flight: a new send, as it is": (alone(*one, tf), 0, None),
         "its timer left off the tape": (alone(*one, no_timer), 1, "tape"),
         "the send read as in flight already": (alone(*one, second), 1, "tape"),
@@ -2582,6 +2603,10 @@ def sec71_controls(directed71, work, head):
         "origin_acked at PUBLISH: nothing, as it is": (alone(*one, op), 0, None),
         "free_slot with somebody in line, as it is": (alone(*one, fs), 0, None),
         "the line read as empty": (alone(*one, nobody), 1, "tape"),
+        "acquire_slot: the first in line mid-write, the peer behind it takes a slot, as it is": (alone(*one, ap), 0, None),
+        "the first in line's writing answered false": (alone(*one, not_writing), 1, "tape"),
+        "wake_front past the first in line, another woken, as it is": (alone(*one, wp), 0, None),
+        "its `past` written as none": (alone(*one, no_past), 1, "tape"),
     }, work, head, "sec71")
 
 

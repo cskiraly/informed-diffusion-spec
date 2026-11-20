@@ -41,10 +41,10 @@ holds this to the document: each `def` must have an `enter "NAME"` in `SpecTwin/
 | 2 | 1 | 4.5 | 1 | 6.1 | 14 |
 | 3 | 2 | 4.6 | 4 | 6.2 | 1 |
 | 4.1 | 2 | 5.1 | 4 | 6.4 | 3 |
-| 4.2 | 12 | 5.2 | 5 | 7.1 | 6 |
+| 4.2 | 12 | 5.2 | 5 | 7.1 | 8 |
 | 4.3 | 1 | 5.3 | 2 | 7.2 | 5 |
 
-That is 75 functions; the other sections (§0, §6.3, §7.3, §8, §9) define none. The twin also replays `held`, the
+That is 77 functions; the other sections (§0, §6.3, §7.3, §8, §9) define none. The twin also replays `held`, the
 toy's reader of what a node holds (whether a chunk is in §4.2's `mine`), which the code of §4.4, §6.1 and §7.2
 calls. The files of `SpecTwin/` are named for parts of the document, not one to one with its sections.
 

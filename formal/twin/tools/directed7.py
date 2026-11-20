@@ -20,6 +20,8 @@ on (directed7) and off (directed7u). What the records reach that the cells may n
   - a slot taken, and the writer in line (WAIT): by §7.1's own code on a drawn window (W is 2; the count at 0 to
     3; the line empty, with the peer first, with another first; a send of a queued chunk still in flight, so that
     its second copy gives the slot back at once);
+  - a writer in line that writes an urgent entry or owed offers alone wakes the next in line that can write, other
+    writers mid-write drawn (`writing`, v0.10.7: wake_front(past=p));
   - an entry left empty, so that the loop turns again;
   - rarest over chunks behind a control-only entry, and holders drawn to tie;
 - filter_entry:
@@ -32,8 +34,8 @@ on (directed7) and off (directed7u). What the records reach that the cells may n
 The orders are drawn: a peer's owed groups in a drawn order, the lanes' entries in a drawn order.
 
 The scenario answers expired, live, has_room, after, connected_topic_peers and listed. §7.1's acquire_slot,
-release_unused_slot, track_in_flight and free_slot are the document's, the twin's own; `wake` is the toy's own,
-on the tape. The toy's own pop_owed_answer and unpush (§5.2, with its owe) run: their writes of the twin's tables
+release_unused_slot, track_in_flight, free_slot and wake_front are the document's, the twin's own; `wake` and
+`writing` are the toy's own, on the tape. The toy's own pop_owed_answer and unpush (§5.2, with its owe) run: their writes of the twin's tables
 (owed_answers, owed) are their `cr` and `cw` on the tape. enqueue is the toy's own in a share of the samples (an
 owed answer then lands in the normal lane), and the scenario's otherwise.
 
@@ -214,6 +216,8 @@ def main(argv):
         line = ([] if r < 0.5 else [p] + rng.sample([x for x in peers if x != p], rng.randrange(0, 2)) if r < 0.75
                 else rng.sample(peers, rng.randrange(1, len(peers) + 1)))
         ns["waiters"].extend(line)
+        nd.writer_blocked.clear()                       # other writers mid-write: `writing` says so (§7.1's
+        nd.writer_blocked.update(x for x in peers if x != p and rng.random() < 0.3)    #   wake_front, v0.10.7)
         for e in q.normal:                              # a send of a queued chunk still in flight (a second copy)
             if e.chunk is not None and rng.random() < 0.15:
                 ns["sent"][(p, e.chunk.group, e.chunk.index)] = ns["now"] - 0.2

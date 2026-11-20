@@ -534,6 +534,9 @@ class Node61 (m : Type → Type) where
   /-- `wake(p)` (§7.2): p's writer is told there is something to send (owe's call, and the
   window's) -/
   wake : Peer → m Unit
+  /-- `writing(p)` (§7.1, §7.3): whether p's writer has a write the transport has not completed (it has not
+  taken all but about one chunk of it). The node answers it; a proof takes it as any. -/
+  writing : Peer → m Bool
   /-- `push_rebuilt(g, new)` at a node that runs something else under the name -/
   pushRebuiltNode : Group → List Nat → m Unit
   /-- `verify_merkle_proof(root, data, index, count, proof)` (§1): the tree is the node's stand-in (the boundary) -/
@@ -625,6 +628,7 @@ abbrev lift {m n : Type → Type} [Node61 m] (f : ∀ {α : Type}, m α → n α
   blockRoot b := f (blockRoot b)
   shuffledNats xs := f (shuffledNats xs)
   wake p := f (wake p)
+  writing p := f (writing p)
   pushRebuiltNode g new := f (pushRebuiltNode g new)
   verifyMerkleProof r d i c p := f (verifyMerkleProof r d i c p)
   closePromisesOfGroup g := f (closePromisesOfGroup g)
