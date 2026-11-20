@@ -1726,8 +1726,9 @@ sent = {}                             # (peer, group, index) -> send time
 def front():                          # the first in line whose writer can write: a writer whose write has
     return next((q for q in waiters if not writing(q)), None)    #   not completed (§7.3) keeps its place
 
-def wake_front():                     # the first in line that can write tries again (§7.2)
-    q = front()
+def wake_front(past=None):            # a slot is free: the first in line that can write, other than `past`,
+    if in_flight >= W: return                     #   tries again (§7.2)
+    q = next((q for q in waiters if q != past and not writing(q)), None)
     if q is not None: wake(q)
 
 def acquire_slot(p):                  # True: p's writer holds a slot; False: it waits in line
@@ -1735,7 +1736,7 @@ def acquire_slot(p):                  # True: p's writer holds a slot; False: it
     if in_flight < W and front() in (None, p):    # no writer that can write is ahead of p
         if p in waiters: waiters.remove(p)
         in_flight += 1
-        if in_flight < W: wake_front()            # slots remain: the next in line takes one too
+        wake_front()                              # slots remain: the next in line takes one too
         return True
     if p not in waiters: waiters.append(p)        # a writer keeps its place while it waits
     return False
@@ -1743,7 +1744,7 @@ def acquire_slot(p):                  # True: p's writer holds a slot; False: it
 def release_unused_slot(p):           # p's writer has no chunk to send now
     if p in waiters:
         waiters.remove(p)                         # it leaves the line, and the next may take a free slot
-        if in_flight < W: wake_front()
+        wake_front()
     if slot_held[p]:
         slot_held[p] = False
         free_slot()
@@ -1807,10 +1808,14 @@ def next_to_send(p):
     while True:
         if owed_answers[p] and has_room(p):                    # an answer a full queue refused (§4.1)
             enqueue(p, Entry(chunk=pop_owed_answer(p), solicited=True), urgent=False)
-        if q.urgent: return with_owed(p, q.urgent.pop(0))      # HAVEs, acks, decode claims: first
+        if q.urgent:                                           # HAVEs, acks, decode claims: first. A writer
+            if p in waiters: wake_front(past=p)                #   in line writes one, whose write may not
+            return with_owed(p, q.urgent.pop(0))               #   complete (§7.3): the next may take a slot
         if not q.normal:
             out = with_owed(p, Entry()) if owed[p] else None   # owed offers on their own
-            if out: return out
+            if out:
+                if p in waiters: wake_front(past=p)            # as for an urgent entry
+                return out
             release_unused_slot(p); return None                # nothing to send: a held slot goes back
         if q.has_chunks() and not slot_held[p]:
             if not acquire_slot(p): return WAIT                # [c14] in line, FIFO over peers; an urgent
