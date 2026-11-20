@@ -23,8 +23,8 @@ commit. Paths in this section are from the repository's root.
     |                     v                                                            |
     |  +--------------------------------+    refinement    +-------------------------+ |
     +->| formal/twin/: transcribes it   | - - - - - - - -> | formal/veil/: Veil,     |<+
-       | into Lean, function by         |  (not in this    | v0.8's rules, any       |
-       | function; a draft              |  repository yet) | number of nodes         |
+       | into Lean, function by         |  (a first piece: | v0.8's rules, any       |
+       | function                       |  formal/refine/) | number of nodes         |
        +--------------------------------+                  +-------------------------+
 ```
 
@@ -68,10 +68,11 @@ and whether each result carries over to them is not checked. Each result holds u
 assumptions that README states (with malicious peers, relabelled copies are excluded). The models'
 traces also show a run that `protocol.md` §6.1 leaves open, an announcer that is never parked
 holding the last resort off; that the run is fair is read from the traces by inspection, not
-proved. Being written by hand, the models can drift from the code, and nothing in this repository
-checks them against it yet.
+proved. Being written by hand, the models can drift from the code. Nothing in this repository checks
+them against the code; a first piece of refinement (below) relates one of them to the twin, on a
+narrow scope.
 
-**The twin transcribes the code into Lean.** [`formal/twin/`](twin/), **a draft**, is a
+**The twin transcribes the code into Lean.** [`formal/twin/`](twin/) is a
 transcription of `protocol.md`'s Python into Lean, function by function, executable: every function
 the document's code blocks define, matched by name (its README counts them by section), but not the
 helpers the document names without writing them out (one aside, `held`), nor the events it gives in
@@ -92,25 +93,39 @@ untraced, and directed sets, states generated to reach what the cells do not, wi
 functions called on them; replays every trace through the twin with no record mismatched; and runs
 controls that must fail, among them altered records, a mutant (a twin with one rule changed) and a
 trace of another tree. Replay is evidence on the calls traced, not on every input, and a faithful
-twin copies a mistake of the code: it checks the copying, not the rules. The record (every cell of
-`toy/check.py` traced under both documents, the directed sets, and the mutants' matrix, which shows
-which mutants the traces it replays tell from the twin) is not in this repository yet and follows in
-a later release. The twin's README says what `check.sh` checks and what the replay cannot see.
+twin copies a mistake of the code: it checks the copying, not the rules. The twin's README says what
+`check.sh` checks and what the replay cannot see.
 
-**Refinement, from the twin to the Veil models, is not in this repository yet.** A refinement proof
-would show that the twin's initial states and each of its steps, projected onto a model's state, are
-states and steps the model allows; the model's invariants would then hold for the twin, and its
-other results where their assumptions, fairness among them, hold for the projected runs. It is under
-way.
+**The twin's record is in [`formal/twin/record/`](twin/record/).** It holds the outputs of one run
+of `record.sh`, which traces every cell of `toy/check.py` under both documents, the hand runs and
+the directed sets, and replays each trace through the twin. It also holds the matrix of the mutants,
+which shows which mutants part of those traces tell from the twin. Its
+[`RECORD.md`](twin/record/RECORD.md) says what the record ran, what it shows and what it does not
+show.
+
+**Refinement, from the twin to the Veil models, has a first piece.** A refinement proof would show
+that the twin's initial states and each of its steps, projected onto a model's state, are states and
+steps the model allows; the model's invariants would then hold for the twin, and its other results
+where their assumptions, fairness among them, hold for the projected runs.
+[`formal/refine/`](refine/) holds a first piece, whose README states its narrow scope. It relates
+the twin's side of the asking path of §6.1 to one Veil model, `NoStallEquiv`. Read through an
+abstraction, a retry timer firing in the twin (`retry_offer`) is a step of that model's generated
+transition `retryAsk` or `retryNoop`, and a promise falling due (`promise_due`) is its `promiseDue`
+or `parkOther`. For a run of the twin whose first state, read through the abstraction, satisfies the
+model's `Invariants`, the package proves that every later state does too. It takes as hypotheses the
+model's own statements that its initializer gives `Invariants` and those four actions keep them, and
+that `Invariants` holds again after every other change of the twin's state that the abstraction
+sees. It is not a proof that the twin satisfies the model's properties.
 
 **At this commit.** Together, the links are meant to carry the proofs to the code: properties proved
 of the models, refinement showing that the twin behaves as the models do, and replay that the code
-behaves as the twin does on every call traced. At this commit refinement is not here, the twin is a
-draft whose record follows, and the models have older rules than `protocol.md`'s (v0.5's and
-v0.8's). So the proofs are about the models, the replay is evidence on what it traces, and the toy's
-checks are tests: none of them yet proves that `protocol.md`'s code has the properties proved of the
-models. Even with refinement and the record, the last link, from the twin to the code, stays replay:
-evidence on the calls traced, not a proof.
+behaves as the twin does on every call traced. At this commit, refinement is a first piece only,
+under the hypotheses its README names. The twin's record covers what its `RECORD.md` says. The
+models have older rules than `protocol.md`'s (v0.5's and v0.8's). So the proofs are about the
+models, the replay is evidence on what it traces, and the toy's checks are tests: none of them yet
+proves that `protocol.md`'s code has the properties proved of the models. Even with a whole
+refinement, the last link, from the twin to the code, stays replay: evidence on the calls traced,
+not a proof.
 
 ## The Quint model
 
@@ -357,5 +372,8 @@ python3 -I formal/wire/check_wire.py
 - `toy/monitor.py`: the runtime monitors on the toy; `wire/check_wire.py`: §1–§2's arithmetic.
 - `package.json`, `package-lock.json`, `quint`: the pinned toolchain.
 - `veil/`: properties at any size, proved in Veil (Lean 4) for any number of nodes, groups and chunks: A1 at every place a node penalised in v0.8 (an ask: with no assumption under the live window, `protocol.md` §8.1, a group's key fixing its slot, §1, and under the fallback without a slot given the bound on its tombstone; a chunk that fails level 1; a malformed HAVE), and no stall (Q1), in three pieces: no quiet state in which an honest node reachable from the source along mesh links is incomplete, under the assumptions its README states (among them no equivocation); the mesh may change and connections close, with §5.4's announcement to a peer that joins the mesh (F9). Under equivocation it holds with §4.2's ties and §6.1's rule against a second ask (F6), for the nodes the source reaches through nodes that installed the builder's block (`NoStallEquiv.lean`, with its assumptions). The no-stall proof found an eleventh gap, F11: an IHAVE over a receiver's IHAVE limit was ignored, and nothing offered its chunks again; v0.7 closes it (`protocol.md` §4.4, and its README). Q1 also holds with malicious peers, for the honest nodes the source reaches through honest nodes that installed the block, relabelled copies (F12, open in `protocol.md` §4.6) excluded; with finitely many nodes and weak fairness, a run goes quiet (Q3) once the environment stops, adversaries' actions included (the asking with `NO_REASK_OPEN`; with malicious peers, the honest nodes' machinery); level 2 is all or none, a check that succeeds recovers the bytes the root commits, and two honest nodes that both deliver a group deliver the same payload, under the codec's assumptions its README lists, an MDS code and a binding hash among them. Two more findings are there: F13, dropped offers that leave their ask, closed in v0.8, and F14, an announcer that is never parked holding the last resort off, open (`protocol.md` §6.1). The proofs are of v0.8's rules; their README lists what changed since, and each result's assumptions.
-- `twin/`: the Lean twin of `protocol.md`'s Python, a draft. Its README says what it covers, what
-  `check.sh` checks, and what follows in a later release.
+- `twin/`: the Lean twin of `protocol.md`'s Python. Its README says what it covers and what
+  `check.sh` checks, and `twin/record/RECORD.md` says what its record ran, what it shows and what it
+  does not show.
+- `refine/`: a first piece of a refinement from the twin to the Veil model `NoStallEquiv`, on the
+  asking path of §6.1. Its README states its scope and what it takes as hypotheses.

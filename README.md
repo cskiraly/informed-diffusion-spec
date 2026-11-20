@@ -67,13 +67,16 @@ names how SEACAST diffuses.
     codec's assumptions its README lists, an MDS code and a binding hash among them.
 
   The models do not have the rules `protocol.md` changed since v0.8; their README lists them.
-- [`formal/twin/`](formal/twin/): **a draft**: a transcription of `protocol.md`'s Python into Lean,
-  function by function, executable, checked against the toy by trace replay. `check.sh`, which
-  builds the twin, replays small traces of the toy through it and runs controls that must fail,
-  passes at this commit. Its record (every cell of the toy traced under both documents, the
-  directed sets, and the mutants' matrix, which shows which mutants the traces it replays tell from
-  the twin) follows in a later release; refinement, its link to the Veil models, is not in this
-  repository yet.
+- [`formal/twin/`](formal/twin/): a transcription of `protocol.md`'s Python into Lean, function by
+  function, executable, checked against the toy by trace replay. `check.sh`, which builds the twin,
+  replays small traces of the toy through it and runs controls that must fail, passes at this
+  commit. The twin's record is in `formal/twin/record/`: every cell of the toy traced under both
+  documents, the hand runs and the directed sets, each trace replayed through the twin, and the
+  matrix of the mutants, which shows which mutants part of those traces tell from the twin. Its
+  [`RECORD.md`](formal/twin/record/RECORD.md) says what the record shows and what it does not.
+- [`formal/refine/`](formal/refine/): a first piece of a refinement from the twin to a Veil model,
+  on the asking path of §6.1, with the narrow scope its README states. It is not a proof that the
+  twin satisfies the model's properties.
 
 ## Where SEACAST stands
 

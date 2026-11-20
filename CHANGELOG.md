@@ -5,6 +5,38 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
+## v0.10.8, 2026-11-20
+
+The Lean twin's record comes into the repository, and the twin is no longer called a draft.
+`formal/refine/` holds the first piece of a refinement from the twin to a Veil model. `protocol.md`,
+`protocol-v2.md` and the toy do not change, so no rule and no figure moves.
+
+`formal/`:
+- **The twin's record** (`formal/twin/record/`): the outputs of one run of `record.sh`, which traces
+  every cell of the toy under both documents, the hand runs and the directed sets, and replays each
+  trace through the twin; and the matrix of the mutants, which shows which mutants part of those
+  traces tell from the twin. `RECORD.md` there says what the record ran, what it shows and what it
+  does not show. The twin's README and `formal/README.md` no longer call the twin a draft.
+- **The twin's tools name each document by its code** (`formal/twin/tools/content.py`, version 2).
+  The first line of a trace names each document by the SHA-256 of the code that the toy runs from
+  it, the text that `toy/extract.py` makes of it, and each other file of the toy and of the tools by
+  the SHA-256 of its bytes, Markdown files and `__pycache__` directories left out. So an edit of the
+  prose of a document, or of a README, leaves a trace as it was. The tools cite the documents by
+  section, not by line number.
+- **The first piece of a refinement** (`formal/refine/`): a Lake package that relates the twin's
+  side of the asking path of §6.1 to the Veil model `NoStallEquiv`. Read through an abstraction, a
+  retry timer firing in the twin (`retry_offer`) is a step of the model's `retryAsk` or
+  `retryNoop`, and a promise falling due (`promise_due`) is its `promiseDue` or `parkOther`. The
+  package carries the model's `Invariants` along a run of the twin, under hypotheses its README
+  names: the model's own preservation statements, and `Invariants` after every other change of the
+  twin's state. It is not a proof that the twin satisfies the model's properties.
+- **How the checks fit together** (`formal/README.md`): the map, the paragraphs on the twin, its
+  record and refinement, "At this commit" and the list of files follow these changes.
+
+`README.md`:
+- **`formal/`'s bullets**: `formal/twin/` is no longer called a draft and points to its record, and
+  `formal/refine/` gains a bullet.
+
 ## v0.10.7, 2026-11-20
 
 The Lean twin of `protocol.md`'s Python comes into the repository as a draft, and `formal/README.md`
