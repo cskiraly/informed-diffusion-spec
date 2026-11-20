@@ -20,9 +20,12 @@ its window in bytes (§4.11). The toy's monitors are brought up to date.
   acknowledged or timed out the node sent no chunk to any other peer, though control still flowed.
   Now a free slot goes to the first writer in line that can write (`front`, `wake_front`), and the
   writer passed over keeps its place; a writer in line that writes control first wakes another that
-  can write, since its own write may not complete. Where every write completes at once, nothing
-  changes. The helper list gains `writing`, a Rationale closes §7.1, and §9's note on the measured
-  implementation's line follows the rule.
+  can write, since its own write may not complete. Where every write completes at once, the same
+  writers take slots in the same order: that wake can change only the order of writers' runs, and of
+  frames to different peers, within one instant, and no figure. The helper list gains `writing`,
+  true from the moment `next_to_send` returns a writer an entry until the transport has taken all
+  but about one chunk of it; a Rationale closes §7.1, and §9's note on the measured implementation's
+  line follows the rule.
 
 `protocol-v2.md`:
 - **The window's line skips a writer mid-write** (§4.11), as `protocol.md` §7.1's does:
@@ -39,6 +42,8 @@ The toy:
   (§7.1, §7.3); it fails on the toy before the fix.
 - **`golden.txt` moves** as an intended change: every cell but `without-b`, most by their digests
   alone, and `loss-thin`, `ihave-limits` and `late-block` by their printed figures too, slightly.
+  `rr-stripe` and `push-deep`, where every write completes at once, moved by their digests through
+  the control wake's change of schedule alone, with the same numbers.
   `golden-v2.txt` moves with `protocol-v2.md`'s own rule (its §4.11), against v0.10.6's: twelve
   cells by their digests alone, and `loss-thin` (p50 807 to 814 ms, p99 922 to 894 ms, copies 1.64
   to 1.65) and `late-block` (p99 727 to 718 ms) by their printed figures too; `without-b` is the

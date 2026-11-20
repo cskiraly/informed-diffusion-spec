@@ -2095,8 +2095,8 @@ This document decides at the moment of sending, so it needs the backlog to be in
 *The writer:*
 - `slot_held`: whether a peer's writer holds a slot it has not used; false at first;
 - `wake`: runs a peer's writer again (§7.2);
-- `writing`: whether a peer's writer has a write that has not completed (§7.3): the transport has
-  not yet taken all but about one chunk of it;
+- `writing`: whether a peer's writer has a write that has not completed (§7.3): true from the moment
+  `next_to_send` returns it an entry until the transport has taken all but about one chunk of it;
 - `WAIT`: what `next_to_send` returns while the writer waits in line.
 
 *Timing and sets:*
