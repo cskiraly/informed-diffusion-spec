@@ -16,8 +16,8 @@ draining: done here, around the toy's link, which is not changed) and an urgent 
 writer blocks while it heads the line. Then, over the next two seconds:
 - **the source's other peers are not held up:** within that time it sends them chunks, or has none left for them;
   where the head held the line, it sends them none while chunks wait in their queues and slots are free;
-- the stalled peer gets no more chunks (its writer stays blocked);
-- control still flows: the source writes urgent entries to its other peers.
+- the stalled peer is handed no chunk after it (its writer stays blocked);
+- control still flows: the source hands its transport control-only entries for its other peers.
 The control: the same run with the peer reading; its other peers are not held up either.
 
 With `--doc v2` the same run reaches `protocol-v2.md`'s window, which counts bytes (`W_BYTES`) and has the same line
@@ -28,6 +28,8 @@ import sys
 from pathlib import Path
 
 SEED, CELL = 7, ["--nodes", "60", "--degree", "30", "--msgs", "3"]
+if sys.argv[1:] not in ([], ["--doc", "v2"]):
+    sys.exit("usage: line_stall_known.py [--doc v2]")
 V2 = sys.argv[1:] == ["--doc", "v2"]
 STEP, SPAN = 0.001, 2.0
 
@@ -37,8 +39,12 @@ def run(stall):
     import run as R
     import sim as S
     got = {}
+    real_run = R.run
     R.run = lambda cfg, out=sys.stdout: got.setdefault("sim", S.Sim(cfg))
-    R.main(CELL + ["--seed", str(SEED)] + (["--doc", "v2"] if V2 else []))
+    try:
+        R.main(CELL + ["--seed", str(SEED)] + (["--doc", "v2"] if V2 else []))
+    finally:
+        R.run = real_run
     sim, cfg = got["sim"], got["sim"].cfg
     sim.run(cfg["first"])
     sim.publish(1)
@@ -69,14 +75,15 @@ def run(stall):
         head, ts = ns["waiters"][0], sim.now
         if stall:
             stalled.add(head)
+        log.clear()                                     # from here on: what the source hands its transport
         ns["send_have"](head, g)                        # an urgent entry: the head's writer writes it
         sim.run(ts + SPAN)
         late = [x for x in log if x[0] >= ts + 0.6]     # past WINDOW_TIMEOUT: every chunk in flight at the stall
         others = {p for p in src.peers if p != head}    #   is released by then
         sent_others = sum(1 for x in late if x[1] in others and x[2])
         waiting = sum(1 for p in others if p in ns["queue"] and ns["queue"][p].has_chunks())
-        to_head = sum(1 for x in log if x[0] > ts and x[1] == head and x[2])
-        ctrl_others = sum(1 for x in log if x[0] > ts and x[1] in others and x[3])
+        to_head = sum(1 for x in log if x[1] == head and x[2])
+        ctrl_others = sum(1 for x in log if x[1] in others and x[3])
         return dict(head=head, t=round(ts, 4), sent_others=sent_others, waiting=waiting, to_head=to_head,
                     ctrl_others=ctrl_others, in_flight=ns["in_flight"], W=ns["W_BYTES" if V2 else "W"],
                     line=len(ns["waiters"]),
@@ -97,13 +104,13 @@ def main():
         r = run(stall)
         print(f"{'the head stops reading' if stall else 'the control: the head reads'} (peer {r['head']}, "
               f"t={r['t']}): {r}")
-        held = r["sent_others"] == 0 and r["waiting"] > 0 and r["in_flight"] < r["W"]
-        line(("**" if stall else "") + "the other peers are not held up: chunks sent to them, or none left"
-             + ("**" if stall else ""), not held, True)
+        line(("**" if stall else "") + "the other peers are not held up: chunks sent to them past the window "
+             "timeout, or none left for them" + ("**" if stall else ""),
+             r["sent_others"] > 0 or r["waiting"] == 0, True)
         if stall:
-            line("the stalled head gets no chunk after the stall, its writer still blocked",
-                 (r["to_head"] <= 1, r["head_writing"]), (True, True))
-        line("control still flows to the other peers", r["ctrl_others"] > 0, True)
+            line("the stalled head is handed no chunk after the stall, and its writer is still blocked",
+                 (r["to_head"], r["head_writing"]), (0, True))
+        line("the source hands its transport control-only entries for its other peers", r["ctrl_others"] > 0, True)
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0
 
