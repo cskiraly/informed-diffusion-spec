@@ -4,10 +4,14 @@ executes ../protocol.md) after every event of check.py's 60-node cells.
 
     python3 -I formal/toy/monitor.py [--seeds 7,8,9] [--cells push,withholders,...] [-j 8] [--break askfilter]
 
+It exits 0 when no property is violated, or, with --break, when the broken rule is caught; 1 otherwise,
+and 1 when a cell's run fails (a break that no longer matches protocol.md's text among them).
+
 Checked, as in formal/diffusion.qnt:
 - W1 window: in_flight equals the writers holding a slot plus the chunks in `sent`, and is at most W
   (after every event, at the node it ran on);
-- W2 wake-up: with a slot free, the first writer in line has a run queued;
+- W2 wake-up: with a slot free, the first writer in line that can write has a run queued (a writer whose
+  write has not completed, §7.3, is woken by its transport, and keeps its place but not the front, §7.1);
 - S1 stale ask: no ask leaves (Sim.transmit) for a chunk the sender holds or no longer pulls;
 - P4: a HAVE the source writes names at most one chunk it has not yet sent (the lead HAVE);
 - A1 penalties: no node penalises another (the toy counts them; nothing read the counter before).
@@ -30,24 +34,24 @@ CELLS = {                       # check.py's cells
     "without-b": ["--without", "11,13,14,17"], "loss-thin": ["--loss-data", "10", "--up", "20"],
 }
 
-BREAKS = {                      # known answers: one rule taken out of the extracted spec, in memory
-    "askfilter": ("        c.ids = [a for a in c.ids                              #   now holds, no longer pulls, or of a\n"
-                  "                 if not held(a) and not gated(a) and not expired(group(a))]    # group past its lifetime\n",
-                  "        pass\n"),
-    "wake": ("        if waiters and in_flight < W: wake(waiters[0])    # slots remain: the next in line takes one too\n",
-             ""),
-    "p4": ("    return (origin[g] if g in origin else mine[g]).copy()      # group we publish, what we have sent [P4]\n",
-           "    return mine[g].copy()\n"),
+BREAKS = {                      # known answers: one rule taken out of the extracted spec, in memory; each pattern
+    # matches the code alone (a comment may change) and must match exactly once; the property it must break
+    "askfilter": (r"^        c\.ids = \[a for a in c\.ids\b[^\n]*\n[^\n]*\bif not held\(a\) and not gated\(a\)[^\n]*\n"
+                  r"(?:[^\n]*\n)*?[^\n]*\]\s*(?:#[^\n]*)?\n",
+                  "        pass\n", "S1"),
+    "wake": (r"(?<=        in_flight \+= 1\n)        wake_front\(\)[^\n]*\n", "", "W2"),
+    "p4": (r"^    return \(origin\[g\] if g in origin else mine\[g\]\)\.copy\(\)[^\n]*\n",
+           "    return mine[g].copy()\n", "P4"),
 }
 
 CHILD = r'''
-import collections, io, json, sys
+import collections, io, json, re, sys
 sys.path.insert(0, TOY)
 import node as NODE
 src = NODE.SPEC_SRC
-for old, new in PATCHES:
-    assert src.count(old) == 1, old[:60]
-    src = src.replace(old, new)
+for pat, new, _ in PATCHES:
+    src, n = re.subn(pat, lambda _m: new, src, count=0, flags=re.M)
+    assert n == 1, f"{n} matches: {pat[:60]}"
 NODE.SPEC = compile(src, "protocol.md (extracted, monitored)", "exec")
 import sim as S
 import run as R
@@ -62,8 +66,9 @@ def check(nd):
     if inf != held + len(ns["sent"]) or inf > W or inf < 0:
         note("W1", f"node {nd.id} t={nd.sim.now:.4f} in_flight={inf} held={held} sent={len(ns['sent'])} W={W}")
     w = ns["waiters"]
-    if w and inf < W and w[0] not in nd.writer_kicked:
-        note("W2", f"node {nd.id} t={nd.sim.now:.4f} waiters={list(w)[:4]} in_flight={inf} W={W}")
+    first = next((q for q in w if q not in nd.writer_blocked), None)    # the first that can write (§7.1, §7.3)
+    if first is not None and inf < W and first not in nd.writer_kicked:
+        note("W2", f"node {nd.id} t={nd.sim.now:.4f} waiters={list(w)[:4]} first={first} in_flight={inf} W={W}")
 orig_run = S.Sim.run
 def run(self, until):
     q = self.q
@@ -133,11 +138,16 @@ def main(argv):
     ap.add_argument("-j", type=int, default=8)
     ap.add_argument("--break", dest="brk", default="", help="known answers, one rule taken out: " + ",".join(BREAKS))
     a = ap.parse_args(argv)
+    brks = [b for b in a.brk.split(",") if b]
+    for b in brks:
+        if b not in BREAKS:
+            ap.error(f"--break {b}: none such; the breaks are " + ",".join(BREAKS))
     jobs = [(c, int(s), a.brk) for c in a.cells.split(",") for s in a.seeds.split(",")]
-    total = {}
+    total, errors = {}, 0
     with cf.ThreadPoolExecutor(a.j) as ex:
         for (name, seed, _b), res, err in ex.map(one, jobs):
             if res is None:
+                errors += 1
                 print(f"{name:12s} {seed:3d} ERROR {err}")
                 continue
             for k, v in res["V"].items():
@@ -145,7 +155,16 @@ def main(argv):
             print(f"{name:12s} {seed:3d} events {res['events']:8d} missing {res['missing']} "
                   f"violations {res['V'] or 'none'} {res['EX'] if res['V'] else ''}")
     print("total violations:", total or "none")
+    if errors:
+        print(f"FAIL: {errors} of {len(jobs)} runs did not complete")
+        return 1
+    if brks:                                    # a known answer: each break's property must be caught
+        missed = [b for b in brks if not total.get(BREAKS[b][2])]
+        print(f"FAIL: not caught: {', '.join(missed)}" if missed else "ok: every break caught")
+        return 1 if missed else 0
+    print("FAIL: violations" if total else "ok")
+    return 1 if total else 0
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    sys.exit(main(sys.argv[1:]))
