@@ -69,7 +69,7 @@ that README states (with malicious peers, relabelled copies are excluded). The m
 show a run that `protocol.md` §6.1 leaves open, an announcer that is never parked holding the last
 resort off; that the run is fair is read from the traces by inspection, not proved. Being written by
 hand, the models can drift from the code. No check compares them with the code directly: trace
-replay checks the code against the twin, and a first piece of refinement relates one of the models
+replay checks the twin against the code, and a first piece of refinement relates one of the models
 to the twin, on a narrow scope (both below).
 
 **The twin transcribes the code into Lean.** [`formal/twin/`](twin/) is a

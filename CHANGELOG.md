@@ -22,9 +22,11 @@ moves.
   The first line of a trace names each document by the SHA-256 of the code that the toy runs from
   it, the text that `toy/extract.py` makes of it, and each other file of the toy and of the tools by
   the SHA-256 of its bytes, Markdown files and `__pycache__` directories left out. So an edit of the
-  prose of a document, or of a README, leaves the first line as it was. The replay reads a first
-  line of either version, and passes a trace only if its first line is the one it is given. Most
-  citations of the documents in the twin and its tools now name sections instead of line numbers.
+  prose of a document, other than a heading over a code block, or an edit of a README, leaves the
+  first line as it was. A heading over a code block is part of the code, which holds each block
+  under its heading. The replay reads a first line of either version, and passes a trace only if its
+  first line is the one it is given. Most citations of the documents in the twin and its tools now
+  name sections instead of line numbers.
 - **The twin's other tools change too.** The tracer reads its command line as the toy's own parser
   reads it. With `--sample drafts`, a part of the matrix runs every mutant of the part on the
   directed sets and a sample of them on the cells, for a draft; the merge of a matrix refuses such a
