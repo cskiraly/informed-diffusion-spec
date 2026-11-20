@@ -158,10 +158,10 @@ def turn (p : Peer) : M m Turn := do
   -- `if q.urgent: return with_owed(p, q.urgent.pop(0))`: HAVEs, acks, decode claims first
   match (← lane? p .urgent).getD [] with
   | e :: rest =>
-    setLane p .urgent rest
-    -- `if p in waiters: wake_front(past=p)`, before the pop in the Python (wake_front reads no lane): a writer in
-    -- line writes one, whose write may not complete (§7.3): the next may take a slot
+    -- `if p in waiters: wake_front(past=p)`: a writer in line writes one, whose write may not complete (§7.3): the
+    -- next may take a slot
     if (← waitersLine .line).contains p then wakeFront (some p)
+    setLane p .urgent rest                                  -- `q.urgent.pop(0)`
     return .done (match ← withOwed p e with | some e => .entry e | none => .nothing)
   | [] => pure ()
   let normal := (← lane? p .normal).getD []

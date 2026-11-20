@@ -15,7 +15,7 @@ import SpecTwin.Sec51
   wake_front reads the count first and returns where no slot is free, and passes over `past` without asking it.
 - **Reads as the Python's.** A count or a line read twice in the Python is read once here: a record's reads are a
   set. Where the Python does not read at all, the twin does not either: release_unused_slot looks at the count
-  only where the peer was in line.
+  where the peer was in line (wake_front's) and where it gives back a held slot (free_slot's), and nowhere else.
 - `W` is none where the node has no window (card 14 off: the toy's W is infinite): every count is under it.
 - **Calls:** `wake` (the node's writer), `writing` (whether a writer's write has not completed, §7.3) and `after`
   (the window's timer, with the send's key and time). `origin_acked` (§5.1) is the twin's own (Sec51.lean). -/
