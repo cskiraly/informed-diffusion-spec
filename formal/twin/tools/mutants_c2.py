@@ -960,7 +960,7 @@ PART6 = [
      'directed51, a record at node 4 with a target in the mesh: what announce reaches and reads for that peer'),
 ]
 
-# v0.10.7's line (protocol.md §7.1 and §7.2 at spec 903f12b, fv-67's fix): front and wake_front, and the writer in
+# v0.10.7's line (protocol.md §7.1 and §7.2 at spec 903f12b): front and wake_front, and the writer in
 # line that writes control. Written before any was built; C "open" where no cell's reach was counted
 PART7 = [
     ("front-takes-a-writer-mid-write", "front: a writer mid-write taken for the first that can write (the line before v0.10.7)", SEC71,
@@ -998,7 +998,7 @@ PART7 = [
     ("nts-urgent-no-wake", "next_to_send: a writer in line that writes an urgent entry wakes nobody", SEC72,
      '    if (← waitersLine .line).contains p then wakeFront (some p)\n', "",
      "yes", "no", "open",
-     "fv-67's: the writer in line writes control, its write blocks (§7.3), and the slot stays free while the next that "
+     "the writer in line writes control, its write blocks (§7.3), and the slot stays free while the next that "
      "can write waits (the toy monitor's W2 in loss-thin at 1dc2d93)",
      "directed7, a next_to_send record with an urgent entry, the peer in line, a slot free and another in line that "
      "can write: the tape (wake logged, not asked)"),
