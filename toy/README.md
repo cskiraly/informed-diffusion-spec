@@ -133,10 +133,11 @@ where one has a control that must come out the other way, it is named:
   window's line that writes control wakes the first writer in line that can write when its write
   starts to wait for the transport (`write_waits`), and not before. With two writers in line and the
   window empty, for each way the first writes control (an urgent entry, owed offers on their own,
-  and under `protocol-v2.md` a control-only entry of the normal lane): `next_to_send` returns the
-  control and the second gets no run; the write then waits, and the second gets a run. The control:
-  the first not in line, and nothing is woken. It fails on the documents before v0.10.9, which woke
-  the second before the write.
+  and under `protocol-v2.md` a control-only entry of the normal lane), three cases, each from a fresh
+  setup: in the first, `next_to_send` returns the control and the second gets no run; in the second,
+  the first's writer writes the control, the write waits for the transport, and the second gets a
+  run; in the third, the control, the same with the first not in line, and nothing is woken. The
+  first case fails on the documents before v0.10.9, which woke the second before the write.
 - `second_id_known.py`: §4.2, in both documents, a copy under an id the node has not seen, at an
   index it has already received, is acknowledged and neither forwarded nor put in the gossip
   history; a copy of an index held only as rebuilt is still forwarded, and the publisher's first
