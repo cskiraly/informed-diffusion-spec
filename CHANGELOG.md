@@ -13,6 +13,33 @@ are in the documents, most of them in their Rationales, and the full story is in
 messages. The detailed notes of every release up to v0.10.8 are in
 [the changelog at the v0.10.8 tag](https://github.com/cskiraly/seacast-spec/blob/v0.10.8/CHANGELOG.md).
 
+## After v0.10.9 — not yet released
+
+The proofs in `formal/veil/` take in four rules that `protocol.md` added after v0.8, and no rule
+changes.
+
+### Added
+- `formal/veil/SenderFault.lean`: level 1's check of a copy's slot (§3), and the penalty for an
+  IHAVE bitmap that names an index at or beyond the group's count once its descriptor is known
+  (§4.4, §8.2). With `ClaimWins.lean`, A1 is proved, under the models' assumptions, at each of
+  `protocol.md`'s four `penalise` calls, as read from its code.
+- `formal/veil/NoStallTransport.lean`, `formal/veil/NoStallTransportAdv.lean`: the source's
+  announcement at the acknowledgement (§5.1, `SOURCE_OFFERS = ACK`) as a setting beside `PUBLISH`,
+  acknowledged at a HAVE or at a window timeout of a copy the source wrote, with a known answer for
+  a chunk that is never acknowledged.
+- `formal/veil/NoStallEquivAdv.lean`: the drop of an adversary's tie whose slot left the live
+  window (§8.1, `drop_stale_waits`).
+
+### Changed
+- `README.md`, `formal/README.md`, `formal/veil/README.md`: no stall (Q1) is stated with its
+  condition where the source announces at the acknowledgement: on the source's links, each chunk
+  the count uses is acknowledged, or its receiver has received it, stopped pulling, or holds the
+  source's offer of it.
+- `formal/veil/NoStallCount.lean`: its comments and docstrings give the same condition.
+- `formal/veil/README.md`: the list of `protocol.md`'s changes since v0.8 runs to v0.10.9 and says
+  which of them the models have; the results and times are those of a rebuild of the changed
+  models.
+
 ## v0.10.9 — 2026-11-21
 
 The wake in the window's line moves to the moment a write starts to wait, and the index of an ask

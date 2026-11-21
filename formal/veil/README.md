@@ -125,6 +125,12 @@ rule, by inspection:
   line that can write has a run queued. The twin transcribes it. It bears on the models' assumption
   that every queue drains (below): a peer that stops reading no longer holds up the line, though the
   slots its connection holds stay taken until they are released or time out.
+- **v0.10.9, the next writer is woken when a write starts to wait** (§7.1, §7.2): when a writer in
+  line starts to wait for its transport and a slot is free, it wakes the first writer in line that
+  can write, no longer before a control write. A client that cannot tell when a write starts to
+  wait may call `write_waits` earlier, before each control write once that write is pending. The
+  window is not modelled. W2 asks the same of the line, and the toy's known answer `writewait`,
+  which takes that wake out, makes it fire. The twin follows the new wake.
 
 ## The claim wins (`ClaimWins.lean`)
 
