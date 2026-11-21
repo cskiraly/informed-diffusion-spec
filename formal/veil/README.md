@@ -44,11 +44,13 @@ solver; the plain-Lean files are theorems.
 The Quint model next door (`../diffusion.qnt`) checks the claim rule (A1's `noPenalty`), Q1 and Q3
 on three or four nodes, and not agreement or integrity (`../README.md` lists its checks).
 
-**The models are of v0.8's rules** (`NoStallAsk.lean` and `NoStallAskAdv.lean` have v0.7's asking,
-which `NoStallEquiv.lean` and `NoStallEquivAdv.lean` take to v0.8's). Each header names the sections
-and the version it follows. `protocol.md` has changed since. The models have some of the changes
-below, as their items say; they do not have the others, and whether each result carries over to
-those is not checked:
+**The models are of v0.8's rules, with four later changes in places** (`NoStallAsk.lean` and
+`NoStallAskAdv.lean` have v0.7's asking, which `NoStallEquiv.lean` and `NoStallEquivAdv.lean` take to
+v0.8's). Each header names the sections and the version it follows. `protocol.md` has changed since.
+The models have four of the changes below, as their items say: the source's announcement at the
+acknowledgement, level 1's check of the slot, the IHAVE bitmap's penalty, and the drop of an
+adversary's tie whose slot left the live window. They do not have the others, and whether each
+result carries over to those is not checked:
 - **v0.9, the source's announcements at the acknowledgement** (§5.1): the source announces a chunk to
   the mesh peers it did not push it to, and its HAVE names it, at the chunk's acknowledgement: the
   first HAVE naming it from any peer, or a window timeout of a copy of it. Since v0.10.3 this is
@@ -93,10 +95,17 @@ those is not checked:
   - an IDONTWANT entry that is not a HAVE bitmap is kept as stock gossipsub keeps an id, where every
     entry went to `on_have`. The models have no stock ids as state; `NoStallAskAdv.lean`'s header
     reads an adversary's stock IDONTWANT, by inspection, as changing only its own connection;
-  - §5.1 names open a chunk that is never acknowledged, at `ACK`, which the models do not have
-    (above);
+  - §5.1 names open a chunk that is never acknowledged, at `ACK`: a known answer in the transport
+    models (above);
   - §5.1 and §5.4 say what heartbeat gossip tells of the source outside the mesh; the models follow
     mesh links only.
+- **v0.10.5 and v0.10.8:** no rule changed.
+- **v0.10.6, open: the compressed bytes** (§1). No rule changed: a group's root still commits the
+  bytes its builder's compressor produced, as `Agreement.lean` takes it.
+- **v0.10.7, a writer that cannot write does not hold the window's line** (§7.1, §7.2). The window
+  is not modelled: the toy's monitor W2 checks this rule, and the twin transcribes it. It is what
+  the models' assumption that every queue drains needs (below): a peer that stops reading now holds
+  up only its own connection.
 
 ## The claim wins (`ClaimWins.lean`)
 

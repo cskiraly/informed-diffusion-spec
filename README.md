@@ -43,8 +43,8 @@ names how SEACAST diffuses.
   small instances by TLC and random simulation; monitors of five of its safety properties on the
   toy; and a check of §1–§2's arithmetic over every compressed length of a coded group and the
   extremes of each plain one.
-- [`formal/veil/`](formal/veil/): properties of v0.8's rules, proved in Veil for any number of
-  nodes, groups and chunks:
+- [`formal/veil/`](formal/veil/): properties of v0.8's rules and four later changes, proved in Veil
+  for any number of nodes, groups and chunks:
   - A1, an honest node is never penalised: for an ask, for a chunk that fails level 1, or for a
     malformed HAVE or IHAVE bitmap, at every place `protocol.md` penalises a peer. For an ask, it
     needs no assumption under the live window (`protocol.md` §8.1,
