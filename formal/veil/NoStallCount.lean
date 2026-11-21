@@ -5,7 +5,8 @@ import Lean
 `NoStallTransport.lean` and `NoStallAsk.lean` give, for any one chunk, the per-link step: when nothing
 is pending, a node that has its block holds every chunk a mesh neighbour received, or has stopped
 pulling the group (the transport delivers the chunk or leaves the neighbour's offer, and the asking
-resolves the offer). A node that has not stopped holds only chunks it received: it rebuilds only
+resolves the offer). Where the source announces at a chunk's acknowledgement, they give it on the
+source's links only as said below. A node that has not stopped holds only chunks it received: it rebuilds only
 after its decode claim (`NoStallTransport`'s `stored`). The step from there to Q1 is counting, here
 in plain Lean, without Veil:
 
@@ -22,9 +23,10 @@ The hypotheses are the per-link step, the two counting facts, and the decode's o
 is about any node type, any mesh and any N and K. The theorems hold wherever their hypotheses do.
 
 Where the source announces at the chunk's acknowledgement (§5.1, `SOURCE_OFFERS = ACK`), the
-transport gives the step on the source's links only for chunks that are acknowledged, or that the
-neighbour received, stopped for, or holds an offer of. So each step the counting uses on a source's
-link must be had that way. The link from the pieces to these hypotheses is by inspection.
+transport gives the step on the source's links only for a chunk that is acknowledged, or whose
+neighbour received it, has stopped, or holds an offer of it, which the asking then resolves. So each
+step the counting uses on a source's link must be had that way. The link from the pieces to these
+hypotheses is by inspection.
 
 The mesh is the one of the quiet state: the transport's mesh changes (peers join and leave it,
 connections close), and its per-link step holds for every link the quiet state has, so the
@@ -59,9 +61,10 @@ Three corollaries of the per-link step as proved:
 
 And with malicious peers (`every_honest_reachable_node_stops`, `every_honest_reachable_node_completes`):
 the pieces with adversaries (`NoStallTransportAdv.lean`, `NoStallAskAdv.lean`) give the per-link
-step for links from honest nodes into honest nodes that have the block, whatever the others do; the
-counting facts are honest nodes' own; so the induction runs along such links, and every honest node
-the source reaches through honest nodes that installed the block is complete. -/
+step for links from honest nodes into honest nodes that have the block, whatever the others do (on
+the source's links at `ACK`, as above); the counting facts are honest nodes' own; so the induction
+runs along such links, and every honest node the source reaches through honest nodes that installed
+the block is complete. -/
 
 namespace NoStallCount
 
@@ -138,8 +141,8 @@ theorem every_installed_reachable_node_completes {Node : Type} {N : Nat} (K : Na
 
 /-- Q1 with malicious peers (`NoStallTransportAdv.lean`, `NoStallAskAdv.lean`): the per-link step
 holds for the links from honest nodes into honest nodes that installed the block, whatever the other
-peers do, and the counting facts hold of honest nodes; so every honest node the source reaches
-along such links has stopped -/
+peers do (on the source's links at `ACK`, as the header says), and the counting facts hold of honest
+nodes; so every honest node the source reaches along such links has stopped -/
 theorem every_honest_reachable_node_stops {Node : Type} {N : Nat} (K : Nat)
     (mesh : Node → Node → Prop) (honest inst : Node → Prop) (src : Node)
     (rcv : Node → Fin N → Bool) (stop : Node → Prop)

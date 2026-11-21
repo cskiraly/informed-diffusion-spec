@@ -29,8 +29,9 @@ set_option veil.smt.timeout 300
 `NoStallTransport.lean` with adversaries. The adversaries (`adv`, any
 set of nodes but the source) are part of the environment: they send an authentic copy of the chunk
 if they hold it, at any time and to anyone (a push or an answer); they announce it whether they
-hold it or not; they claim it whether they hold it or not (a HAVE: which only keeps honest nodes
-from pushing it to them or announcing it to them, and counts among a forwarder's holders); and
+hold it or not; they claim it whether they hold it or not (a HAVE: which keeps honest nodes from
+pushing it to them or announcing it to them, counts among a forwarder's holders, and at `ACK`
+acknowledges the source's chunk as any HAVE does); and
 they join and leave honest nodes' meshes and close their connections, as the environment already
 lets every node. A copy that is not the committed piece fails level 1, and one that names a root
 that never installs waits for good; either has an id of its own (§2: the id covers the content), so
@@ -39,7 +40,8 @@ Their own pending events are not work: "nothing left to do" is about honest node
 to forward, queued, in flight to them, deferred with their block installed, due to repair). The
 result: **when no honest node has anything left to do, an honest node that has its block holds
 every chunk an honest mesh neighbour received, or has stopped pulling, or holds that neighbour's
-offer of it**, whatever the adversaries did.
+offer of it, or, at `ACK`, the neighbour is the source, the node was not chosen to be pushed the
+chunk, and the chunk is not acknowledged yet**, whatever the adversaries did.
 
 The rest of this header is `NoStallTransport.lean`'s.
 
@@ -66,8 +68,9 @@ installs; a decoded node's repair may push the chunk to mesh peers that have not
 The rest of the protocol is the **environment**, events at any time and any number of times, not in
 `work`: a node's block installs; a node stops pulling the group (its decode claim, which takes the
 block); a stopped node's decode stores the chunk and makes its repair due; a node learns that a peer
-claims the chunk (a HAVE: true, possibly never sent); an answer brings the chunk to a node with its
-block from a node that holds it (the asking part); and the mesh changes: a peer joins a node's mesh
+claims the chunk (a HAVE: true, possibly never sent); a node that holds the chunk writes an answer,
+and an answer brings the chunk to a node with its block (the asking part); and the mesh changes: a
+peer joins a node's mesh
 (a GRAFT, sent or accepted), leaves it (a PRUNE) or loses its connection, which takes with it what
 is queued, owed or in flight on it and the state kept per connection (§8.1). The mesh is directed,
 as gossipsub's is: `mesh n m` is "m is in n's mesh", the peers n forwards to; it starts empty, so
@@ -103,18 +106,22 @@ on is `ACK`, the default since v0.9; off is `PUBLISH`, the source's other choice
   covers every `R` and every set of candidates (§5.3; §8.3's bound, `R` at least 1, gives a
   target only among the candidates).
 - **The rest of the mesh,** at `ACK`, is announced the chunk at its acknowledgement (`acked`). That
-  is the first HAVE that newly names it from any peer (`learnClaim`), or a window timeout of a copy
-  the source wrote, a push or an answer, while its connection still holds the copy's slot
-  (`ackTimeout`, `slotHeld`); a close takes the slot with the copy. `slotHeld` records a write
-  whose slot no close has taken. A HAVE or timeout that would release the slot acknowledges the
-  chunk at the same time, and after the acknowledgement `slotHeld` is not read.
+  is a HAVE naming it from any peer (`learnClaim`), or a window timeout of a copy the source wrote,
+  a push or an answer, while its connection still holds the copy's slot (`ackTimeout`,
+  `slotHeld`); a close takes the slot with the copy.
+  - The spec acknowledges at the first HAVE that newly names the chunk, which a repeat can be once
+    its claim has lapsed (`HAVE_TTL`). The model takes any HAVE while the chunk is unacknowledged,
+    which covers that.
+  - `slotHeld` records a write whose slot no close has taken. A HAVE or timeout that would release
+    the slot acknowledges the chunk at the same time, and after the acknowledgement `slotHeld` is
+    not read.
 - **Both acknowledgements are environment events,** at any time they can happen: the window is not
   modelled. A peer that joins the source's mesh is announced the chunk at once, as at any node (F9).
 - **Not checked here:** what the source's HAVE names and when it sends it (§5.1's P4, and
-  `origin_written` at `PUBLISH`). A HAVE is the environment's (`learnClaim`), and only keeps its
-  receiver from pushing or announcing the chunk to its sender. The source's `fwd` also stands for
-  two operations: the planned pushes, and the announcements at the acknowledgement. Like
-  forwarding at any node, it may push or announce to either.
+  `origin_written` at `PUBLISH`). The source's HAVE is the environment's (`learnClaim` at its
+  peers), and only keeps them from pushing or announcing the chunk to the source. The source's
+  `fwd` also stands for two operations, the planned pushes and the announcements at the
+  acknowledgement. Like forwarding at any node, it may push or announce to either.
 - **With adversaries,** an adversary's HAVE, true or not, acknowledges the chunk as any HAVE does.
 
 Where no acknowledgement comes, `protocol.md` §5.1's open item, a mesh peer of the source holds
@@ -132,9 +139,11 @@ its offer at once, and the builder's block's installation turns the tie into the
 offers once the other block opened its gate.
 
 Not modelled here: what is asked and answered (the asking part), traffic outside the mesh (heartbeat
-gossip, §6.4, and the source's stripes, §5.1), lifetimes; the send window, assumed to let every
-queue drain, an adversary's too (W2 in `../README.md`; since v0.10.7, §7.1, a peer that stops
-reading holds up only its own connection, and these models leave such a peer out). -/
+gossip, §6.4, and the source's stripes, §5.1), lifetimes (a claim never lapses here); the send
+window, assumed to let every queue drain, an adversary's too. W2 in `../README.md` checks a narrower
+rule. Since v0.10.7 (§7.1), a writer that cannot write is passed over in the window's line, though
+its connection's slots stay taken until they are released or time out; a peer that stops reading is
+left out here. -/
 
 veil module NoStallTransportAdv
 
@@ -295,17 +304,18 @@ action rebuild (n : node) {
 }
 
 -- §4.3: m learns from n's HAVE that n claims the chunk: true of an honest node, anything of an
--- adversary. At ACK, at the published source, the first HAVE that newly names the chunk from any
--- peer, an adversary's too (`on_have`'s `newly`: a bit this connection's peer had not claimed), is
--- its acknowledgement (§5.1, `origin_acked`): the source's mesh peers not chosen to be pushed it are
--- announced it, as forwarding announces, minus what they claimed (the claimant's own forwarding, if
--- any, finds its claim at `fwd`)
+-- adversary. At ACK, at the published source, a HAVE naming the chunk from any peer while it is
+-- unacknowledged, an adversary's too, is its acknowledgement (§5.1, `origin_acked`): the source's
+-- mesh peers not chosen to be pushed it, and not known to hold it, are announced it, as forwarding
+-- announces. The spec acknowledges at the first HAVE that newly names the chunk (`on_have`'s
+-- `newly`), which a repeat can be once its claim has lapsed (`HAVE_TTL`); the model takes any, which
+-- covers that
 action learnClaim (m n : node) {
   require holds n ∨ stop n ∨ adv n
-  if ackAnnounce ∧ source m ∧ m ≠ n ∧ published ∧ ¬ acked ∧ ¬ peerHas m n then
+  peerHas m n := true
+  if ackAnnounce ∧ source m ∧ m ≠ n ∧ published ∧ ¬ acked then
     acked := true
     pendingFwd m Q := pendingFwd m Q || (mesh m Q && !planned Q && !peerHas m Q)
-  peerHas m n := true
 }
 
 -- §5.1, §7.1: at ACK, a copy the source wrote times out in the window, its slot still held: the
@@ -334,12 +344,13 @@ action advIhave (a n : node) {
   pipe fIhave a n := true
 }
 
--- §4.5, §6.3, §7.1: q, which holds the chunk, writes an answer to n, which has its block and asked
--- on q's offer: the answer's window slot is held until a HAVE or the timeout, and the answer may
--- still be in flight (`arrived` false). When it arrives, n stores the chunk, its offers go, it is
--- claimed (a HAVE: the environment) and forwarded
+-- §4.5, §6.3, §7.1: q, which holds the chunk, writes an answer to n: its window slot is held until a
+-- HAVE or the timeout. The write is the environment's at any time, to any peer (`arrived` false):
+-- what n asked, on an offer or not, and with which block, is the asking part's. When an answer
+-- arrives at n, which has its block, n stores the chunk, its offers go, it is claimed (a HAVE: the
+-- environment) and forwarded
 action answerArrives (n q : node) (arrived : Bool) {
-  require installed n ∧ holds q ∧ ¬ rcv n ∧ (arrived = true ∨ offered n q)
+  require holds q ∧ ((arrived = true ∧ installed n ∧ ¬ rcv n) ∨ (arrived = false ∧ n ≠ q))
   slotHeld q n := true
   if arrived = true then
     holds n := true
@@ -991,8 +1002,9 @@ sat trace [ack_by_timeout] {
 -- `protocol.md` §5.1's open item, a chunk never acknowledged: the source pushes it to the one peer it
 -- chose, whose connection closes with the copy in flight, before a HAVE or the timeout. The source's
 -- other mesh peer, honest and with its block, holds neither the chunk nor its offer when the honest
--- nodes are done. No copy holds a slot, no node but the source holds the chunk, and no node holds an
--- offer of it, so no ask is due
+-- nodes are done. The witness ends there: no copy holding a slot, no node but the source holding the
+-- chunk, and no node holding an offer of it, so no ask is due. This model's environment may still
+-- write or deliver an answer, or an adversary claim the chunk, at any time
 sat trace [ka_never_acknowledged] {
   plan
   join

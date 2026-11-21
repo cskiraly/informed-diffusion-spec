@@ -70,8 +70,9 @@ The rules the argument rests on are switches, `immutable` Booleans, each on in t
 invariant holds where `premises`, all of them on. The known answers below are `sat trace`s, at
 least one per rule turned off, each with an honest node penalised. v0.10's two checks add no rule
 of their own: they are penalties, which the rules already keep off honest nodes. An honest node
-sends a chunk as level 1 passed it, its slot included (`gateLevel1`), and announces only what it
-can serve (`gateLevel1` again, with a known answer of its own).
+sends a chunk as level 1 passed it, its slot included (`gateLevel1`), and announces only indices
+that passed level 1 or that its decode claim names (`gateLevel1` again, with a known answer of its
+own).
 
 Not modelled: the bytes (`good` stands for every check of §3 but the block's), timing, the window,
 claims and asks (`ClaimWins.lean`), and the coding lemma (that level 2 passes at every node or at
