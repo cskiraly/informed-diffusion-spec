@@ -24,11 +24,14 @@ macro "fv_step" : tactic => `(tactic| (
 
 /-! # No stall, the transport part (Q1's second piece), for any number of nodes
 
-SEACAST, `protocol.md` v0.7 (§3, §4.2, §4.4, §4.6, §5, §7.2, §8.1), with F9's rule, §5.4 since v0.8:
+SEACAST, `protocol.md` v0.7 (§3, §4.2, §4.4, §4.6, §5, §7.2, §8.1), with F9's rule, §5.4 since v0.8,
+and the source's announcement at the acknowledgement, §5.1 since v0.9, as a setting (below):
 **when the transport has nothing left to do, a node that has its block holds every chunk a mesh
 neighbour received, or has stopped pulling the group, or holds that neighbour's offer of the
-chunk**, which the asking part (`NoStallAsk.lean`) then resolves. The chunk is any one chunk of the
-group, so the result holds for each; the mesh is the one the quiet state has, however it changed.
+chunk**, which the asking part (`NoStallAsk.lean`) then resolves; **or the neighbour is the source,
+announcing at the acknowledgement, the node was not chosen to be pushed the chunk, and the chunk is
+not acknowledged yet.** The chunk is any one chunk of the group, so the result holds for each; the
+mesh is the one the quiet state has, however it changed.
 
 The transport, as the spec writes it: the source publishes, pushing or announcing the chunk to each
 mesh peer (§5.1); a node that stores the chunk forwards it to each mesh peer that is neither its
@@ -72,6 +75,24 @@ learn of the drop, and repeats an announcement only when an offer of it is owed 
 a copy received after rebuilding the chunk). Also assumed: §8.2's limits admit the one group
 modelled, so a copy the deferred store refuses counts as its sender's offer (`admitted`).
 
+When the source announces (§5.1, §8.3's `SOURCE_OFFERS`) is a setting, `ackAnnounce`, not a rule:
+on is `ACK`, the default since v0.9; off is `PUBLISH`, the source's other choice, as before v0.9.
+- **At `PUBLISH`,** publishing makes the source's forwarding to every mesh peer due, a push or an
+  announcement, as forwarding does.
+- **At `ACK`,** it makes it due at once only to the peers the source chose to push the chunk to
+  (`planned`, chosen before the publish). There is at least one of them where its mesh is not
+  empty: §8.3's bound, `R` at least 1.
+- **The rest of the mesh,** at `ACK`, is announced the chunk at its acknowledgement (`acked`). That
+  is the first HAVE naming it from any peer (`learnClaim`), or a window timeout of a copy the
+  source wrote, whose slot its connection still holds (`ackTimeout`, `slotHeld`); a close takes
+  the slot with the copy.
+- **Both acknowledgements are environment events,** at any time they can happen: the window is not
+  modelled. A peer that joins the source's mesh is announced the chunk at once, as at any node (F9).
+
+Where no acknowledgement comes, `protocol.md` §5.1's open item, a mesh peer of the source holds
+neither the chunk nor its offer when the transport is done (`ka_never_acknowledged`). So at `ACK`
+the per-link step holds for the source's links once the chunk is acknowledged.
+
 Equivocation (`NoStallEquiv.lean`, F6) needs nothing more here, given that every honest copy names
 the builder's block, rebuilt ones included (assumed: v0.7's §4.6 let a rebuilt chunk name either
 installed block whose bid commits the group, and one naming the other block waits for good at a
@@ -108,6 +129,9 @@ immutable individual refusedAsOffer : Bool   -- §4.2: a copy the deferred store
 immutable individual ihaveHandled : Bool
 -- §5.4 (v0.8), F9's rule: a peer that joins the mesh is announced what the node holds
 immutable individual resyncOnJoin : Bool
+-- §5.1 (v0.9), §8.3's `SOURCE_OFFERS`, a setting: on is ACK, the source's peers not chosen to be
+-- pushed the chunk are announced it at its acknowledgement; off is PUBLISH, at the publish
+immutable individual ackAnnounce : Bool
 
 relation mesh (n : node) (m : node) : Bool    -- m is in n's mesh: n forwards to m
 individual published : Bool
@@ -123,6 +147,9 @@ relation repairDue (m : node) (n : node) : Bool
 relation pipe (k : pk) (a : node) (b : node) : Bool
 relation pend (n : node) (m : node) : Bool          -- n's deferred store holds m's copy
 relation offered (n : node) (m : node) : Bool       -- m offered the chunk to n
+relation planned (n : node) : Bool                  -- the source chose to push the chunk to n (§5.1)
+relation slotHeld (m : node) (n : node) : Bool      -- m wrote a copy to n, whose window slot is held
+individual acked : Bool                             -- the source's chunk is acknowledged (§5.1)
 -- history only, for the non-vacuity queries below: no action reads them
 relation everDeferred (n : node) : Bool
 relation everRefused (n : node) : Bool
@@ -137,7 +164,9 @@ theory ghost relation premises :=
   offerSkipped ∧ oweRefused ∧ refusedAsOffer ∧ ihaveHandled ∧ resyncOnJoin
 
 -- the transport's actions' enabling conditions, each its action's only `require`
-ghost relation en_publish (s : node) := source s ∧ ¬ published
+-- (at ACK, with a push target in the mesh where it is not empty: §8.3's R ≥ 1)
+ghost relation en_publish (s : node) := source s ∧ ¬ published ∧
+  (ackAnnounce → (∃ Q, mesh s Q) → ∃ Q, mesh s Q ∧ planned Q)
 ghost relation en_fwd (m : node) (n : node) := pendingFwd m n
 ghost relation en_writePush (m : node) (n : node) := pipe qPush m n
 ghost relation en_writeIhave (m : node) (n : node) := pipe qIhave m n
@@ -157,6 +186,10 @@ ghost relation work :=
 -- neighbour received, has not stopped, and holds no offer of it from that neighbour
 ghost relation undelivered :=
   ¬ work ∧ ∃ M N, installed N ∧ rcv M ∧ mesh M N ∧ ¬ holds N ∧ ¬ stop N ∧ ¬ offered N M
+-- at ACK, the source's link while its chunk is not acknowledged: the node was not chosen to be pushed
+-- the chunk, and the announcement waits for the acknowledgement (§5.1)
+ghost relation awaitsAck (m : node) (n : node) :=
+  ackAnnounce ∧ source m ∧ published ∧ ¬ acked ∧ ¬ planned n
 
 -- Q3: a ranking that every step of the transport lowers. Ten levels,
 -- highest first, each a relation on pairs of nodes: the unpublished source; nodes that have not
@@ -192,6 +225,9 @@ after_init {
   pipe K A B := false
   pend N M := false
   offered N M := false
+  planned N := false
+  slotHeld M N := false
+  acked := false
   everDeferred N := false
   everRefused N := false
   everResynced N M := false
@@ -220,14 +256,35 @@ action rebuild (n : node) {
   repairDue n Q := mesh n Q && !rcv n && !peerHas n Q
 }
 
--- §4.3: m learns from n's HAVE that n claims the chunk
+-- §4.3: m learns from n's HAVE that n claims the chunk. At ACK, at the published source, the first
+-- HAVE naming the chunk from any peer is its acknowledgement (§5.1, `origin_acked`): the source's
+-- mesh peers not chosen to be pushed it are announced it, as forwarding announces, minus what they
+-- claimed
 action learnClaim (m n : node) {
   require holds n ∨ stop n
   peerHas m n := true
+  if ackAnnounce ∧ source m ∧ m ≠ n ∧ published ∧ ¬ acked then
+    acked := true
+    pendingFwd m Q := pendingFwd m Q || (mesh m Q && !planned Q && !peerHas m Q)
+}
+
+-- §5.1, §7.1: at ACK, a copy the source wrote times out in the window, its slot still held: the
+-- chunk's acknowledgement, as at a HAVE (the window is not modelled: at any time)
+action ackTimeout (s n : node) {
+  require ackAnnounce ∧ source s ∧ published ∧ ¬ acked ∧ slotHeld s n
+  acked := true
+  pendingFwd s Q := pendingFwd s Q || (mesh s Q && !planned Q && !peerHas s Q)
+}
+
+-- §5.1: before the publish, the source chooses the peers it pushes the chunk to (§5.3's targets)
+action plan (s n : node) {
+  require source s ∧ ¬ published
+  planned n := true
 }
 
 -- §4.5, §6.3: an answer brings the chunk to n, which has its block, from q, which holds it: stored,
--- its offers go, claimed (a HAVE: the environment) and forwarded
+-- its offers go, claimed (a HAVE: the environment) and forwarded. q wrote it: its window slot is
+-- held until a HAVE or the timeout (§7.1)
 action answerArrives (n q : node) {
   require installed n ∧ holds q ∧ ¬ rcv n
   holds n := true
@@ -235,6 +292,7 @@ action answerArrives (n q : node) {
   fwdFrom n q := true
   offered n Q := false
   pendingFwd n Q := mesh n Q && !peerHas n Q
+  slotHeld q n := true
 }
 
 -- the mesh changes (stock gossipsub: GRAFT, PRUNE, the heartbeat's upkeep). m joins n's mesh, by n's
@@ -283,12 +341,16 @@ action close (n m : node) {
   pushed m n := false
   offered n m := false
   offered m n := false
+  slotHeld n m := false
+  slotHeld m n := false
 }
 
 /-! ## The transport -/
 
 -- §5.1: the source holds the chunk, has claimed the group and pulls nothing; the chunk is pushed or
--- announced to each mesh peer, as forwarding does
+-- announced to each mesh peer, as forwarding does: at PUBLISH to all of them; at ACK only to the
+-- peers the source chose to push it to, at least one where its mesh is not empty (§8.3: R ≥ 1), the
+-- rest at the acknowledgement
 action publish (s : node) {
   require en_publish s
   published := true
@@ -296,7 +358,7 @@ action publish (s : node) {
   stop s := true
   rcv s := true
   holds s := true
-  pendingFwd s Q := mesh s Q
+  pendingFwd s Q := mesh s Q && (!ackAnnounce || planned Q)
 }
 
 -- §5.2, §5.3: m forwards the chunk to n: pushed (counted) or announced, minus what it pushed n and
@@ -322,7 +384,8 @@ action fwd (m n : node) (pushIt full : Bool) {
 }
 
 -- §7.2: a queued push: cancelled if n has claimed the chunk; skipped by projection, then uncounted
--- and offered if n is still in m's mesh (A′, §5.2's `unpush`); else sent
+-- and offered if n is still in m's mesh (A′, §5.2's `unpush`); else sent, holding a window slot
+-- (§7.1)
 action writePush (m n : node) (projected : Bool) {
   require en_writePush m n
   pipe qPush m n := false
@@ -334,6 +397,7 @@ action writePush (m n : node) (projected : Bool) {
           pipe owedOffer m n := true
     else
       pipe fChunk m n := true
+      slotHeld m n := true
 }
 
 action writeIhave (m n : node) {
@@ -420,9 +484,10 @@ action repair (m n : node) (pushIt full : Bool) {
 action stutter { pure () }
 
 -- when the transport is done, a node with its block holds every chunk a mesh neighbour received, has
--- stopped pulling, or holds the neighbour's offer of it
+-- stopped pulling, or holds the neighbour's offer of it; or, at ACK, the neighbour is the source, the
+-- node was not chosen to be pushed the chunk, and the chunk is not acknowledged yet
 safety [delivered] premises → ¬ work → installed N → rcv M → mesh M N →
-  holds N ∨ stop N ∨ offered N M
+  holds N ∨ stop N ∨ offered N M ∨ awaitsAck M N
 
 -- no node is in its own mesh
 invariant [mesh_irrefl] mesh N M → N ≠ M
@@ -437,10 +502,14 @@ invariant [senders_hold] (pipe qPush M N → holds M) ∧ (pipe fChunk M N → h
 invariant [others_hold] (fwdFrom N P → holds P) ∧ (pend N P → holds P) ∧ (offered N Q → holds Q)
 -- a queued push is counted
 invariant [qpush_pushed] pipe qPush M N → pushed M N
--- the chain that carries a chunk across a mesh link: forwarded, then pushed or offered
+-- the chain that carries a chunk across a mesh link: forwarded, then pushed or offered; or, at ACK,
+-- waiting at the source for the acknowledgement
 invariant [delivery] premises → rcv M → mesh M N →
   holds N ∨ stop N ∨ pendingFwd M N ∨ pipe qPush M N ∨ pushed M N ∨ pipe owedOffer M N ∨
-    pipe qIhave M N ∨ pipe fIhave M N ∨ offered N M ∨ peerHas M N
+    pipe qIhave M N ∨ pipe fIhave M N ∨ offered N M ∨ peerHas M N ∨ awaitsAck M N
+-- the source is acknowledged only once it has published, and it holds the chunk from the publish on
+invariant [acked_published] acked → published
+invariant [source_holds] published → source S → holds S
 -- a counted push arrives, waits in the deferred store, or is refused by it and then an offer
 invariant [pushed_chain] premises → pushed M N →
   holds N ∨ stop N ∨ pipe qPush M N ∨ pipe fChunk M N ∨ (∃ P, pend N P) ∨ offered N M ∨
@@ -458,7 +527,8 @@ temporal (only := verify) [quiet]
   ⌞ ∃ l : List node, ∀ n : node, n ∈ l ⌟ ∧
   𝒲ℱ publish ∧ 𝒲ℱ fwd ∧ 𝒲ℱ writePush ∧ 𝒲ℱ writeIhave ∧ 𝒲ℱ writeOwed ∧ 𝒲ℱ recvChunk ∧ 𝒲ℱ resume ∧ 𝒲ℱ recvIhave ∧ 𝒲ℱ repair ∧
   ◇ □ (⟨stutter⟩ ∨ ⟨publish⟩ ∨ ⟨fwd⟩ ∨ ⟨writePush⟩ ∨ ⟨writeIhave⟩ ∨ ⟨writeOwed⟩ ∨ ⟨recvChunk⟩ ∨ ⟨resume⟩ ∨ ⟨recvIhave⟩ ∨ ⟨repair⟩ ∨ ⟨dropIhave⟩ ∨
-    (¬ ⟨install⟩ ∧ ¬ ⟨stopPull⟩ ∧ ¬ ⟨rebuild⟩ ∧ ¬ ⟨learnClaim⟩ ∧ ¬ ⟨answerArrives⟩ ∧ ¬ ⟨join⟩ ∧ ¬ ⟨leave⟩ ∧ ¬ ⟨close⟩)) →
+    (¬ ⟨install⟩ ∧ ¬ ⟨stopPull⟩ ∧ ¬ ⟨rebuild⟩ ∧ ¬ ⟨learnClaim⟩ ∧ ¬ ⟨answerArrives⟩ ∧ ¬ ⟨join⟩ ∧ ¬ ⟨leave⟩ ∧ ¬ ⟨close⟩ ∧
+      ¬ ⟨ackTimeout⟩ ∧ ¬ ⟨plan⟩)) →
   ◇ □ ⌜ ¬ work ⌝
 temporal (only := verify) [workEnabled]
   □ (⌜ work ⌝ → (∃ s, Enabled (publish s)) ∨ (∃ m, ∃ n, Enabled (fwd m n true false)) ∨
@@ -733,7 +803,8 @@ sat trace [ka_skip_counted] {
   install
   fwd
   writePush
-  assert (¬ offerSkipped ∧ oweRefused ∧ refusedAsOffer ∧ ihaveHandled ∧ resyncOnJoin ∧ undelivered)
+  assert (¬ ackAnnounce ∧ ¬ offerSkipped ∧ oweRefused ∧ refusedAsOffer ∧ ihaveHandled ∧ resyncOnJoin ∧
+    undelivered)
 }
 
 -- a push a full queue refuses is lost
@@ -742,7 +813,8 @@ sat trace [ka_refused_lost] {
   publish
   install
   fwd
-  assert (offerSkipped ∧ ¬ oweRefused ∧ refusedAsOffer ∧ ihaveHandled ∧ resyncOnJoin ∧ undelivered)
+  assert (¬ ackAnnounce ∧ offerSkipped ∧ ¬ oweRefused ∧ refusedAsOffer ∧ ihaveHandled ∧ resyncOnJoin ∧
+    undelivered)
 }
 
 -- F7: a push the deferred store refuses is lost
@@ -753,7 +825,8 @@ sat trace [ka_refused_copy_lost] {
   writePush
   recvChunk
   install
-  assert (offerSkipped ∧ oweRefused ∧ ¬ refusedAsOffer ∧ ihaveHandled ∧ resyncOnJoin ∧ undelivered)
+  assert (¬ ackAnnounce ∧ offerSkipped ∧ oweRefused ∧ ¬ refusedAsOffer ∧ ihaveHandled ∧ resyncOnJoin ∧
+    undelivered)
 }
 
 -- F11: an announcement the receiver's IHAVE limit ignores is lost, and offered by nobody again
@@ -764,7 +837,8 @@ sat trace [ka_ihave_dropped] {
   fwd
   writeIhave
   dropIhave
-  assert (offerSkipped ∧ oweRefused ∧ refusedAsOffer ∧ ¬ ihaveHandled ∧ resyncOnJoin ∧ undelivered)
+  assert (¬ ackAnnounce ∧ offerSkipped ∧ oweRefused ∧ refusedAsOffer ∧ ¬ ihaveHandled ∧ resyncOnJoin ∧
+    undelivered)
 }
 
 -- F9: the connection closes with a push of the chunk queued, the peer joins the mesh again, and
@@ -776,7 +850,8 @@ sat trace [ka_rejoin_lost] {
   close
   join
   install
-  assert (offerSkipped ∧ oweRefused ∧ refusedAsOffer ∧ ihaveHandled ∧ ¬ resyncOnJoin ∧ ¬ work ∧
+  assert (¬ ackAnnounce ∧ offerSkipped ∧ oweRefused ∧ refusedAsOffer ∧ ihaveHandled ∧ ¬ resyncOnJoin ∧
+    ¬ work ∧
     ∃ M N, lostPush M N ∧ installed N ∧ rcv M ∧ mesh M N ∧ ¬ holds N ∧ ¬ stop N ∧ ¬ offered N M)
 }
 
@@ -786,7 +861,70 @@ sat trace [ka_late_join] {
   publish
   join
   install
-  assert (offerSkipped ∧ oweRefused ∧ refusedAsOffer ∧ ihaveHandled ∧ ¬ resyncOnJoin ∧ undelivered)
+  assert (¬ ackAnnounce ∧ offerSkipped ∧ oweRefused ∧ refusedAsOffer ∧ ihaveHandled ∧ ¬ resyncOnJoin ∧
+    undelivered)
+}
+
+/-! ## The source's announcement at the acknowledgement (§5.1, `SOURCE_OFFERS = ACK`)
+
+The known answers above are at PUBLISH, as before v0.9, so that each shows its rule's gap and not
+§5.1's open item. Below, at ACK, every rule on. -/
+
+-- the push target's HAVE acknowledges the chunk, and the source's other mesh peer is announced it
+sat trace [ack_by_have] {
+  plan
+  join
+  join
+  publish
+  install
+  install
+  fwd
+  writePush
+  recvChunk
+  learnClaim
+  fwd
+  writeIhave
+  recvIhave
+  assert (premises ∧ ackAnnounce ∧ ¬ work ∧ acked ∧
+    ∃ M N, source M ∧ ¬ planned N ∧ installed N ∧ offered N M)
+}
+
+-- a written copy times out in the window, with no HAVE from anyone: the acknowledgement all the same
+sat trace [ack_by_timeout] {
+  plan
+  join
+  join
+  publish
+  install
+  install
+  fwd
+  writePush
+  recvChunk
+  ackTimeout
+  fwd
+  writeIhave
+  recvIhave
+  assert (premises ∧ ackAnnounce ∧ ¬ work ∧ acked ∧ (∀ M N, ¬ peerHas M N) ∧
+    ∃ M N, source M ∧ ¬ planned N ∧ installed N ∧ offered N M)
+}
+
+-- `protocol.md` §5.1's open item, a chunk never acknowledged: the source pushes it to the one peer it
+-- chose, whose connection closes with the copy in flight, before a HAVE or the timeout. The source's
+-- other mesh peer, with its block, holds neither the chunk nor its offer when the transport is done;
+-- no copy holds a slot, and no node but the source holds the chunk, so only a decode claim or a join
+-- could still acknowledge or announce it
+sat trace [ka_never_acknowledged] {
+  plan
+  join
+  join
+  publish
+  install
+  fwd
+  writePush
+  close
+  assert (premises ∧ ackAnnounce ∧ ¬ work ∧ ¬ acked ∧ (∀ M N, ¬ slotHeld M N) ∧
+    (∀ N, holds N → source N) ∧
+    ∃ M N, source M ∧ installed N ∧ mesh M N ∧ ¬ holds N ∧ ¬ stop N ∧ ¬ offered N M)
 }
 
 /-! ## The proof: the clauses above are an inductive invariant -/
@@ -1396,7 +1534,9 @@ prove_temporal_by [quiet]
     | 4 => ∃ n, ∃ q, NoStallTransport.answerArrives.ext.tr ρ σ node pk χ n q th s s'
     | 5 => ∃ n, ∃ m, ∃ f, NoStallTransport.join.ext.tr ρ σ node pk χ n m f th s s'
     | 6 => ∃ n, ∃ m, NoStallTransport.leave.ext.tr ρ σ node pk χ n m th s s'
-    | _ => ∃ n, ∃ m, NoStallTransport.close.ext.tr ρ σ node pk χ n m th s s'
+    | 7 => ∃ n, ∃ m, NoStallTransport.close.ext.tr ρ σ node pk χ n m th s s'
+    | 8 => ∃ s0, ∃ n, NoStallTransport.ackTimeout.ext.tr ρ σ node pk χ s0 n th s s'
+    | _ => ∃ s0, ∃ n, NoStallTransport.plan.ext.tr ρ σ node pk χ s0 n th s s'
   -- a step is sorted by its effect: one with an own action's effect is own, whatever action took it;
   -- an environment step that changes nothing is a stutter
   let env : σ → σ → Prop := fun s s' => (∃ j, envf j s s') ∧ ¬ own s s' ∧ s' ≠ s
@@ -1433,6 +1573,8 @@ prove_temporal_by [quiet]
     | join n m f => exact Or.inr (Or.inl ⟨⟨5, n, m, f, hl⟩, ho, hs⟩)
     | leave n m => exact Or.inr (Or.inl ⟨⟨6, n, m, hl⟩, ho, hs⟩)
     | close n m => exact Or.inr (Or.inl ⟨⟨7, n, m, hl⟩, ho, hs⟩)
+    | ackTimeout s0 n => exact Or.inr (Or.inl ⟨⟨8, s0, n, hl⟩, ho, hs⟩)
+    | plan s0 n => exact Or.inr (Or.inl ⟨⟨9, s0, n, hl⟩, ho, hs⟩)
     | stutter => exact absurd hl.symm hs
   case hdec =>
     intro k hk hown
@@ -1646,7 +1788,7 @@ prove_temporal_by [quiet]
   case henv =>
     obtain ⟨k0, hk0⟩ := henv
     refine ⟨k0, fun k ⟨⟨j, hj⟩, hno, hne⟩ => ?_⟩
-    rcases hk0 k with hst | ho0 | ho1 | ho2 | ho3 | ho4 | ho5 | ho6 | ho7 | ho8 | ho9 | ⟨h0, h1, h2, h3, h4, h5, h6, h7⟩
+    rcases hk0 k with hst | ho0 | ho1 | ho2 | ho3 | ho4 | ho5 | ho6 | ho7 | ho8 | ho9 | ⟨h0, h1, h2, h3, h4, h5, h6, h7, h8, h9⟩
     · exact hne (Eq.symm hst)
     · obtain ⟨a, hh⟩ := ho0; exact hno ⟨0, a, hh⟩
     · obtain ⟨m, n, p, f, hh⟩ := ho1; exact hno ⟨1, m, n, p, f, hh⟩
@@ -1658,7 +1800,7 @@ prove_temporal_by [quiet]
     · obtain ⟨n, m, hh⟩ := ho7; exact hno ⟨7, n, m, hh⟩
     · obtain ⟨m, n, p, f, hh⟩ := ho8; exact hno ⟨8, m, n, p, f, hh⟩
     · obtain ⟨n, m, hh⟩ := ho9; exact hno ⟨9, n, m, hh⟩
-    rcases j with _ | _ | _ | _ | _ | _ | _ | j
+    rcases j with _ | _ | _ | _ | _ | _ | _ | _ | _ | j
     · obtain ⟨n, hs⟩ := hj; exact h0 ⟨n, hs⟩
     · obtain ⟨n, hs⟩ := hj; exact h1 ⟨n, hs⟩
     · obtain ⟨n, hs⟩ := hj; exact h2 ⟨n, hs⟩
@@ -1667,6 +1809,8 @@ prove_temporal_by [quiet]
     · obtain ⟨n, m, f, hs⟩ := hj; exact h5 ⟨n, m, f, hs⟩
     · obtain ⟨n, m, hs⟩ := hj; exact h6 ⟨n, m, hs⟩
     · obtain ⟨n, m, hs⟩ := hj; exact h7 ⟨n, m, hs⟩
+    · obtain ⟨s0, n, hs⟩ := hj; exact h8 ⟨s0, n, hs⟩
+    · obtain ⟨s0, n, hs⟩ := hj; exact h9 ⟨s0, n, hs⟩
 
 
 -- the audit, every failure a build error: the verification conditions, derived from the module
