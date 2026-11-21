@@ -419,7 +419,7 @@ not in the models.
 
 | piece | proof | traces | the build |
 |---|---|---|---|
-| transport | 264 of 264 conditions, 1041 theorems | 8 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered; the chunk announced again to a peer back in the mesh after a close lost a queued push; and to a peer that joined after the publish; at `ACK`, the source's other mesh peer announced the chunk at the acknowledgement, by a HAVE and by a window timeout), 7 known answers (at `PUBLISH`: F1, a skipped push counted, offered to nobody; a refused push lost; F7, a refused copy lost; F11, an announcement ignored by the receiver's limit; F9, without the resync, nothing offers the chunk to a peer back in the mesh after a close lost a queued push, nor to a late joiner; at `ACK`, §5.1's open item: the pushed connection closes with the copy in flight, and the source's other mesh peer is offered nothing) | 3.6 minutes |
+| transport | 264 of 264 conditions, 1041 theorems | 8 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered; the chunk announced again to a peer back in the mesh after a close lost a queued push; and to a peer that joined after the publish; at `ACK`, the source's other mesh peer announced the chunk at the acknowledgement, by a HAVE and by a window timeout), 7 known answers (at `PUBLISH`: F1, a skipped push counted, offered to nobody; a refused push lost; F7, a refused copy lost; F11, an announcement ignored by the receiver's limit; F9, without the resync, nothing offers the chunk to a peer back in the mesh after a close lost a queued push, nor to a late joiner; at `ACK`, §5.1's open item: the pushed connection closes with the copy in flight, and the source's other mesh peer is offered nothing) | 23 minutes (rebuilt in place, below) |
 | asking | 378 of 378 conditions, 1143 theorems | 6 non-vacuity (an offer answered; an offerer parked by another chunk, asked once more by the last resort; an offer before the block asked for at installation; an offer over an IHAVE limit asked for by the heartbeat's retry; one from a parked offerer, asked once more by the last resort the heartbeat's retry arms; an ask lost with its connection, the announcer's offer on the new one asked for by the retry), 5 known answers (F2: without the last resort an offerer parked by another chunk is never asked; answers lost twice without owed answers; an offer before the block never asked without the ledger; an offer over an IHAVE limit never asked without the heartbeat's retry; the last-resort count kept across a close, the ask it counted lost with the connection never made again) | 4.8 minutes |
 | asking, under equivocation | 704 of 704 conditions, 1913 theorems | 6 non-vacuity (an offer answered; on the other block, an answer that waits ties its sender and closes its promise; a node on the other block with a tied sender switches, the sender is asked and the chunk validates; the last resort; the ledger; an ask lost with its connection, the announcer asked afresh on the new one), 5 known answers (without `ROOT_TIED`, at the switch every announcer parked and asked once more with nothing on its way; without `NO_REASK_OPEN`, a third ask to a provider before the switch; without the last resort; without the ledger; the last-resort counts kept across a close) | 25 minutes |
 | counting | twelve theorems and the lemma `count_mono` they use, two of the twelve known answers (below) | none | a second |
@@ -554,9 +554,9 @@ proposes the rule: it is in the file so that the option's asking part is checked
 
 | piece | proof | traces | the build |
 |---|---|---|---|
-| transport, with adversaries | 288 of 288 conditions, 1114 theorems | 17: the transport's 15, with an adversary's false HAVE as the acknowledgement in place of an honest one; a false claim; an adversary's offer left in a quiet state | 5.2 minutes |
+| transport, with adversaries | 288 of 288 conditions, 1114 theorems | 17: the transport's 15, with an adversary's false HAVE as the acknowledgement in place of an honest one; a false claim; an adversary's offer left in a quiet state | 24 minutes (rebuilt in place, below) |
 | asking (v0.7's), with adversaries | 448 of 448 conditions, 1324 theorems | 14: the asking's 11, `adv_withholds`, `ka_count_per_chunk` (bound to the adversary's offer coming first) and its control | 7.3 minutes |
-| asking under v0.8's rules, with adversaries and the offers' expiry | 1134 of 1134 conditions (42 × 27: 41 actions and the initializer, 26 clauses and `doesNotThrow`), 2626 theorems | 30: `NoStallEquiv.lean`'s 11 (their nodes honest); an ask left at an adversary; an adversary tied to another root after the block, alone and beside an honest offer that resolves; a tie released; a tie dropped; an adversary's tie to the builder's root dropped before the block, its slot stale; an ask gone with expired offers; F13 by a dropped tie, by the expiry without the queued asks' part, and by the expiry without the promise's; under `byGroup`, an offer answered and a tie released, and the known answer without it; F14's five and its control | 71 minutes |
+| asking under v0.8's rules, with adversaries and the offers' expiry | 1134 of 1134 conditions (42 × 27: 41 actions and the initializer, 26 clauses and `doesNotThrow`), 2626 theorems | 30: `NoStallEquiv.lean`'s 11 (their nodes honest); an ask left at an adversary; an adversary tied to another root after the block, alone and beside an honest offer that resolves; a tie released; a tie dropped; an adversary's tie to the builder's root dropped before the block, its slot stale; an ask gone with expired offers; F13 by a dropped tie, by the expiry without the queued asks' part, and by the expiry without the promise's; under `byGroup`, an offer answered and a tie released, and the known answer without it; F14's five and its control | 26 minutes (rebuilt in place, below) |
 
 ## Agreement and integrity (`Agreement.lean`)
 
@@ -691,7 +691,15 @@ the transition relation (`tclear … hNext`). Packages and build outputs go to `
 library's build, its outputs took 0.8 GiB beside 1.8 GiB of packages. With Veil already built, the
 models took 87 minutes on ten cores of an AMD EPYC 9254 (`taskset`, `LEAN_NUM_THREADS=2`, on a
 machine shared with other jobs), and 44,400 seconds of CPU; Lake builds independent modules side by
-side, and `NoStallEquivAdv.lean` alone took 71 of the minutes.
+side, and `NoStallEquivAdv.lean` alone took 71 of the minutes. That build was of the models before
+four rule changes came in. The four models those changes touch were later rebuilt in place, on the
+same machine, with Lake replaying the others' results.
+- `SenderFault.lean` took 150 seconds and `NoStallEquivAdv.lean` 26 minutes, on 16 hardware threads
+  of eight cores (`LEAN_NUM_THREADS=8`). Their processes together reached 29,321 MiB.
+- The two transport models took 23 and 24 minutes side by side, on six hardware threads of three
+  cores of a busy machine (`LEAN_NUM_THREADS=3`). Their processes together reached 16,631 MiB.
+
+The tables give these four models' times from those rebuilds.
 
 Veil checks as many conditions at once as `LEAN_NUM_THREADS` says, each with its own SMT run, or,
 where it is not set, as many as `getconf _NPROCESSORS_ONLN` reports; the variable also sizes Lean's
