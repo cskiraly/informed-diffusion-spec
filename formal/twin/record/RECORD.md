@@ -1,6 +1,6 @@
 # The record of the Lean twin
 
-This file describes the record of the Lean twin that the spec carries from version 0.10.8. It says what
+This file describes the record of the Lean twin that the spec carries from version 0.10.9. It says what
 ran, what the runs show, and what they do not show. The other files in this directory, but for `FILES.sha256`,
 are the outputs of the runs: the manifest of the traces, the reports of the replays, the matrix of mutants, and
 the reports of the controls, with the log of the script that started the quick check. Each is as the runs wrote
@@ -24,15 +24,16 @@ through the mutant mismatches a record, or leaves unmade a read that the Python 
 
 ## What ran
 
-- **One commit supplied everything.** Every run below started from a fresh clone of the spec at commit `c6e95ad`,
-  with nothing added to it. That commit is not in the published history of the spec. It holds the two documents
-  (`protocol.md` and `protocol-v2.md`), the toy, the twin in `formal/twin`, and the twin's tools. Its documents
-  and its toy are those of v0.10.7 (`c67d0e5`).
+- **One commit supplied everything.** Every run below started from a fresh clone of the spec at commit `69b5952`,
+  with nothing added to it. That commit is in the published history of the spec, before the commit that adds this
+  record. It holds the two documents (`protocol.md` and `protocol-v2.md`), the toy, the twin in `formal/twin`, and
+  the twin's tools. Its toy is this release's, and its documents differ from this release's only outside their
+  code.
 - **The content line and the list of the sources of the twin tie the record to what ran**
   (`manifest/content.line`, the first line of every trace, and `manifest/twin-sources.txt`; the content line is
   described below). Both are made from the files of a tree, and a reader can make both on any tree:
   `tools/content.py` makes the content line, and the build step of `check.sh` writes the list of the sources of
-  the twin, each with its SHA-256 hash. This release holds the same `toy/` and `formal/twin/` as `c6e95ad`, file
+  the twin, each with its SHA-256 hash. This release holds the same `toy/` and `formal/twin/` as `69b5952`, file
   for file, apart from `formal/twin/record/`. Run on the tree of this release, `tools/content.py` gives the line
   in `manifest/content.line`. The sources of the twin there, by path and hash, are those that
   `manifest/twin-sources.txt` lists.
@@ -41,12 +42,12 @@ through the mutant mismatches a record, or leaves unmade a read that the Python 
   `quick-check/run.log`. The clone of the record's run, and the clone, Lean and Python of each part of the matrix,
   are in the logs of the script that started each run, which are not among these files.
 - **The toolchain** was Lean 4.35.0 (commit `eb6cafb7290e8bd5f2937522d8d804f58f02bafc`). The record ran under
-  Python 3.13.5.
+  Python 3.12.3.
 - **The platform** was x86-64 Linux.
 - **The record's run was one run of `record.sh`,** with all its steps. `record.sh` runs `check.sh --record`, which
   traces and replays every cell of `toy/check.py` under both documents, and adds the controls that only the record
   runs. The run passed: the last line of its output is "check.sh: PASS (the record's run)" (`controls/check.txt`).
-- **The quick check passed too.** `check.sh` alone passed in a run of its own from a fresh clone of `c6e95ad`
+- **The quick check passed too.** `check.sh` alone passed in a run of its own from a fresh clone of `69b5952`
   (`quick-check/check.txt`, and `quick-check/run.log`, the log of the script that started that run).
 
 ## What it shows
@@ -66,8 +67,8 @@ through the mutant mismatches a record, or leaves unmade a read that the Python 
   directories named `__pycache__`, are not in the line. Every other file under the toy and the tools is in it,
   committed or not, and a link among them is refused. So a change to a document outside its code, or to a README,
   leaves the content line as it was, and a change to the code changes it. The manifest also gives the SHA-256 of
-  the bytes of each document, in its `documents` line. Those hashes are of the documents at `c6e95ad`. If a
-  document of this release differs from its counterpart at `c6e95ad` only outside its code, the SHA-256 of its
+  the bytes of each document, in its `documents` line. Those hashes are of the documents at `69b5952`. If a
+  document of this release differs from its counterpart at `69b5952` only outside its code, the SHA-256 of its
   bytes is not the one in the `documents` line, and the SHA-256 of its code is still the one in the content line.
   The `documents` line is for information: `tools/against.py`, which compares a new run with this record, reports
   a difference in it and decides nothing by it.
@@ -81,7 +82,7 @@ through the mutant mismatches a record, or leaves unmade a read that the Python 
 - **Traces made again, each in a new Python process with hash randomization on, had the same bytes.** The record
   made each of the 22 directed sets twice more, and two cells (`withholders` and `loss-thin`) once more. That is
   46 traces made again from 24, and each had the same bytes as the first trace (`controls/same-content.txt`).
-- **Every function of `protocol.md` has its twin.** Each of the 77 functions defined in the code blocks of
+- **Every function of `protocol.md` has its twin.** Each of the 78 functions defined in the code blocks of
   `protocol.md` has a twin under the same name: an `enter` of that name in the twin, and a case for it in the
   replay (`controls/scope.txt`). The twin also replays one function of the toy, `held`, that no code block of
   `protocol.md` defines.
@@ -128,8 +129,8 @@ through the mutant mismatches a record, or leaves unmade a read that the Python 
   function that a node may replace, on the records that ask it on the tape. Those records were taken from the 22
   directed sets and from the traces of the 15 cells under `protocol.md`, `hand5` and `hand5-publish`. **The
   directed sets tell all 562 mutants from the twin:** 556 by a mismatched record, and 6 only because the mutant
-  left unmade a read that the Python made. **The 15 cells tell 386, and with the two hand traces 392:** 380 by a
-  mismatched record, and 12 only by reads left unmade. The directed sets are the only traces that tell the other
+  left unmade a read that the Python made. **The 15 cells tell 386, and with the two hand traces 392:** 381 by a
+  mismatched record, and 11 only by reads left unmade. The directed sets are the only traces that tell the other
   170. Two reports, `matrix/mutants-directed.txt` and `matrix/mutants-cells.txt`, give the counts of each mutant
   and, where records mismatch, up to two example records. The two pairs files, `matrix/mutants-directed-pairs.txt`
   and `matrix/mutants-pairs.txt`, hold one line for each pair of a mutant and a trace, and the counts in the
@@ -137,9 +138,9 @@ through the mutant mismatches a record, or leaves unmade a read that the Python 
 
 ## How the matrix is tied to this record
 
-The matrix ran in five parts, each from a fresh clone of `c6e95ad`, and the outputs of the five were merged into
-one (`matrix/PARTS`). The parts ran under the same Lean as the record, and under Python 3.12.3 (parts 1, 2 and 5)
-and 3.13.5 (parts 3 and 4); the logs that show the clones and the toolchains are not among these files. Four facts
+The matrix ran in five parts, each from a fresh clone of `69b5952`, and the outputs of the five were merged into
+one (`matrix/PARTS`). The parts ran under the same Lean as the record, and under Python 3.13.5 (parts 1, 2 and 5)
+and 3.12.3 (parts 3 and 4); the logs that show the clones and the toolchains are not among these files. Four facts
 in these files tie the matrix to this record:
 - It has the content line of this record (`matrix/content.line` and `manifest/content.line`).
 - Its 39 traces have the same hashes as in the manifest, of the body and of the whole trace
@@ -176,8 +177,10 @@ in these files tie the matrix to this record:
   where the Python calls it after, can pass: in `owe`, for example, a `wake` moved to just before the write to
   `owed` leaves the tape and everything else that the replay compares as it was. The twin calls `wake` in two
   functions, `owe` and `wake_front`, and every other function that reaches it does so through one of them.
-  `acquire_slot`, `release_unused_slot`, `free_slot` and `next_to_send` call `wake_front`. `unpush`, `announce`,
-  `push_rebuilt` and `forward` call `owe`, and `next_to_send` reaches `unpush` through `filter_entry`.
+  `acquire_slot`, `release_unused_slot`, `free_slot` and `write_waits` call `wake_front`, and `next_to_send`
+  reaches it through `acquire_slot`, `release_unused_slot` and `track_in_flight`, whose second copy of a chunk in
+  flight gives its slot back at once through `free_slot`. `unpush`, `announce`, `push_rebuilt` and `forward` call
+  `owe`, and `next_to_send` reaches `unpush` through `filter_entry`.
 - **The tracer does not see every access.** It may miss a change that is made in place and undone between two of
   its observations. It does not see an access through a container kept from outside the call, an in-place change
   to the values of another section, an object reached by a second path, or some tests of whether a row is present.

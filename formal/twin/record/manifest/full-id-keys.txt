@@ -36,7 +36,7 @@ directed/directed52: 0 lines with a full id outside its places (fullid.py's exit
 directed/directed53: 0 lines with a full id outside its places (fullid.py's exit code 0)
 directed/directed54: 0 lines with a full id outside its places (fullid.py's exit code 0)
 directed/directed7p: 9922 lines with a full id outside its places (fullid.py's exit code 0)
-directed/directed71: 1719 lines with a full id outside its places (fullid.py's exit code 0)
+directed/directed71: 1551 lines with a full id outside its places (fullid.py's exit code 0)
 directed/directed51: 0 lines with a full id outside its places (fullid.py's exit code 0)
 v2/announce: 0 lines with a full id outside its places (fullid.py's exit code 0)
 v2/cap-wait: 0 lines with a full id outside its places (fullid.py's exit code 0)

@@ -6,11 +6,11 @@ withholders: trace rc=0, digest as golden-v2.txt, replay 1460127/1460127/0 (reco
 silent: trace rc=0, digest as golden-v2.txt, replay 1182049/1182049/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
 cap-wait: trace rc=0, digest as golden-v2.txt, replay 1117962/1117962/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
 dcb20: trace rc=0, digest as golden-v2.txt, replay 1481876/1481876/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
-rr-stripe: trace rc=0, digest as golden-v2.txt, replay 1462535/1462535/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+rr-stripe: trace rc=0, digest as golden-v2.txt, replay 1462003/1462003/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
 without-a: trace rc=0, digest as golden-v2.txt, replay 1443462/1443462/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
 without-b: trace rc=0, digest as golden-v2.txt, replay 1374169/1374169/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
 loss-thin: trace rc=0, digest as golden-v2.txt, replay 1333054/1333054/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
 ihave-limits: trace rc=0, digest as golden-v2.txt, replay 1387147/1387147/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
 late-block: trace rc=0, digest as golden-v2.txt, replay 1282618/1282618/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
-push-deep: trace rc=0, digest as golden-v2.txt, replay 1469515/1469515/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+push-deep: trace rc=0, digest as golden-v2.txt, replay 1468795/1468795/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
 ok

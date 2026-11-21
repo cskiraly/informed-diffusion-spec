@@ -1,11 +1,11 @@
 content: as --content's, 104 names
-header: {"args":["--nodes","60","--degree","30","--msgs","3","--seed","7","--uplink","rr","--stripe","on","--digest"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","acquire_slot","add_offer","announce","announcers","ask_parked","build_group","candidates_for_source","choose_push","claim_group","close_promises","committed_descriptor","decode_group","defer","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","filter_entry","forward","free_slot","front","gated","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","next_to_send","note_push","on_block_installed","on_chunk","on_frame","on_have","on_heartbeat","on_ihave","on_iwant","on_mesh_join","on_pace_tick","on_validated","origin_acked","origin_written","outstanding","over_ihave_limits","owe","parked","projected","promise_due","publish","push_rebuilt","rarest","release_unused_slot","respond","retry_offer","segment_length","send_gossip","send_have","tie","tie_room","tied_to_root","track_in_flight","unpush","untried","valid_descriptor","valid_id","validate_chunk","wake_front","window_release","window_timeout","with_owed"],"tracer":"trace3.py","whole":false}
-replay: 791176 records, 791176 ok, 0 mismatched
+header: {"args":["--nodes","60","--degree","30","--msgs","3","--seed","7","--uplink","rr","--stripe","on","--digest"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","acquire_slot","add_offer","announce","announcers","ask_parked","build_group","candidates_for_source","choose_push","claim_group","close_promises","committed_descriptor","decode_group","defer","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","filter_entry","forward","free_slot","front","gated","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","next_to_send","note_push","on_block_installed","on_chunk","on_frame","on_have","on_heartbeat","on_ihave","on_iwant","on_mesh_join","on_pace_tick","on_validated","origin_acked","origin_written","outstanding","over_ihave_limits","owe","parked","projected","promise_due","publish","push_rebuilt","rarest","release_unused_slot","respond","retry_offer","segment_length","send_gossip","send_have","tie","tie_room","tied_to_root","track_in_flight","unpush","untried","valid_descriptor","valid_id","validate_chunk","wake_front","window_release","window_timeout","with_owed","write_waits"],"tracer":"trace3.py","whole":false}
+replay: 791097 records, 791097 ok, 0 mismatched
 fn build_group: 3 records, 3 ok
 fn decode_group: 177 records, 177 ok
 fn group_id: 3 records, 3 ok
 fn group_key: 3 records, 3 ok
-fn next_to_send: 451608 records, 451608 ok
+fn next_to_send: 451529 records, 451529 ok
 fn on_frame: 263302 records, 263302 ok
 fn on_heartbeat: 3360 records, 3360 ok
 fn on_pace_tick: 20160 records, 20160 ok
@@ -14,7 +14,7 @@ fn publish: 3 records, 3 ok
 fn retry_offer: 13322 records, 13322 ok
 fn window_timeout: 25913 records, 25913 ok
 branch acquire_slot: a slot: 43990
-branch acquire_slot: in line: 21635
+branch acquire_slot: in line: 21556
 branch add_offer: listed: 35279
 branch announce: nothing to offer: 2630
 branch announce: offered: 95664
@@ -42,7 +42,7 @@ branch may_ask: asks: 13322
 branch may_ask: in flight: 22063
 branch next_to_send: a chunk: 25913
 branch next_to_send: control: 108983
-branch next_to_send: in line: 21635
+branch next_to_send: in line: 21556
 branch next_to_send: nothing: 166671
 branch next_to_send: nothing left of the entry, again: 16902
 branch next_to_send: owed offers alone: 1143
@@ -81,7 +81,8 @@ branch unpush: in the mesh, owed: 15491
 branch unpush: not in the mesh: 2
 branch valid_descriptor: coded: 18859
 branch validate_chunk: accepted: 18859
-branch wake_front: no slot free: 10120
+branch wake_front: no slot free: 6720
+branch wake_front: nobody in line can write: 66892
 branch window_release: a send released: 25913
 branch window_timeout: stale: 25913
 reads of the Python's that the twin did not make: 0

@@ -1,6 +1,6 @@
 content: as --content's, 104 names
-header: {"args":["--nodes","5","--degree","4","--msgs","1","--payload","16384","--seed","7","--source-offers","publish","--digest"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","acquire_slot","add_offer","announce","announcers","ask_parked","build_group","candidates_for_source","choose_push","claim_group","close_promises","committed_descriptor","decode_group","defer","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","filter_entry","forward","free_slot","front","gated","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","next_to_send","note_push","on_block_installed","on_chunk","on_frame","on_have","on_heartbeat","on_ihave","on_iwant","on_mesh_join","on_pace_tick","on_validated","origin_acked","origin_written","outstanding","over_ihave_limits","owe","parked","projected","promise_due","publish","push_rebuilt","rarest","release_unused_slot","respond","retry_offer","segment_length","send_gossip","send_have","tie","tie_room","tied_to_root","track_in_flight","unpush","untried","valid_descriptor","valid_id","validate_chunk","wake_front","window_release","window_timeout","with_owed"],"tracer":"trace3.py","whole":false}
-replay: 351 records, 351 ok, 0 mismatched
+header: {"args":["--nodes","5","--degree","4","--msgs","1","--payload","16384","--seed","7","--source-offers","publish","--digest"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","acquire_slot","add_offer","announce","announcers","ask_parked","build_group","candidates_for_source","choose_push","claim_group","close_promises","committed_descriptor","decode_group","defer","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","filter_entry","forward","free_slot","front","gated","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","next_to_send","note_push","on_block_installed","on_chunk","on_frame","on_have","on_heartbeat","on_ihave","on_iwant","on_mesh_join","on_pace_tick","on_validated","origin_acked","origin_written","outstanding","over_ihave_limits","owe","parked","projected","promise_due","publish","push_rebuilt","rarest","release_unused_slot","respond","retry_offer","segment_length","send_gossip","send_have","tie","tie_room","tied_to_root","track_in_flight","unpush","untried","valid_descriptor","valid_id","validate_chunk","wake_front","window_release","window_timeout","with_owed","write_waits"],"tracer":"trace3.py","whole":false}
+replay: 437 records, 437 ok, 0 mismatched
 fn build_group: 1 records, 1 ok
 fn decode_group: 4 records, 4 ok
 fn group_id: 1 records, 1 ok
@@ -12,6 +12,7 @@ fn promise_due: 1 records, 1 ok
 fn publish: 1 records, 1 ok
 fn retry_offer: 1 records, 1 ok
 fn window_timeout: 16 records, 16 ok
+fn write_waits: 86 records, 86 ok
 branch acquire_slot: a slot: 16
 branch add_offer: listed: 1
 branch announce: nothing to offer: 6
@@ -62,6 +63,8 @@ branch segment_length: data and parity: 4
 branch segment_length: the last data chunk: 4
 branch valid_descriptor: coded: 8
 branch validate_chunk: accepted: 8
+branch wake_front: nobody in line can write: 32
 branch window_release: a send released: 16
 branch window_timeout: stale: 16
+branch write_waits: not in line: 86
 reads of the Python's that the twin did not make: 0

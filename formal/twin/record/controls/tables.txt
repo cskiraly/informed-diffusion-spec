@@ -7,6 +7,6 @@ the instances of Tables written by hand: one, Replay.lean's, its text as fixed (
 the makers of a Tables value, by Lean's own account of the replay as built (gen/TablesMakers.lean):
   the replay's modules that are the twin's own, by its files: [Main, SpecTwin.Basic, SpecTwin.Readers, SpecTwin.Replay, SpecTwin.ReplayBase, SpecTwin.ReplayTables, SpecTwin.Sec1, SpecTwin.Sec2, SpecTwin.Sec3, SpecTwin.Sec41, SpecTwin.Sec42, SpecTwin.Sec43, SpecTwin.Sec44, SpecTwin.Sec46, SpecTwin.Sec51, SpecTwin.Sec52, SpecTwin.Sec53, SpecTwin.Sec54, SpecTwin.Sec61, SpecTwin.Sec64, SpecTwin.Sec71, SpecTwin.Sec72, SpecTwin.State, SpecTwin.Strict, SpecTwin.Tables]
   the other modules it imports: 2374, each compiled under the toolchain's own library directory
-  their constants, the generated SpecTwin.Tables apart: 2562
+  their constants, the generated SpecTwin.Tables apart: 2564
   SpecTwin.Replay.instTablesR (SpecTwin.Replay): a Tables value; mentions [SpecTwin.Tables.ofState]
   ok: the replay's one instance, by Tables.ofState, and nothing else

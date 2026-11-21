@@ -2789,7 +2789,7 @@ have-bits-mine-only directed64 0 0 {}
 have-bits-mine-only directed64h 0 0 {}
 have-bits-mine-only directed6o 0 0 {}
 have-bits-mine-only directed7 0 0 {}
-have-bits-mine-only directed71 719 0 {'tape': 719}
+have-bits-mine-only directed71 619 0 {'tape': 619}
 have-bits-mine-only directed7p 1052 0 {'reads': 39, 'tape': 1013}
 have-bits-mine-only directed7u 0 0 {}
 send-have-normal-lane directed 0 0 {}
@@ -2811,7 +2811,7 @@ send-have-normal-lane directed64 0 0 {}
 send-have-normal-lane directed64h 0 0 {}
 send-have-normal-lane directed6o 0 0 {}
 send-have-normal-lane directed7 0 0 {}
-send-have-normal-lane directed71 719 0 {'tape': 719}
+send-have-normal-lane directed71 619 0 {'tape': 619}
 send-have-normal-lane directed7p 1053 0 {'tape': 1053}
 send-have-normal-lane directed7u 0 0 {}
 close-of-any-peer directed 0 0 {}
@@ -3184,10 +3184,10 @@ tables-lane-read-none directed54 0 0 {}
 tables-lane-read-none directed64 0 0 {}
 tables-lane-read-none directed64h 0 0 {}
 tables-lane-read-none directed6o 14550 0 {'state': 14550}
-tables-lane-read-none directed7 9571 0 {'raise': 193, 'reached': 222, 'return': 2985, 'tape': 6171}
+tables-lane-read-none directed7 9571 0 {'raise': 193, 'reached': 222, 'return': 3396, 'tape': 5760}
 tables-lane-read-none directed71 0 0 {}
-tables-lane-read-none directed7p 7844 0 {'raise': 161, 'reached': 182, 'return': 2494, 'tape': 5007}
-tables-lane-read-none directed7u 9571 0 {'reached': 180, 'return': 2998, 'tape': 6393}
+tables-lane-read-none directed7p 7844 0 {'raise': 161, 'reached': 182, 'return': 2832, 'tape': 4669}
+tables-lane-read-none directed7u 9571 0 {'reached': 180, 'return': 3409, 'tape': 5982}
 validated-no-store directed 0 0 {}
 validated-no-store directed1 0 0 {}
 validated-no-store directed3v 0 0 {}
@@ -4680,10 +4680,10 @@ nts-urgent-ignored directed54 0 0 {}
 nts-urgent-ignored directed64 0 0 {}
 nts-urgent-ignored directed64h 0 0 {}
 nts-urgent-ignored directed6o 0 0 {}
-nts-urgent-ignored directed7 3812 6766 {'raise': 68, 'return': 752, 'tape': 2992}
+nts-urgent-ignored directed7 3812 6766 {'raise': 68, 'return': 788, 'tape': 2956}
 nts-urgent-ignored directed71 0 0 {}
-nts-urgent-ignored directed7p 3081 5619 {'raise': 69, 'return': 602, 'tape': 2410}
-nts-urgent-ignored directed7u 3812 6766 {'return': 759, 'tape': 3053}
+nts-urgent-ignored directed7p 3081 5619 {'raise': 69, 'return': 651, 'tape': 2361}
+nts-urgent-ignored directed7u 3812 6766 {'return': 793, 'tape': 3019}
 nts-no-release-when-idle directed 0 0 {}
 nts-no-release-when-idle directed1 0 0 {}
 nts-no-release-when-idle directed3v 0 0 {}
@@ -5120,10 +5120,10 @@ wo-pushed-not-taken directed54 0 0 {}
 wo-pushed-not-taken directed64 0 0 {}
 wo-pushed-not-taken directed64h 0 0 {}
 wo-pushed-not-taken directed6o 0 0 {}
-wo-pushed-not-taken directed7 1664 13128 {'return': 1663, 'tape': 1}
+wo-pushed-not-taken directed7 1664 13128 {'return': 1662, 'tape': 2}
 wo-pushed-not-taken directed71 0 0 {}
 wo-pushed-not-taken directed7p 1395 11188 {'return': 1393, 'tape': 2}
-wo-pushed-not-taken directed7u 1706 13479 {'return': 1705, 'tape': 1}
+wo-pushed-not-taken directed7u 1706 13479 {'return': 1704, 'tape': 2}
 wo-claimed-not-taken directed 0 0 {}
 wo-claimed-not-taken directed1 0 0 {}
 wo-claimed-not-taken directed3v 0 0 {}
@@ -5142,10 +5142,10 @@ wo-claimed-not-taken directed54 0 0 {}
 wo-claimed-not-taken directed64 0 0 {}
 wo-claimed-not-taken directed64h 0 0 {}
 wo-claimed-not-taken directed6o 0 0 {}
-wo-claimed-not-taken directed7 2898 9900 {'return': 2894, 'tape': 4}
+wo-claimed-not-taken directed7 2898 9900 {'return': 2891, 'tape': 7}
 wo-claimed-not-taken directed71 0 0 {}
-wo-claimed-not-taken directed7p 2514 8351 {'return': 2513, 'tape': 1}
-wo-claimed-not-taken directed7u 2935 10749 {'return': 2931, 'tape': 4}
+wo-claimed-not-taken directed7p 2514 8351 {'return': 2508, 'tape': 6}
+wo-claimed-not-taken directed7u 2935 10749 {'return': 2928, 'tape': 7}
 wo-carried-kept directed 0 0 {}
 wo-carried-kept directed1 0 0 {}
 wo-carried-kept directed3v 0 0 {}
@@ -5362,10 +5362,10 @@ tables-slot-held-write-none directed54 0 0 {}
 tables-slot-held-write-none directed64 0 0 {}
 tables-slot-held-write-none directed64h 0 0 {}
 tables-slot-held-write-none directed6o 0 0 {}
-tables-slot-held-write-none directed7 3276 0 {'raise': 123, 'reached': 86, 'return': 9, 'state': 1210, 'tape': 1848}
-tables-slot-held-write-none directed71 1389 0 {'state': 1389}
-tables-slot-held-write-none directed7p 2727 0 {'raise': 105, 'reached': 84, 'return': 11, 'state': 992, 'tape': 1535}
-tables-slot-held-write-none directed7u 3346 0 {'reached': 54, 'state': 1375, 'tape': 1917}
+tables-slot-held-write-none directed7 3276 0 {'raise': 123, 'reached': 100, 'return': 9, 'state': 1196, 'tape': 1848}
+tables-slot-held-write-none directed71 1273 0 {'state': 1273}
+tables-slot-held-write-none directed7p 2727 0 {'raise': 105, 'reached': 89, 'return': 11, 'state': 987, 'tape': 1535}
+tables-slot-held-write-none directed7u 3346 0 {'reached': 65, 'state': 1364, 'tape': 1917}
 tables-sent-to-write-none directed 0 0 {}
 tables-sent-to-write-none directed1 0 0 {}
 tables-sent-to-write-none directed3v 0 0 {}
@@ -5868,10 +5868,10 @@ wo-empty-kept directed54 0 0 {}
 wo-empty-kept directed64 0 0 {}
 wo-empty-kept directed64h 0 0 {}
 wo-empty-kept directed6o 0 0 {}
-wo-empty-kept directed7 194 0 {'return': 185, 'tape': 9}
+wo-empty-kept directed7 194 0 {'return': 177, 'tape': 17}
 wo-empty-kept directed71 0 0 {}
-wo-empty-kept directed7p 166 0 {'return': 158, 'tape': 8}
-wo-empty-kept directed7u 183 0 {'return': 174, 'tape': 9}
+wo-empty-kept directed7p 166 0 {'return': 147, 'tape': 19}
+wo-empty-kept directed7u 183 0 {'return': 166, 'tape': 17}
 wo-empty-offered directed 0 0 {}
 wo-empty-offered directed1 0 0 {}
 wo-empty-offered directed3v 0 0 {}
@@ -5890,10 +5890,10 @@ wo-empty-offered directed54 0 0 {}
 wo-empty-offered directed64 0 0 {}
 wo-empty-offered directed64h 0 0 {}
 wo-empty-offered directed6o 0 0 {}
-wo-empty-offered directed7 3159 0 {'return': 3150, 'tape': 9}
+wo-empty-offered directed7 3159 0 {'return': 3142, 'tape': 17}
 wo-empty-offered directed71 0 0 {}
-wo-empty-offered directed7p 2581 0 {'return': 2573, 'tape': 8}
-wo-empty-offered directed7u 3252 0 {'return': 3243, 'tape': 9}
+wo-empty-offered directed7p 2581 0 {'return': 2562, 'tape': 19}
+wo-empty-offered directed7u 3252 0 {'return': 3235, 'tape': 17}
 wo-popped-not-offered directed 0 0 {}
 wo-popped-not-offered directed1 0 0 {}
 wo-popped-not-offered directed3v 0 0 {}
@@ -5912,10 +5912,10 @@ wo-popped-not-offered directed54 0 0 {}
 wo-popped-not-offered directed64 0 0 {}
 wo-popped-not-offered directed64h 0 0 {}
 wo-popped-not-offered directed6o 0 0 {}
-wo-popped-not-offered directed7 7763 0 {'return': 7700, 'tape': 63}
+wo-popped-not-offered directed7 7763 0 {'return': 7606, 'tape': 157}
 wo-popped-not-offered directed71 0 0 {}
-wo-popped-not-offered directed7p 6606 0 {'return': 6550, 'tape': 56}
-wo-popped-not-offered directed7u 7903 0 {'return': 7840, 'tape': 63}
+wo-popped-not-offered directed7p 6606 0 {'return': 6453, 'tape': 153}
+wo-popped-not-offered directed7u 7903 0 {'return': 7746, 'tape': 157}
 tables-promise-write-none directed 0 0 {}
 tables-promise-write-none directed1 0 0 {}
 tables-promise-write-none directed3v 0 0 {}
@@ -7527,7 +7527,7 @@ have-newly-all-bits directed1 0 0 {}
 have-newly-all-bits directed3v 0 0 {}
 have-newly-all-bits directed41 952 0 {'reached': 358, 'reads': 594}
 have-newly-all-bits directed42 0 0 {}
-have-newly-all-bits directed43 4445 0 {'reached': 1083, 'reads': 1378, 'state': 330, 'tape': 1654}
+have-newly-all-bits directed43 4445 0 {'reached': 1104, 'reads': 1378, 'state': 309, 'tape': 1654}
 have-newly-all-bits directed44 0 0 {}
 have-newly-all-bits directed44u 0 0 {}
 have-newly-all-bits directed46 0 0 {}
@@ -7725,7 +7725,7 @@ tables-peer-has-read-none directed1 0 0 {}
 tables-peer-has-read-none directed3v 0 0 {}
 tables-peer-has-read-none directed41 3830 0 {'reached': 256, 'reads': 131, 'state': 886, 'tape': 2557}
 tables-peer-has-read-none directed42 0 0 {}
-tables-peer-has-read-none directed43 7087 0 {'reached': 1076, 'reads': 275, 'state': 2657, 'tape': 3079}
+tables-peer-has-read-none directed43 7087 0 {'reached': 1097, 'reads': 275, 'state': 2636, 'tape': 3079}
 tables-peer-has-read-none directed44 0 0 {}
 tables-peer-has-read-none directed44u 0 0 {}
 tables-peer-has-read-none directed46 0 0 {}
@@ -7738,10 +7738,10 @@ tables-peer-has-read-none directed54 6134 0 {'return': 1959, 'tape': 4175}
 tables-peer-has-read-none directed64 2636 0 {'tape': 2636}
 tables-peer-has-read-none directed64h 2486 0 {'tape': 2486}
 tables-peer-has-read-none directed6o 0 0 {}
-tables-peer-has-read-none directed7 3710 0 {'raise': 66, 'reached': 1, 'return': 3221, 'tape': 422}
+tables-peer-has-read-none directed7 3710 0 {'raise': 66, 'reached': 1, 'return': 3218, 'tape': 425}
 tables-peer-has-read-none directed71 0 0 {}
-tables-peer-has-read-none directed7p 3220 0 {'raise': 55, 'return': 2768, 'tape': 397}
-tables-peer-has-read-none directed7u 3193 0 {'return': 3189, 'tape': 4}
+tables-peer-has-read-none directed7p 3220 0 {'raise': 55, 'return': 2763, 'tape': 402}
+tables-peer-has-read-none directed7u 3193 0 {'return': 3186, 'tape': 7}
 tables-peer-has-write-none directed 0 0 {}
 tables-peer-has-write-none directed1 0 0 {}
 tables-peer-has-write-none directed3v 0 0 {}
@@ -9191,7 +9191,7 @@ tables-origin-read-none directed64 0 0 {}
 tables-origin-read-none directed64h 0 0 {}
 tables-origin-read-none directed6o 0 0 {}
 tables-origin-read-none directed7 0 0 {}
-tables-origin-read-none directed71 1949 0 {'raise': 1949}
+tables-origin-read-none directed71 1689 0 {'raise': 1689}
 tables-origin-read-none directed7p 1351 0 {'tape': 1351}
 tables-origin-read-none directed7u 0 0 {}
 tables-planned-row-read-false directed 0 0 {}
@@ -9213,7 +9213,7 @@ tables-planned-row-read-false directed64 0 0 {}
 tables-planned-row-read-false directed64h 0 0 {}
 tables-planned-row-read-false directed6o 0 0 {}
 tables-planned-row-read-false directed7 0 0 {}
-tables-planned-row-read-false directed71 487 0 {'reached': 271, 'tape': 216}
+tables-planned-row-read-false directed71 411 0 {'reached': 230, 'tape': 181}
 tables-planned-row-read-false directed7p 0 0 {}
 tables-planned-row-read-false directed7u 0 0 {}
 tables-pushed-read-none directed 0 0 {}
@@ -9234,10 +9234,10 @@ tables-pushed-read-none directed54 3161 0 {'state': 803, 'tape': 2358}
 tables-pushed-read-none directed64 1992 0 {'tape': 1992}
 tables-pushed-read-none directed64h 2019 0 {'tape': 2019}
 tables-pushed-read-none directed6o 0 0 {}
-tables-pushed-read-none directed7 1686 0 {'return': 1663, 'state': 22, 'tape': 1}
+tables-pushed-read-none directed7 1686 0 {'return': 1662, 'state': 22, 'tape': 2}
 tables-pushed-read-none directed71 0 0 {}
 tables-pushed-read-none directed7p 1416 0 {'return': 1393, 'state': 21, 'tape': 2}
-tables-pushed-read-none directed7u 1706 0 {'return': 1705, 'tape': 1}
+tables-pushed-read-none directed7u 1706 0 {'return': 1704, 'tape': 2}
 tables-desc-read-none directed 0 0 {}
 tables-desc-read-none directed1 0 0 {}
 tables-desc-read-none directed3v 0 0 {}
@@ -9631,7 +9631,7 @@ announce-urgent directed64 8735 0 {'tape': 8735}
 announce-urgent directed64h 4677 0 {'tape': 4677}
 announce-urgent directed6o 0 0 {}
 announce-urgent directed7 0 0 {}
-announce-urgent directed71 667 0 {'tape': 667}
+announce-urgent directed71 578 0 {'tape': 578}
 announce-urgent directed7p 0 0 {}
 announce-urgent directed7u 0 0 {}
 announce-owed-when-taken directed 0 0 {}
@@ -9653,7 +9653,7 @@ announce-owed-when-taken directed64 8735 0 {'tape': 8735}
 announce-owed-when-taken directed64h 4677 0 {'tape': 4677}
 announce-owed-when-taken directed6o 0 0 {}
 announce-owed-when-taken directed7 0 0 {}
-announce-owed-when-taken directed71 667 0 {'tape': 667}
+announce-owed-when-taken directed71 578 0 {'tape': 578}
 announce-owed-when-taken directed7p 0 0 {}
 announce-owed-when-taken directed7u 0 0 {}
 tables-pushed-write-not-made directed 0 0 {}
@@ -10629,7 +10629,7 @@ tables-in-flight-write-not-made directed1 0 0 {}
 tables-in-flight-write-not-made directed3v 0 0 {}
 tables-in-flight-write-not-made directed41 0 0 {}
 tables-in-flight-write-not-made directed42 0 0 {}
-tables-in-flight-write-not-made directed43 4390 0 {'state': 2458, 'tape': 1932}
+tables-in-flight-write-not-made directed43 4390 0 {'reached': 694, 'state': 1764, 'tape': 1932}
 tables-in-flight-write-not-made directed44 0 0 {}
 tables-in-flight-write-not-made directed44u 0 0 {}
 tables-in-flight-write-not-made directed46 0 0 {}
@@ -10642,10 +10642,10 @@ tables-in-flight-write-not-made directed54 0 0 {}
 tables-in-flight-write-not-made directed64 0 0 {}
 tables-in-flight-write-not-made directed64h 0 0 {}
 tables-in-flight-write-not-made directed6o 0 0 {}
-tables-in-flight-write-not-made directed7 2015 0 {'raise': 11, 'return': 1, 'state': 1715, 'tape': 288}
-tables-in-flight-write-not-made directed71 8116 0 {'state': 6884, 'tape': 1232}
-tables-in-flight-write-not-made directed7p 1710 0 {'raise': 12, 'state': 1441, 'tape': 257}
-tables-in-flight-write-not-made directed7u 2020 0 {'state': 1746, 'tape': 274}
+tables-in-flight-write-not-made directed7 2015 0 {'raise': 11, 'reached': 129, 'return': 1, 'state': 1586, 'tape': 288}
+tables-in-flight-write-not-made directed71 7140 0 {'reached': 535, 'state': 5534, 'tape': 1071}
+tables-in-flight-write-not-made directed7p 1710 0 {'raise': 12, 'reached': 103, 'state': 1338, 'tape': 257}
+tables-in-flight-write-not-made directed7u 2020 0 {'reached': 111, 'state': 1635, 'tape': 274}
 tables-waiters-read-reversed directed 0 0 {}
 tables-waiters-read-reversed directed1 0 0 {}
 tables-waiters-read-reversed directed3v 0 0 {}
@@ -10664,10 +10664,10 @@ tables-waiters-read-reversed directed54 0 0 {}
 tables-waiters-read-reversed directed64 0 0 {}
 tables-waiters-read-reversed directed64h 0 0 {}
 tables-waiters-read-reversed directed6o 0 0 {}
-tables-waiters-read-reversed directed7 1080 0 {'raise': 22, 'state': 187, 'tape': 871}
-tables-waiters-read-reversed directed71 4770 0 {'state': 682, 'tape': 4088}
-tables-waiters-read-reversed directed7p 918 0 {'raise': 22, 'state': 172, 'tape': 724}
-tables-waiters-read-reversed directed7u 1076 0 {'state': 182, 'tape': 894}
+tables-waiters-read-reversed directed7 845 0 {'raise': 22, 'state': 187, 'tape': 636}
+tables-waiters-read-reversed directed71 4954 0 {'state': 666, 'tape': 4288}
+tables-waiters-read-reversed directed7p 726 0 {'raise': 22, 'state': 172, 'tape': 532}
+tables-waiters-read-reversed directed7u 841 0 {'state': 182, 'tape': 659}
 tables-sent-erase-not-made directed 0 0 {}
 tables-sent-erase-not-made directed1 0 0 {}
 tables-sent-erase-not-made directed3v 0 0 {}
@@ -10687,7 +10687,7 @@ tables-sent-erase-not-made directed64 0 0 {}
 tables-sent-erase-not-made directed64h 0 0 {}
 tables-sent-erase-not-made directed6o 0 0 {}
 tables-sent-erase-not-made directed7 0 0 {}
-tables-sent-erase-not-made directed71 2234 0 {'state': 2234}
+tables-sent-erase-not-made directed71 1944 0 {'state': 1944}
 tables-sent-erase-not-made directed7p 0 0 {}
 tables-sent-erase-not-made directed7u 0 0 {}
 free-slot-count-kept directed 0 0 {}
@@ -10695,7 +10695,7 @@ free-slot-count-kept directed1 0 0 {}
 free-slot-count-kept directed3v 0 0 {}
 free-slot-count-kept directed41 0 0 {}
 free-slot-count-kept directed42 0 0 {}
-free-slot-count-kept directed43 4390 0 {'state': 2458, 'tape': 1932}
+free-slot-count-kept directed43 4390 0 {'reached': 694, 'state': 1764, 'tape': 1932}
 free-slot-count-kept directed44 0 0 {}
 free-slot-count-kept directed44u 0 0 {}
 free-slot-count-kept directed46 0 0 {}
@@ -10708,10 +10708,10 @@ free-slot-count-kept directed54 0 0 {}
 free-slot-count-kept directed64 0 0 {}
 free-slot-count-kept directed64h 0 0 {}
 free-slot-count-kept directed6o 0 0 {}
-free-slot-count-kept directed7 2190 0 {'raise': 11, 'return': 8, 'state': 1771, 'tape': 400}
-free-slot-count-kept directed71 6466 0 {'state': 5467, 'tape': 999}
-free-slot-count-kept directed7p 1856 0 {'raise': 20, 'return': 11, 'state': 1459, 'tape': 366}
-free-slot-count-kept directed7u 1852 0 {'state': 1574, 'tape': 278}
+free-slot-count-kept directed7 2190 0 {'raise': 11, 'reached': 129, 'return': 8, 'state': 1642, 'tape': 400}
+free-slot-count-kept directed71 5721 0 {'reached': 535, 'state': 4319, 'tape': 867}
+free-slot-count-kept directed7p 1856 0 {'raise': 20, 'reached': 103, 'return': 11, 'state': 1356, 'tape': 366}
+free-slot-count-kept directed7u 1852 0 {'reached': 111, 'state': 1463, 'tape': 278}
 free-slot-no-wake directed 0 0 {}
 free-slot-no-wake directed1 0 0 {}
 free-slot-no-wake directed3v 0 0 {}
@@ -10730,10 +10730,10 @@ free-slot-no-wake directed54 0 0 {}
 free-slot-no-wake directed64 0 0 {}
 free-slot-no-wake directed64h 0 0 {}
 free-slot-no-wake directed6o 0 0 {}
-free-slot-no-wake directed7 1070 0 {'raise': 1, 'reached': 439, 'tape': 630}
-free-slot-no-wake directed71 6180 0 {'reached': 2705, 'tape': 3475}
-free-slot-no-wake directed7p 913 0 {'raise': 2, 'reached': 398, 'tape': 513}
-free-slot-no-wake directed7u 939 0 {'reached': 395, 'tape': 544}
+free-slot-no-wake directed7 1100 0 {'raise': 1, 'reached': 469, 'tape': 630}
+free-slot-no-wake directed71 5532 0 {'reached': 2460, 'tape': 3072}
+free-slot-no-wake directed7p 932 0 {'raise': 2, 'reached': 417, 'tape': 513}
+free-slot-no-wake directed7u 963 0 {'reached': 419, 'tape': 544}
 acquire-over-the-window directed 0 0 {}
 acquire-over-the-window directed1 0 0 {}
 acquire-over-the-window directed3v 0 0 {}
@@ -10753,7 +10753,7 @@ acquire-over-the-window directed64 0 0 {}
 acquire-over-the-window directed64h 0 0 {}
 acquire-over-the-window directed6o 0 0 {}
 acquire-over-the-window directed7 1262 0 {'raise': 34, 'return': 1, 'tape': 1227}
-acquire-over-the-window directed71 1234 0 {'return': 422, 'tape': 812}
+acquire-over-the-window directed71 1101 0 {'return': 410, 'tape': 691}
 acquire-over-the-window directed7p 1001 0 {'raise': 30, 'return': 7, 'tape': 964}
 acquire-over-the-window directed7u 1251 0 {'tape': 1251}
 acquire-jumps-the-line directed 0 0 {}
@@ -10775,7 +10775,7 @@ acquire-jumps-the-line directed64 0 0 {}
 acquire-jumps-the-line directed64h 0 0 {}
 acquire-jumps-the-line directed6o 0 0 {}
 acquire-jumps-the-line directed7 425 0 {'raise': 7, 'tape': 418}
-acquire-jumps-the-line directed71 612 0 {'return': 235, 'tape': 377}
+acquire-jumps-the-line directed71 525 0 {'return': 213, 'tape': 312}
 acquire-jumps-the-line directed7p 335 0 {'raise': 2, 'tape': 333}
 acquire-jumps-the-line directed7u 380 0 {'tape': 380}
 acquire-keeps-its-place directed 0 0 {}
@@ -10797,7 +10797,7 @@ acquire-keeps-its-place directed64 0 0 {}
 acquire-keeps-its-place directed64h 0 0 {}
 acquire-keeps-its-place directed6o 0 0 {}
 acquire-keeps-its-place directed7 582 0 {'raise': 27, 'state': 98, 'tape': 457}
-acquire-keeps-its-place directed71 795 0 {'state': 316, 'tape': 479}
+acquire-keeps-its-place directed71 685 0 {'state': 263, 'tape': 422}
 acquire-keeps-its-place directed7p 507 0 {'raise': 27, 'state': 98, 'tape': 382}
 acquire-keeps-its-place directed7u 623 0 {'state': 129, 'tape': 494}
 acquire-count-not-raised directed 0 0 {}
@@ -10819,7 +10819,7 @@ acquire-count-not-raised directed64 0 0 {}
 acquire-count-not-raised directed64h 0 0 {}
 acquire-count-not-raised directed6o 0 0 {}
 acquire-count-not-raised directed7 1931 0 {'raise': 10, 'state': 1755, 'tape': 166}
-acquire-count-not-raised directed71 1650 0 {'state': 1417, 'tape': 233}
+acquire-count-not-raised directed71 1419 0 {'state': 1215, 'tape': 204}
 acquire-count-not-raised directed7p 1634 0 {'raise': 8, 'state': 1482, 'tape': 144}
 acquire-count-not-raised directed7u 1881 0 {'state': 1708, 'tape': 173}
 acquire-next-not-woken directed 0 0 {}
@@ -10841,7 +10841,7 @@ acquire-next-not-woken directed64 0 0 {}
 acquire-next-not-woken directed64h 0 0 {}
 acquire-next-not-woken directed6o 0 0 {}
 acquire-next-not-woken directed7 886 0 {'raise': 13, 'reached': 612, 'tape': 261}
-acquire-next-not-woken directed71 1650 0 {'reached': 1301, 'tape': 349}
+acquire-next-not-woken directed71 1419 0 {'reached': 1103, 'tape': 316}
 acquire-next-not-woken directed7p 732 0 {'raise': 16, 'reached': 504, 'tape': 212}
 acquire-next-not-woken directed7u 1045 0 {'reached': 773, 'tape': 272}
 acquire-joins-the-line-twice directed 0 0 {}
@@ -10863,7 +10863,7 @@ acquire-joins-the-line-twice directed64 0 0 {}
 acquire-joins-the-line-twice directed64h 0 0 {}
 acquire-joins-the-line-twice directed6o 0 0 {}
 acquire-joins-the-line-twice directed7 671 0 {'state': 671}
-acquire-joins-the-line-twice directed71 1007 0 {'state': 1007}
+acquire-joins-the-line-twice directed71 888 0 {'state': 888}
 acquire-joins-the-line-twice directed7p 511 0 {'state': 511}
 acquire-joins-the-line-twice directed7u 671 0 {'state': 671}
 release-stays-in-line directed 0 0 {}
@@ -10884,10 +10884,10 @@ release-stays-in-line directed54 0 0 {}
 release-stays-in-line directed64 0 0 {}
 release-stays-in-line directed64h 0 0 {}
 release-stays-in-line directed6o 0 0 {}
-release-stays-in-line directed7 980 0 {'raise': 2, 'reached': 302, 'state': 109, 'tape': 559, 'writes': 8}
-release-stays-in-line directed71 1783 0 {'reached': 558, 'state': 139, 'tape': 1086}
-release-stays-in-line directed7p 803 0 {'raise': 1, 'reached': 263, 'state': 82, 'tape': 453, 'writes': 4}
-release-stays-in-line directed7u 902 0 {'reached': 302, 'state': 100, 'tape': 496, 'writes': 4}
+release-stays-in-line directed7 980 0 {'raise': 2, 'reached': 346, 'state': 67, 'tape': 557, 'writes': 8}
+release-stays-in-line directed71 1572 0 {'reached': 500, 'state': 122, 'tape': 950}
+release-stays-in-line directed7p 803 0 {'raise': 1, 'reached': 289, 'state': 58, 'tape': 451, 'writes': 4}
+release-stays-in-line directed7u 902 0 {'reached': 346, 'state': 58, 'tape': 494, 'writes': 4}
 release-slot-not-freed directed 0 0 {}
 release-slot-not-freed directed1 0 0 {}
 release-slot-not-freed directed3v 0 0 {}
@@ -10907,7 +10907,7 @@ release-slot-not-freed directed64 0 0 {}
 release-slot-not-freed directed64h 0 0 {}
 release-slot-not-freed directed6o 0 0 {}
 release-slot-not-freed directed7 2021 0 {'raise': 11, 'reached': 1247, 'return': 8, 'state': 16, 'tape': 739}
-release-slot-not-freed directed71 1389 0 {'reached': 772, 'tape': 617}
+release-slot-not-freed directed71 1273 0 {'reached': 727, 'tape': 546}
 release-slot-not-freed directed7p 1706 0 {'raise': 20, 'reached': 1028, 'return': 11, 'state': 9, 'tape': 638}
 release-slot-not-freed directed7u 1606 0 {'reached': 1044, 'state': 17, 'tape': 545}
 track-second-copy-tracked directed 0 0 {}
@@ -10929,7 +10929,7 @@ track-second-copy-tracked directed64 0 0 {}
 track-second-copy-tracked directed64h 0 0 {}
 track-second-copy-tracked directed6o 0 0 {}
 track-second-copy-tracked directed7 201 1164 {'tape': 201}
-track-second-copy-tracked directed71 1043 676 {'tape': 1043}
+track-second-copy-tracked directed71 929 622 {'tape': 929}
 track-second-copy-tracked directed7p 169 952 {'tape': 169}
 track-second-copy-tracked directed7u 273 1680 {'tape': 273}
 track-no-timer directed 0 0 {}
@@ -10951,7 +10951,7 @@ track-no-timer directed64 0 0 {}
 track-no-timer directed64h 0 0 {}
 track-no-timer directed6o 0 0 {}
 track-no-timer directed7 1164 0 {'tape': 1164}
-track-no-timer directed71 676 0 {'tape': 676}
+track-no-timer directed71 622 0 {'tape': 622}
 track-no-timer directed7p 952 0 {'tape': 952}
 track-no-timer directed7u 1680 0 {'tape': 1680}
 window-release-send-kept directed 0 0 {}
@@ -10973,7 +10973,7 @@ window-release-send-kept directed64 0 0 {}
 window-release-send-kept directed64h 0 0 {}
 window-release-send-kept directed6o 0 0 {}
 window-release-send-kept directed7 0 0 {}
-window-release-send-kept directed71 1086 0 {'state': 1086}
+window-release-send-kept directed71 923 0 {'state': 923}
 window-release-send-kept directed7p 0 0 {}
 window-release-send-kept directed7u 0 0 {}
 window-release-no-slot directed 0 0 {}
@@ -10995,7 +10995,7 @@ window-release-no-slot directed64 0 0 {}
 window-release-no-slot directed64h 0 0 {}
 window-release-no-slot directed6o 0 0 {}
 window-release-no-slot directed7 0 0 {}
-window-release-no-slot directed71 1086 0 {'reached': 454, 'tape': 632}
+window-release-no-slot directed71 923 0 {'reached': 394, 'tape': 529}
 window-release-no-slot directed7p 0 0 {}
 window-release-no-slot directed7u 0 0 {}
 timeout-of-a-later-send directed 0 0 {}
@@ -11017,7 +11017,7 @@ timeout-of-a-later-send directed64 0 0 {}
 timeout-of-a-later-send directed64h 0 0 {}
 timeout-of-a-later-send directed6o 0 0 {}
 timeout-of-a-later-send directed7 0 0 {}
-timeout-of-a-later-send directed71 445 0 {'reached': 163, 'tape': 282}
+timeout-of-a-later-send directed71 400 0 {'reached': 140, 'tape': 260}
 timeout-of-a-later-send directed7p 0 0 {}
 timeout-of-a-later-send directed7u 0 0 {}
 timeout-no-acknowledgement directed 0 0 {}
@@ -11039,7 +11039,7 @@ timeout-no-acknowledgement directed64 0 0 {}
 timeout-no-acknowledgement directed64h 0 0 {}
 timeout-no-acknowledgement directed6o 0 0 {}
 timeout-no-acknowledgement directed7 0 0 {}
-timeout-no-acknowledgement directed71 487 661 {'reached': 271, 'tape': 216}
+timeout-no-acknowledgement directed71 411 610 {'reached': 230, 'tape': 181}
 timeout-no-acknowledgement directed7p 0 0 {}
 timeout-no-acknowledgement directed7u 0 0 {}
 origin-acked-acts-at-publish directed 0 0 {}
@@ -11061,7 +11061,7 @@ origin-acked-acts-at-publish directed64 0 0 {}
 origin-acked-acts-at-publish directed64h 0 0 {}
 origin-acked-acts-at-publish directed6o 0 0 {}
 origin-acked-acts-at-publish directed7 0 0 {}
-origin-acked-acts-at-publish directed71 257 0 {'reads': 125, 'tape': 132}
+origin-acked-acts-at-publish directed71 244 0 {'reads': 131, 'tape': 113}
 origin-acked-acts-at-publish directed7p 0 0 {}
 origin-acked-acts-at-publish directed7u 0 0 {}
 origin-acked-again directed 0 0 {}
@@ -11083,7 +11083,7 @@ origin-acked-again directed64 0 0 {}
 origin-acked-again directed64h 0 0 {}
 origin-acked-again directed6o 0 0 {}
 origin-acked-again directed7 0 0 {}
-origin-acked-again directed71 984 0 {'tape': 984}
+origin-acked-again directed71 869 0 {'tape': 869}
 origin-acked-again directed7p 0 0 {}
 origin-acked-again directed7u 0 0 {}
 origin-acked-bit-not-set directed 0 0 {}
@@ -11105,7 +11105,7 @@ origin-acked-bit-not-set directed64 0 0 {}
 origin-acked-bit-not-set directed64h 0 0 {}
 origin-acked-bit-not-set directed6o 0 0 {}
 origin-acked-bit-not-set directed7 0 0 {}
-origin-acked-bit-not-set directed71 965 0 {'state': 246, 'tape': 719}
+origin-acked-bit-not-set directed71 820 0 {'state': 201, 'tape': 619}
 origin-acked-bit-not-set directed7p 0 0 {}
 origin-acked-bit-not-set directed7u 0 0 {}
 origin-acked-have-not-sent directed 0 0 {}
@@ -11127,7 +11127,7 @@ origin-acked-have-not-sent directed64 0 0 {}
 origin-acked-have-not-sent directed64h 0 0 {}
 origin-acked-have-not-sent directed6o 0 0 {}
 origin-acked-have-not-sent directed7 0 0 {}
-origin-acked-have-not-sent directed71 965 0 {'tape': 965}
+origin-acked-have-not-sent directed71 820 0 {'tape': 820}
 origin-acked-have-not-sent directed7p 0 0 {}
 origin-acked-have-not-sent directed7u 0 0 {}
 origin-acked-targets-announced-too directed 0 0 {}
@@ -11149,7 +11149,7 @@ origin-acked-targets-announced-too directed64 0 0 {}
 origin-acked-targets-announced-too directed64h 0 0 {}
 origin-acked-targets-announced-too directed6o 0 0 {}
 origin-acked-targets-announced-too directed7 0 0 {}
-origin-acked-targets-announced-too directed71 173 546 {'tape': 173}
+origin-acked-targets-announced-too directed71 151 468 {'tape': 151}
 origin-acked-targets-announced-too directed7p 0 0 {}
 origin-acked-targets-announced-too directed7u 0 0 {}
 origin-acked-nobody-announced directed 0 0 {}
@@ -11171,7 +11171,7 @@ origin-acked-nobody-announced directed64 0 0 {}
 origin-acked-nobody-announced directed64h 0 0 {}
 origin-acked-nobody-announced directed6o 0 0 {}
 origin-acked-nobody-announced directed7 0 0 {}
-origin-acked-nobody-announced directed71 965 0 {'tape': 965}
+origin-acked-nobody-announced directed71 820 0 {'tape': 820}
 origin-acked-nobody-announced directed7p 0 0 {}
 origin-acked-nobody-announced directed7u 0 0 {}
 n-one-more directed 0 0 {}
@@ -12204,16 +12204,16 @@ front-takes-a-writer-mid-write directed54 0 0 {}
 front-takes-a-writer-mid-write directed64 0 0 {}
 front-takes-a-writer-mid-write directed64h 0 0 {}
 front-takes-a-writer-mid-write directed6o 0 0 {}
-front-takes-a-writer-mid-write directed7 140 0 {'raise': 4, 'tape': 136}
-front-takes-a-writer-mid-write directed71 776 0 {'return': 153, 'tape': 623}
-front-takes-a-writer-mid-write directed7p 134 0 {'raise': 5, 'tape': 129}
-front-takes-a-writer-mid-write directed7u 126 0 {'tape': 126}
+front-takes-a-writer-mid-write directed7 349 0 {'raise': 7, 'tape': 342}
+front-takes-a-writer-mid-write directed71 2732 0 {'return': 109, 'tape': 2623}
+front-takes-a-writer-mid-write directed7p 301 0 {'raise': 8, 'tape': 293}
+front-takes-a-writer-mid-write directed7u 334 0 {'tape': 334}
 wake-front-wakes-a-writer-mid-write directed 0 0 {}
 wake-front-wakes-a-writer-mid-write directed1 0 0 {}
 wake-front-wakes-a-writer-mid-write directed3v 0 0 {}
 wake-front-wakes-a-writer-mid-write directed41 0 0 {}
 wake-front-wakes-a-writer-mid-write directed42 0 0 {}
-wake-front-wakes-a-writer-mid-write directed43 0 0 {}
+wake-front-wakes-a-writer-mid-write directed43 3707 0 {'reached': 989, 'tape': 2718}
 wake-front-wakes-a-writer-mid-write directed44 0 0 {}
 wake-front-wakes-a-writer-mid-write directed44u 0 0 {}
 wake-front-wakes-a-writer-mid-write directed46 0 0 {}
@@ -12226,38 +12226,16 @@ wake-front-wakes-a-writer-mid-write directed54 0 0 {}
 wake-front-wakes-a-writer-mid-write directed64 0 0 {}
 wake-front-wakes-a-writer-mid-write directed64h 0 0 {}
 wake-front-wakes-a-writer-mid-write directed6o 0 0 {}
-wake-front-wakes-a-writer-mid-write directed7 532 0 {'raise': 7, 'tape': 525}
-wake-front-wakes-a-writer-mid-write directed71 1760 0 {'tape': 1760}
-wake-front-wakes-a-writer-mid-write directed7p 443 0 {'raise': 8, 'tape': 435}
-wake-front-wakes-a-writer-mid-write directed7u 514 0 {'tape': 514}
-wake-front-past-woken directed 0 0 {}
-wake-front-past-woken directed1 0 0 {}
-wake-front-past-woken directed3v 0 0 {}
-wake-front-past-woken directed41 0 0 {}
-wake-front-past-woken directed42 0 0 {}
-wake-front-past-woken directed43 0 0 {}
-wake-front-past-woken directed44 0 0 {}
-wake-front-past-woken directed44u 0 0 {}
-wake-front-past-woken directed46 0 0 {}
-wake-front-past-woken directed46d 0 0 {}
-wake-front-past-woken directed4b 0 0 {}
-wake-front-past-woken directed51 0 0 {}
-wake-front-past-woken directed52 0 0 {}
-wake-front-past-woken directed53 0 0 {}
-wake-front-past-woken directed54 0 0 {}
-wake-front-past-woken directed64 0 0 {}
-wake-front-past-woken directed64h 0 0 {}
-wake-front-past-woken directed6o 0 0 {}
-wake-front-past-woken directed7 988 0 {'tape': 988}
-wake-front-past-woken directed71 197 0 {'tape': 197}
-wake-front-past-woken directed7p 832 0 {'tape': 832}
-wake-front-past-woken directed7u 988 0 {'tape': 988}
+wake-front-wakes-a-writer-mid-write directed7 1517 0 {'raise': 13, 'reached': 615, 'tape': 889}
+wake-front-wakes-a-writer-mid-write directed71 7631 0 {'reached': 2408, 'tape': 5223}
+wake-front-wakes-a-writer-mid-write directed7p 1300 0 {'raise': 16, 'reached': 523, 'tape': 761}
+wake-front-wakes-a-writer-mid-write directed7u 1412 0 {'reached': 568, 'tape': 844}
 wake-front-with-no-slot directed 0 0 {}
 wake-front-with-no-slot directed1 0 0 {}
 wake-front-with-no-slot directed3v 0 0 {}
 wake-front-with-no-slot directed41 0 0 {}
 wake-front-with-no-slot directed42 0 0 {}
-wake-front-with-no-slot directed43 997 0 {'reads': 187, 'tape': 810}
+wake-front-with-no-slot directed43 997 0 {'reached': 187, 'tape': 810}
 wake-front-with-no-slot directed44 0 0 {}
 wake-front-with-no-slot directed44u 0 0 {}
 wake-front-with-no-slot directed46 0 0 {}
@@ -12270,10 +12248,10 @@ wake-front-with-no-slot directed54 0 0 {}
 wake-front-with-no-slot directed64 0 0 {}
 wake-front-with-no-slot directed64h 0 0 {}
 wake-front-with-no-slot directed6o 0 0 {}
-wake-front-with-no-slot directed7 852 0 {'raise': 10, 'reads': 3, 'tape': 839}
-wake-front-with-no-slot directed71 2092 0 {'reads': 488, 'tape': 1604}
-wake-front-with-no-slot directed7p 732 0 {'raise': 8, 'reads': 5, 'tape': 719}
-wake-front-with-no-slot directed7u 833 0 {'reads': 6, 'tape': 827}
+wake-front-with-no-slot directed7 602 0 {'raise': 10, 'reached': 185, 'tape': 407}
+wake-front-with-no-slot directed71 2394 0 {'reached': 574, 'tape': 1820}
+wake-front-with-no-slot directed7p 497 0 {'raise': 8, 'reached': 142, 'tape': 347}
+wake-front-with-no-slot directed7u 569 0 {'reached': 174, 'tape': 395}
 release-next-not-woken directed 0 0 {}
 release-next-not-woken directed1 0 0 {}
 release-next-not-woken directed3v 0 0 {}
@@ -12293,72 +12271,94 @@ release-next-not-woken directed64 0 0 {}
 release-next-not-woken directed64h 0 0 {}
 release-next-not-woken directed6o 0 0 {}
 release-next-not-woken directed7 686 0 {'reached': 346, 'tape': 340}
-release-next-not-woken directed71 1364 0 {'reached': 558, 'tape': 806}
+release-next-not-woken directed71 1237 0 {'reached': 500, 'tape': 737}
 release-next-not-woken directed7p 598 0 {'reached': 289, 'tape': 309}
 release-next-not-woken directed7u 660 0 {'reached': 346, 'tape': 314}
-nts-urgent-no-wake directed 0 0 {}
-nts-urgent-no-wake directed1 0 0 {}
-nts-urgent-no-wake directed3v 0 0 {}
-nts-urgent-no-wake directed41 0 0 {}
-nts-urgent-no-wake directed42 0 0 {}
-nts-urgent-no-wake directed43 0 0 {}
-nts-urgent-no-wake directed44 0 0 {}
-nts-urgent-no-wake directed44u 0 0 {}
-nts-urgent-no-wake directed46 0 0 {}
-nts-urgent-no-wake directed46d 0 0 {}
-nts-urgent-no-wake directed4b 0 0 {}
-nts-urgent-no-wake directed51 0 0 {}
-nts-urgent-no-wake directed52 0 0 {}
-nts-urgent-no-wake directed53 0 0 {}
-nts-urgent-no-wake directed54 0 0 {}
-nts-urgent-no-wake directed64 0 0 {}
-nts-urgent-no-wake directed64h 0 0 {}
-nts-urgent-no-wake directed6o 0 0 {}
-nts-urgent-no-wake directed7 1558 2254 {'reached': 956, 'tape': 602}
-nts-urgent-no-wake directed71 0 0 {}
-nts-urgent-no-wake directed7p 1276 1805 {'reached': 776, 'tape': 500}
-nts-urgent-no-wake directed7u 1558 2254 {'reached': 956, 'tape': 602}
-nts-urgent-wakes-itself directed 0 0 {}
-nts-urgent-wakes-itself directed1 0 0 {}
-nts-urgent-wakes-itself directed3v 0 0 {}
-nts-urgent-wakes-itself directed41 0 0 {}
-nts-urgent-wakes-itself directed42 0 0 {}
-nts-urgent-wakes-itself directed43 0 0 {}
-nts-urgent-wakes-itself directed44 0 0 {}
-nts-urgent-wakes-itself directed44u 0 0 {}
-nts-urgent-wakes-itself directed46 0 0 {}
-nts-urgent-wakes-itself directed46d 0 0 {}
-nts-urgent-wakes-itself directed4b 0 0 {}
-nts-urgent-wakes-itself directed51 0 0 {}
-nts-urgent-wakes-itself directed52 0 0 {}
-nts-urgent-wakes-itself directed53 0 0 {}
-nts-urgent-wakes-itself directed54 0 0 {}
-nts-urgent-wakes-itself directed64 0 0 {}
-nts-urgent-wakes-itself directed64h 0 0 {}
-nts-urgent-wakes-itself directed6o 0 0 {}
-nts-urgent-wakes-itself directed7 821 0 {'tape': 821}
-nts-urgent-wakes-itself directed71 0 0 {}
-nts-urgent-wakes-itself directed7p 683 0 {'tape': 683}
-nts-urgent-wakes-itself directed7u 821 0 {'tape': 821}
-nts-owed-alone-no-wake directed 0 0 {}
-nts-owed-alone-no-wake directed1 0 0 {}
-nts-owed-alone-no-wake directed3v 0 0 {}
-nts-owed-alone-no-wake directed41 0 0 {}
-nts-owed-alone-no-wake directed42 0 0 {}
-nts-owed-alone-no-wake directed43 0 0 {}
-nts-owed-alone-no-wake directed44 0 0 {}
-nts-owed-alone-no-wake directed44u 0 0 {}
-nts-owed-alone-no-wake directed46 0 0 {}
-nts-owed-alone-no-wake directed46d 0 0 {}
-nts-owed-alone-no-wake directed4b 0 0 {}
-nts-owed-alone-no-wake directed51 0 0 {}
-nts-owed-alone-no-wake directed52 0 0 {}
-nts-owed-alone-no-wake directed53 0 0 {}
-nts-owed-alone-no-wake directed54 0 0 {}
-nts-owed-alone-no-wake directed64 0 0 {}
-nts-owed-alone-no-wake directed64h 0 0 {}
-nts-owed-alone-no-wake directed6o 0 0 {}
-nts-owed-alone-no-wake directed7 318 491 {'reached': 185, 'tape': 133}
-nts-owed-alone-no-wake directed71 0 0 {}
-nts-owed-alone-no-wake directed7p 309 379 {'reached': 183, 'tape': 126}
-nts-owed-alone-no-wake directed7u 318 491 {'reached': 185, 'tape': 133}
+nts-urgent-wakes-first directed 0 0 {}
+nts-urgent-wakes-first directed1 0 0 {}
+nts-urgent-wakes-first directed3v 0 0 {}
+nts-urgent-wakes-first directed41 0 0 {}
+nts-urgent-wakes-first directed42 0 0 {}
+nts-urgent-wakes-first directed43 0 0 {}
+nts-urgent-wakes-first directed44 0 0 {}
+nts-urgent-wakes-first directed44u 0 0 {}
+nts-urgent-wakes-first directed46 0 0 {}
+nts-urgent-wakes-first directed46d 0 0 {}
+nts-urgent-wakes-first directed4b 0 0 {}
+nts-urgent-wakes-first directed51 0 0 {}
+nts-urgent-wakes-first directed52 0 0 {}
+nts-urgent-wakes-first directed53 0 0 {}
+nts-urgent-wakes-first directed54 0 0 {}
+nts-urgent-wakes-first directed64 0 0 {}
+nts-urgent-wakes-first directed64h 0 0 {}
+nts-urgent-wakes-first directed6o 0 0 {}
+nts-urgent-wakes-first directed7 3812 0 {'reached': 585, 'reads': 2254, 'tape': 973}
+nts-urgent-wakes-first directed71 0 0 {}
+nts-urgent-wakes-first directed7p 3081 0 {'reached': 456, 'reads': 1805, 'tape': 820}
+nts-urgent-wakes-first directed7u 3812 0 {'reached': 585, 'reads': 2254, 'tape': 973}
+nts-owed-alone-wakes-first directed 0 0 {}
+nts-owed-alone-wakes-first directed1 0 0 {}
+nts-owed-alone-wakes-first directed3v 0 0 {}
+nts-owed-alone-wakes-first directed41 0 0 {}
+nts-owed-alone-wakes-first directed42 0 0 {}
+nts-owed-alone-wakes-first directed43 0 0 {}
+nts-owed-alone-wakes-first directed44 0 0 {}
+nts-owed-alone-wakes-first directed44u 0 0 {}
+nts-owed-alone-wakes-first directed46 0 0 {}
+nts-owed-alone-wakes-first directed46d 0 0 {}
+nts-owed-alone-wakes-first directed4b 0 0 {}
+nts-owed-alone-wakes-first directed51 0 0 {}
+nts-owed-alone-wakes-first directed52 0 0 {}
+nts-owed-alone-wakes-first directed53 0 0 {}
+nts-owed-alone-wakes-first directed54 0 0 {}
+nts-owed-alone-wakes-first directed64 0 0 {}
+nts-owed-alone-wakes-first directed64h 0 0 {}
+nts-owed-alone-wakes-first directed6o 0 0 {}
+nts-owed-alone-wakes-first directed7 809 0 {'reached': 113, 'reads': 491, 'tape': 205}
+nts-owed-alone-wakes-first directed71 0 0 {}
+nts-owed-alone-wakes-first directed7p 688 0 {'reached': 124, 'reads': 379, 'tape': 185}
+nts-owed-alone-wakes-first directed7u 809 0 {'reached': 113, 'reads': 491, 'tape': 205}
+write-waits-wakes-nobody directed 0 0 {}
+write-waits-wakes-nobody directed1 0 0 {}
+write-waits-wakes-nobody directed3v 0 0 {}
+write-waits-wakes-nobody directed41 0 0 {}
+write-waits-wakes-nobody directed42 0 0 {}
+write-waits-wakes-nobody directed43 0 0 {}
+write-waits-wakes-nobody directed44 0 0 {}
+write-waits-wakes-nobody directed44u 0 0 {}
+write-waits-wakes-nobody directed46 0 0 {}
+write-waits-wakes-nobody directed46d 0 0 {}
+write-waits-wakes-nobody directed4b 0 0 {}
+write-waits-wakes-nobody directed51 0 0 {}
+write-waits-wakes-nobody directed52 0 0 {}
+write-waits-wakes-nobody directed53 0 0 {}
+write-waits-wakes-nobody directed54 0 0 {}
+write-waits-wakes-nobody directed64 0 0 {}
+write-waits-wakes-nobody directed64h 0 0 {}
+write-waits-wakes-nobody directed6o 0 0 {}
+write-waits-wakes-nobody directed7 0 0 {}
+write-waits-wakes-nobody directed71 1194 0 {'reached': 427, 'tape': 767}
+write-waits-wakes-nobody directed7p 0 0 {}
+write-waits-wakes-nobody directed7u 0 0 {}
+write-waits-wakes-out-of-line directed 0 0 {}
+write-waits-wakes-out-of-line directed1 0 0 {}
+write-waits-wakes-out-of-line directed3v 0 0 {}
+write-waits-wakes-out-of-line directed41 0 0 {}
+write-waits-wakes-out-of-line directed42 0 0 {}
+write-waits-wakes-out-of-line directed43 0 0 {}
+write-waits-wakes-out-of-line directed44 0 0 {}
+write-waits-wakes-out-of-line directed44u 0 0 {}
+write-waits-wakes-out-of-line directed46 0 0 {}
+write-waits-wakes-out-of-line directed46d 0 0 {}
+write-waits-wakes-out-of-line directed4b 0 0 {}
+write-waits-wakes-out-of-line directed51 0 0 {}
+write-waits-wakes-out-of-line directed52 0 0 {}
+write-waits-wakes-out-of-line directed53 0 0 {}
+write-waits-wakes-out-of-line directed54 0 0 {}
+write-waits-wakes-out-of-line directed64 0 0 {}
+write-waits-wakes-out-of-line directed64h 0 0 {}
+write-waits-wakes-out-of-line directed6o 0 0 {}
+write-waits-wakes-out-of-line directed7 0 0 {}
+write-waits-wakes-out-of-line directed71 1117 427 {'reached': 916, 'tape': 201}
+write-waits-wakes-out-of-line directed7p 0 0 {}
+write-waits-wakes-out-of-line directed7u 0 0 {}

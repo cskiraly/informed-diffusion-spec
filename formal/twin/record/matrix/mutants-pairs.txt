@@ -2446,21 +2446,21 @@ drop-beyond-skips-empty-rows silent 0 0 {}
 drop-beyond-skips-empty-rows withholders 0 0 {}
 drop-beyond-skips-empty-rows without-a 0 0 {}
 drop-beyond-skips-empty-rows without-b 0 0 {}
-tables-lane-read-none announce 247408 0 {'reached': 64, 'return': 2181, 'tape': 245163}
-tables-lane-read-none cap-wait 204393 0 {'reached': 48, 'return': 2319, 'tape': 202026}
+tables-lane-read-none announce 247408 0 {'reached': 64, 'return': 2197, 'tape': 245147}
+tables-lane-read-none cap-wait 204393 0 {'reached': 48, 'return': 2323, 'tape': 202022}
 tables-lane-read-none dcb20 260986 0 {'reached': 158, 'return': 58, 'tape': 260770}
 tables-lane-read-none hand5-publish 86 0 {'tape': 86}
 tables-lane-read-none hand5 88 0 {'tape': 88}
-tables-lane-read-none hold 245830 0 {'reached': 45, 'return': 2137, 'tape': 243648}
-tables-lane-read-none ihave-limits 246326 0 {'reached': 139, 'return': 2359, 'tape': 243828}
-tables-lane-read-none late-block 234108 0 {'reached': 120, 'return': 1848, 'tape': 232140}
-tables-lane-read-none loss-thin 235143 0 {'reached': 226, 'return': 3913, 'tape': 231004}
-tables-lane-read-none none 245830 0 {'reached': 45, 'return': 2137, 'tape': 243648}
-tables-lane-read-none push-deep 285376 0 {'reached': 1, 'return': 12088, 'tape': 273287}
-tables-lane-read-none push 250555 0 {'reached': 136, 'return': 2146, 'tape': 248273}
-tables-lane-read-none rr-stripe 285026 0 {'reached': 1, 'return': 9749, 'tape': 275276}
-tables-lane-read-none silent 207442 0 {'reached': 87, 'return': 2460, 'tape': 204895}
-tables-lane-read-none withholders 251370 0 {'reached': 105, 'return': 2291, 'tape': 248974}
+tables-lane-read-none hold 245830 0 {'reached': 45, 'return': 2153, 'tape': 243632}
+tables-lane-read-none ihave-limits 246326 0 {'reached': 139, 'return': 2368, 'tape': 243819}
+tables-lane-read-none late-block 234108 0 {'reached': 120, 'return': 1868, 'tape': 232120}
+tables-lane-read-none loss-thin 235143 0 {'reached': 226, 'return': 3914, 'tape': 231003}
+tables-lane-read-none none 245830 0 {'reached': 45, 'return': 2153, 'tape': 243632}
+tables-lane-read-none push-deep 285363 0 {'reached': 1, 'return': 12106, 'tape': 273256}
+tables-lane-read-none push 250555 0 {'reached': 136, 'return': 2167, 'tape': 248252}
+tables-lane-read-none rr-stripe 284947 0 {'reached': 1, 'return': 9672, 'tape': 275274}
+tables-lane-read-none silent 207442 0 {'reached': 87, 'return': 2465, 'tape': 204890}
+tables-lane-read-none withholders 251370 0 {'reached': 105, 'return': 2295, 'tape': 248970}
 tables-lane-read-none without-a 300260 0 {'reached': 9, 'return': 12101, 'tape': 288150}
 tables-lane-read-none without-b 248942 0 {'reached': 132, 'tape': 248810}
 validated-no-store announce 15927 0 {'tape': 15927}
@@ -3602,21 +3602,21 @@ nts-owed-answer-ignored silent 0 0 {}
 nts-owed-answer-ignored withholders 0 0 {}
 nts-owed-answer-ignored without-a 0 0 {}
 nts-owed-answer-ignored without-b 0 0 {}
-nts-urgent-ignored announce 119977 240593 {'tape': 119977}
-nts-urgent-ignored cap-wait 117350 208999 {'tape': 117350}
+nts-urgent-ignored announce 119977 240593 {'return': 16, 'tape': 119961}
+nts-urgent-ignored cap-wait 117350 208999 {'return': 4, 'tape': 117346}
 nts-urgent-ignored dcb20 128817 230298 {'tape': 128817}
 nts-urgent-ignored hand5-publish 56 73 {'tape': 56}
 nts-urgent-ignored hand5 56 81 {'tape': 56}
-nts-urgent-ignored hold 119999 237836 {'tape': 119999}
-nts-urgent-ignored ihave-limits 121713 244887 {'tape': 121713}
-nts-urgent-ignored late-block 120057 238607 {'tape': 120057}
-nts-urgent-ignored loss-thin 118681 219797 {'return': 622, 'tape': 118059}
-nts-urgent-ignored none 119999 237836 {'tape': 119999}
-nts-urgent-ignored push-deep 126970 322510 {'return': 171, 'tape': 126799}
-nts-urgent-ignored push 123254 237033 {'tape': 123254}
-nts-urgent-ignored rr-stripe 127263 324345 {'return': 146, 'tape': 127117}
-nts-urgent-ignored silent 118991 209868 {'tape': 118991}
-nts-urgent-ignored withholders 122142 254499 {'tape': 122142}
+nts-urgent-ignored hold 119999 237836 {'return': 16, 'tape': 119983}
+nts-urgent-ignored ihave-limits 121713 244887 {'return': 9, 'tape': 121704}
+nts-urgent-ignored late-block 120057 238607 {'return': 20, 'tape': 120037}
+nts-urgent-ignored loss-thin 118681 219797 {'return': 623, 'tape': 118058}
+nts-urgent-ignored none 119999 237836 {'return': 16, 'tape': 119983}
+nts-urgent-ignored push-deep 126970 322497 {'return': 206, 'tape': 126764}
+nts-urgent-ignored push 123254 237033 {'return': 21, 'tape': 123233}
+nts-urgent-ignored rr-stripe 127263 324266 {'return': 148, 'tape': 127115}
+nts-urgent-ignored silent 118991 209868 {'return': 5, 'tape': 118986}
+nts-urgent-ignored withholders 122142 254499 {'return': 4, 'tape': 122138}
 nts-urgent-ignored without-a 143169 274596 {'tape': 143169}
 nts-urgent-ignored without-b 126530 209059 {'tape': 126530}
 nts-no-release-when-idle announce 113165 0 {'reached': 113165}
@@ -4394,9 +4394,9 @@ nts-wait-as-nothing ihave-limits 2481 0 {'return': 2481}
 nts-wait-as-nothing late-block 2218 0 {'return': 2218}
 nts-wait-as-nothing loss-thin 3785 0 {'return': 3785}
 nts-wait-as-nothing none 2338 0 {'return': 2338}
-nts-wait-as-nothing push-deep 24812 0 {'return': 24812}
+nts-wait-as-nothing push-deep 24799 0 {'return': 24799}
 nts-wait-as-nothing push 2311 0 {'return': 2311}
-nts-wait-as-nothing rr-stripe 21635 0 {'return': 21635}
+nts-wait-as-nothing rr-stripe 21556 0 {'return': 21556}
 nts-wait-as-nothing silent 2572 0 {'return': 2572}
 nts-wait-as-nothing withholders 2366 0 {'return': 2366}
 nts-wait-as-nothing without-a 12127 0 {'return': 12127}
@@ -8209,39 +8209,39 @@ origin-written-any-group silent 0 0 {}
 origin-written-any-group withholders 0 0 {}
 origin-written-any-group without-a 0 0 {}
 origin-written-any-group without-b 0 0 {}
-tables-in-flight-write-not-made announce 34529 0 {'state': 33747, 'tape': 782}
-tables-in-flight-write-not-made cap-wait 30283 0 {'state': 29372, 'tape': 911}
-tables-in-flight-write-not-made dcb20 46158 0 {'state': 46110, 'tape': 48}
+tables-in-flight-write-not-made announce 34529 0 {'reached': 3, 'state': 33744, 'tape': 782}
+tables-in-flight-write-not-made cap-wait 30283 0 {'reached': 5, 'state': 29367, 'tape': 911}
+tables-in-flight-write-not-made dcb20 46158 0 {'reached': 1, 'state': 46109, 'tape': 48}
 tables-in-flight-write-not-made hand5-publish 32 0 {'state': 32}
 tables-in-flight-write-not-made hand5 32 0 {'state': 32}
-tables-in-flight-write-not-made hold 34632 0 {'state': 33798, 'tape': 834}
-tables-in-flight-write-not-made ihave-limits 35962 0 {'state': 35075, 'tape': 887}
-tables-in-flight-write-not-made late-block 35130 0 {'state': 34548, 'tape': 582}
-tables-in-flight-write-not-made loss-thin 33002 0 {'state': 31700, 'tape': 1302}
-tables-in-flight-write-not-made none 34632 0 {'state': 33798, 'tape': 834}
-tables-in-flight-write-not-made push-deep 47115 0 {'state': 37182, 'tape': 9933}
-tables-in-flight-write-not-made push 38221 0 {'state': 37440, 'tape': 781}
-tables-in-flight-write-not-made rr-stripe 46615 0 {'state': 38603, 'tape': 8012}
-tables-in-flight-write-not-made silent 32008 0 {'state': 30946, 'tape': 1062}
-tables-in-flight-write-not-made withholders 36737 0 {'state': 35897, 'tape': 840}
-tables-in-flight-write-not-made without-a 78772 0 {'state': 65529, 'tape': 13243}
+tables-in-flight-write-not-made hold 34632 0 {'reached': 2, 'state': 33796, 'tape': 834}
+tables-in-flight-write-not-made ihave-limits 35962 0 {'reached': 7, 'state': 35068, 'tape': 887}
+tables-in-flight-write-not-made late-block 35130 0 {'reached': 4, 'state': 34544, 'tape': 582}
+tables-in-flight-write-not-made loss-thin 33002 0 {'reached': 77, 'state': 31623, 'tape': 1302}
+tables-in-flight-write-not-made none 34632 0 {'reached': 2, 'state': 33796, 'tape': 834}
+tables-in-flight-write-not-made push-deep 47115 0 {'reached': 75, 'state': 37107, 'tape': 9933}
+tables-in-flight-write-not-made push 38221 0 {'reached': 9, 'state': 37431, 'tape': 781}
+tables-in-flight-write-not-made rr-stripe 46615 0 {'reached': 63, 'state': 38540, 'tape': 8012}
+tables-in-flight-write-not-made silent 32008 0 {'reached': 41, 'state': 30905, 'tape': 1062}
+tables-in-flight-write-not-made withholders 36737 0 {'reached': 5, 'state': 35892, 'tape': 840}
+tables-in-flight-write-not-made without-a 78772 0 {'reached': 890, 'state': 64639, 'tape': 13243}
 tables-in-flight-write-not-made without-b 45359 0 {'state': 45359}
-tables-waiters-read-reversed announce 3545 0 {'state': 370, 'tape': 3175}
-tables-waiters-read-reversed cap-wait 3738 0 {'state': 428, 'tape': 3310}
+tables-waiters-read-reversed announce 3575 0 {'state': 370, 'tape': 3205}
+tables-waiters-read-reversed cap-wait 3780 0 {'state': 428, 'tape': 3352}
 tables-waiters-read-reversed dcb20 69 0 {'state': 20, 'tape': 49}
 tables-waiters-read-reversed hand5-publish 0 0 {}
 tables-waiters-read-reversed hand5 0 0 {}
-tables-waiters-read-reversed hold 3643 0 {'state': 378, 'tape': 3265}
-tables-waiters-read-reversed ihave-limits 3746 0 {'state': 404, 'tape': 3342}
-tables-waiters-read-reversed late-block 3923 0 {'state': 321, 'tape': 3602}
+tables-waiters-read-reversed hold 3675 0 {'state': 378, 'tape': 3297}
+tables-waiters-read-reversed ihave-limits 3784 0 {'state': 404, 'tape': 3380}
+tables-waiters-read-reversed late-block 3925 0 {'state': 321, 'tape': 3604}
 tables-waiters-read-reversed loss-thin 5180 0 {'state': 540, 'tape': 4640}
-tables-waiters-read-reversed none 3643 0 {'state': 378, 'tape': 3265}
-tables-waiters-read-reversed push-deep 24405 0 {'state': 2934, 'tape': 21471}
-tables-waiters-read-reversed push 3597 0 {'state': 370, 'tape': 3227}
-tables-waiters-read-reversed rr-stripe 20562 0 {'state': 2229, 'tape': 18333}
-tables-waiters-read-reversed silent 3904 0 {'state': 449, 'tape': 3455}
-tables-waiters-read-reversed withholders 3636 0 {'state': 400, 'tape': 3236}
-tables-waiters-read-reversed without-a 20252 0 {'state': 5312, 'tape': 14940}
+tables-waiters-read-reversed none 3675 0 {'state': 378, 'tape': 3297}
+tables-waiters-read-reversed push-deep 23730 0 {'state': 2934, 'tape': 20796}
+tables-waiters-read-reversed push 3627 0 {'state': 370, 'tape': 3257}
+tables-waiters-read-reversed rr-stripe 19911 0 {'state': 2229, 'tape': 17682}
+tables-waiters-read-reversed silent 3954 0 {'state': 449, 'tape': 3505}
+tables-waiters-read-reversed withholders 3666 0 {'state': 400, 'tape': 3266}
+tables-waiters-read-reversed without-a 20286 0 {'state': 5312, 'tape': 14974}
 tables-waiters-read-reversed without-b 0 0 {}
 tables-sent-erase-not-made announce 15470 0 {'state': 15470}
 tables-sent-erase-not-made cap-wait 13896 0 {'state': 13896}
@@ -8260,22 +8260,22 @@ tables-sent-erase-not-made silent 13945 0 {'state': 13945}
 tables-sent-erase-not-made withholders 15550 0 {'state': 15550}
 tables-sent-erase-not-made without-a 35877 0 {'state': 35877}
 tables-sent-erase-not-made without-b 19791 0 {'state': 19791}
-free-slot-count-kept announce 26565 0 {'return': 7, 'state': 26131, 'tape': 427}
-free-slot-count-kept cap-wait 19264 0 {'state': 18779, 'tape': 485}
-free-slot-count-kept dcb20 49332 0 {'state': 49141, 'tape': 191}
+free-slot-count-kept announce 26565 0 {'reached': 3, 'return': 7, 'state': 26128, 'tape': 427}
+free-slot-count-kept cap-wait 19264 0 {'reached': 5, 'state': 18774, 'tape': 485}
+free-slot-count-kept dcb20 49332 0 {'reached': 1, 'state': 49140, 'tape': 191}
 free-slot-count-kept hand5-publish 16 0 {'state': 16}
 free-slot-count-kept hand5 18 0 {'state': 18}
-free-slot-count-kept hold 26121 0 {'state': 25649, 'tape': 472}
-free-slot-count-kept ihave-limits 23001 0 {'state': 22460, 'tape': 541}
-free-slot-count-kept late-block 20526 0 {'return': 4, 'state': 20113, 'tape': 409}
-free-slot-count-kept loss-thin 26261 0 {'return': 13, 'state': 25180, 'tape': 1068}
-free-slot-count-kept none 26121 0 {'state': 25649, 'tape': 472}
-free-slot-count-kept push-deep 26037 0 {'return': 1, 'state': 18506, 'tape': 7530}
-free-slot-count-kept push 29990 0 {'state': 29392, 'tape': 598}
-free-slot-count-kept rr-stripe 25456 0 {'state': 19106, 'tape': 6350}
-free-slot-count-kept silent 20151 0 {'return': 4, 'state': 19402, 'tape': 745}
-free-slot-count-kept withholders 24195 0 {'return': 1, 'state': 23620, 'tape': 574}
-free-slot-count-kept without-a 50171 0 {'state': 42406, 'tape': 7765}
+free-slot-count-kept hold 26121 0 {'reached': 2, 'state': 25647, 'tape': 472}
+free-slot-count-kept ihave-limits 23001 0 {'reached': 7, 'state': 22453, 'tape': 541}
+free-slot-count-kept late-block 20526 0 {'reached': 4, 'return': 4, 'state': 20109, 'tape': 409}
+free-slot-count-kept loss-thin 26261 0 {'reached': 77, 'return': 13, 'state': 25103, 'tape': 1068}
+free-slot-count-kept none 26121 0 {'reached': 2, 'state': 25647, 'tape': 472}
+free-slot-count-kept push-deep 26037 0 {'reached': 75, 'return': 1, 'state': 18431, 'tape': 7530}
+free-slot-count-kept push 29990 0 {'reached': 9, 'state': 29383, 'tape': 598}
+free-slot-count-kept rr-stripe 25456 0 {'reached': 63, 'state': 19043, 'tape': 6350}
+free-slot-count-kept silent 20151 0 {'reached': 41, 'return': 4, 'state': 19361, 'tape': 745}
+free-slot-count-kept withholders 24195 0 {'reached': 5, 'return': 1, 'state': 23615, 'tape': 574}
+free-slot-count-kept without-a 50171 0 {'reached': 890, 'state': 41516, 'tape': 7765}
 free-slot-count-kept without-b 42607 0 {'state': 42607}
 free-slot-no-wake announce 15534 0 {'reached': 15078, 'tape': 456}
 free-slot-no-wake cap-wait 13931 0 {'reached': 13435, 'tape': 496}
@@ -8304,9 +8304,9 @@ acquire-over-the-window ihave-limits 2359 0 {'raise': 16, 'tape': 2343}
 acquire-over-the-window late-block 1848 0 {'raise': 3, 'tape': 1845}
 acquire-over-the-window loss-thin 3263 0 {'raise': 31, 'tape': 3232}
 acquire-over-the-window none 2137 0 {'raise': 13, 'tape': 2124}
-acquire-over-the-window push-deep 11917 0 {'raise': 121, 'tape': 11796}
+acquire-over-the-window push-deep 11900 0 {'raise': 121, 'tape': 11779}
 acquire-over-the-window push 2146 0 {'raise': 11, 'tape': 2135}
-acquire-over-the-window rr-stripe 9603 0 {'raise': 123, 'tape': 9480}
+acquire-over-the-window rr-stripe 9524 0 {'raise': 123, 'tape': 9401}
 acquire-over-the-window silent 2460 0 {'raise': 18, 'tape': 2442}
 acquire-over-the-window withholders 2291 0 {'raise': 20, 'tape': 2271}
 acquire-over-the-window without-a 12101 0 {'tape': 12101}
@@ -8321,7 +8321,7 @@ acquire-jumps-the-line ihave-limits 122 0 {'raise': 85, 'tape': 37}
 acquire-jumps-the-line late-block 370 0 {'raise': 149, 'tape': 221}
 acquire-jumps-the-line loss-thin 522 0 {'raise': 127, 'tape': 395}
 acquire-jumps-the-line none 201 0 {'raise': 136, 'tape': 65}
-acquire-jumps-the-line push-deep 12895 0 {'raise': 2922, 'tape': 9973}
+acquire-jumps-the-line push-deep 12899 0 {'raise': 2926, 'tape': 9973}
 acquire-jumps-the-line push 165 0 {'raise': 123, 'tape': 42}
 acquire-jumps-the-line rr-stripe 12032 0 {'raise': 3071, 'tape': 8961}
 acquire-jumps-the-line silent 112 0 {'raise': 69, 'tape': 43}
@@ -8389,9 +8389,9 @@ acquire-joins-the-line-twice ihave-limits 1982 0 {'state': 1982}
 acquire-joins-the-line-twice late-block 1773 0 {'state': 1773}
 acquire-joins-the-line-twice loss-thin 2751 0 {'state': 2751}
 acquire-joins-the-line-twice none 1848 0 {'state': 1848}
-acquire-joins-the-line-twice push-deep 13148 0 {'state': 13148}
+acquire-joins-the-line-twice push-deep 13135 0 {'state': 13135}
 acquire-joins-the-line-twice push 1861 0 {'state': 1861}
-acquire-joins-the-line-twice rr-stripe 11541 0 {'state': 11541}
+acquire-joins-the-line-twice rr-stripe 11462 0 {'state': 11462}
 acquire-joins-the-line-twice silent 1967 0 {'state': 1967}
 acquire-joins-the-line-twice withholders 1909 0 {'state': 1909}
 acquire-joins-the-line-twice without-a 3710 0 {'state': 3710}
@@ -9416,57 +9416,40 @@ publish-offers-to-targets-too silent 0 0 {}
 publish-offers-to-targets-too withholders 0 0 {}
 publish-offers-to-targets-too without-a 0 0 {}
 publish-offers-to-targets-too without-b 0 0 {}
-front-takes-a-writer-mid-write announce 20 0 {'tape': 20}
-front-takes-a-writer-mid-write cap-wait 4 0 {'tape': 4}
-front-takes-a-writer-mid-write dcb20 2 0 {'tape': 2}
+front-takes-a-writer-mid-write announce 2339 0 {'tape': 2339}
+front-takes-a-writer-mid-write cap-wait 2396 0 {'tape': 2396}
+front-takes-a-writer-mid-write dcb20 4 0 {'tape': 4}
 front-takes-a-writer-mid-write hand5-publish 0 0 {}
 front-takes-a-writer-mid-write hand5 0 0 {}
-front-takes-a-writer-mid-write hold 6 0 {'tape': 6}
-front-takes-a-writer-mid-write ihave-limits 9 0 {'tape': 9}
-front-takes-a-writer-mid-write late-block 71 0 {'tape': 71}
-front-takes-a-writer-mid-write loss-thin 102 0 {'tape': 102}
-front-takes-a-writer-mid-write none 6 0 {'tape': 6}
+front-takes-a-writer-mid-write hold 2343 0 {'tape': 2343}
+front-takes-a-writer-mid-write ihave-limits 2443 0 {'tape': 2443}
+front-takes-a-writer-mid-write late-block 2703 0 {'tape': 2703}
+front-takes-a-writer-mid-write loss-thin 3116 0 {'tape': 3116}
+front-takes-a-writer-mid-write none 2343 0 {'tape': 2343}
 front-takes-a-writer-mid-write push-deep 0 0 {}
-front-takes-a-writer-mid-write push 13 0 {'tape': 13}
+front-takes-a-writer-mid-write push 2363 0 {'tape': 2363}
 front-takes-a-writer-mid-write rr-stripe 0 0 {}
-front-takes-a-writer-mid-write silent 0 0 {}
-front-takes-a-writer-mid-write withholders 0 0 {}
-front-takes-a-writer-mid-write without-a 6 0 {'tape': 6}
+front-takes-a-writer-mid-write silent 2420 0 {'tape': 2420}
+front-takes-a-writer-mid-write withholders 2387 0 {'tape': 2387}
+front-takes-a-writer-mid-write without-a 1652 0 {'tape': 1652}
 front-takes-a-writer-mid-write without-b 0 0 {}
-wake-front-wakes-a-writer-mid-write announce 1998 0 {'tape': 1998}
-wake-front-wakes-a-writer-mid-write cap-wait 2034 0 {'tape': 2034}
-wake-front-wakes-a-writer-mid-write dcb20 2 0 {'tape': 2}
-wake-front-wakes-a-writer-mid-write hand5-publish 0 0 {}
-wake-front-wakes-a-writer-mid-write hand5 0 0 {}
-wake-front-wakes-a-writer-mid-write hold 2002 0 {'tape': 2002}
-wake-front-wakes-a-writer-mid-write ihave-limits 2089 0 {'tape': 2089}
-wake-front-wakes-a-writer-mid-write late-block 2392 0 {'tape': 2392}
-wake-front-wakes-a-writer-mid-write loss-thin 2672 0 {'tape': 2672}
-wake-front-wakes-a-writer-mid-write none 2002 0 {'tape': 2002}
-wake-front-wakes-a-writer-mid-write push-deep 0 0 {}
-wake-front-wakes-a-writer-mid-write push 2028 0 {'tape': 2028}
-wake-front-wakes-a-writer-mid-write rr-stripe 0 0 {}
-wake-front-wakes-a-writer-mid-write silent 2059 0 {'tape': 2059}
-wake-front-wakes-a-writer-mid-write withholders 2037 0 {'tape': 2037}
-wake-front-wakes-a-writer-mid-write without-a 1384 0 {'tape': 1384}
-wake-front-wakes-a-writer-mid-write without-b 0 0 {}
-wake-front-past-woken announce 1064 0 {'tape': 1064}
-wake-front-past-woken cap-wait 1121 0 {'tape': 1121}
-wake-front-past-woken dcb20 0 0 {}
-wake-front-past-woken hand5-publish 0 0 {}
-wake-front-past-woken hand5 0 0 {}
-wake-front-past-woken hold 1064 0 {'tape': 1064}
-wake-front-past-woken ihave-limits 1124 0 {'tape': 1124}
-wake-front-past-woken late-block 1011 0 {'tape': 1011}
-wake-front-past-woken loss-thin 1337 0 {'tape': 1337}
-wake-front-past-woken none 1064 0 {'tape': 1064}
-wake-front-past-woken push-deep 494 0 {'tape': 494}
-wake-front-past-woken push 1063 0 {'tape': 1063}
-wake-front-past-woken rr-stripe 157 0 {'tape': 157}
-wake-front-past-woken silent 1123 0 {'tape': 1123}
-wake-front-past-woken withholders 1086 0 {'tape': 1086}
-wake-front-past-woken without-a 797 0 {'tape': 797}
-wake-front-past-woken without-b 0 0 {}
+wake-front-wakes-a-writer-mid-write announce 17852 0 {'reached': 15078, 'tape': 2774}
+wake-front-wakes-a-writer-mid-write cap-wait 16323 0 {'reached': 13435, 'tape': 2888}
+wake-front-wakes-a-writer-mid-write dcb20 18867 0 {'reached': 18831, 'tape': 36}
+wake-front-wakes-a-writer-mid-write hand5-publish 16 0 {'reached': 16}
+wake-front-wakes-a-writer-mid-write hand5 16 0 {'reached': 16}
+wake-front-wakes-a-writer-mid-write hold 17932 0 {'reached': 15105, 'tape': 2827}
+wake-front-wakes-a-writer-mid-write ihave-limits 17650 0 {'reached': 14719, 'tape': 2931}
+wake-front-wakes-a-writer-mid-write late-block 18352 0 {'reached': 15227, 'tape': 3125}
+wake-front-wakes-a-writer-mid-write loss-thin 18579 0 {'reached': 14537, 'tape': 4042}
+wake-front-wakes-a-writer-mid-write none 17932 0 {'reached': 15105, 'tape': 2827}
+wake-front-wakes-a-writer-mid-write push-deep 25521 0 {'reached': 13857, 'tape': 11664}
+wake-front-wakes-a-writer-mid-write push 18276 0 {'reached': 15479, 'tape': 2797}
+wake-front-wakes-a-writer-mid-write rr-stripe 24715 0 {'reached': 14621, 'tape': 10094}
+wake-front-wakes-a-writer-mid-write silent 16426 0 {'reached': 13401, 'tape': 3025}
+wake-front-wakes-a-writer-mid-write withholders 17959 0 {'reached': 15115, 'tape': 2844}
+wake-front-wakes-a-writer-mid-write without-a 38877 0 {'reached': 28161, 'tape': 10716}
+wake-front-wakes-a-writer-mid-write without-b 19791 0 {'reached': 19791}
 wake-front-with-no-slot announce 417 0 {'tape': 417}
 wake-front-with-no-slot cap-wait 466 0 {'tape': 466}
 wake-front-with-no-slot dcb20 34 0 {'tape': 34}
@@ -9475,14 +9458,14 @@ wake-front-with-no-slot hand5 0 0 {}
 wake-front-with-no-slot hold 464 0 {'tape': 464}
 wake-front-with-no-slot ihave-limits 479 0 {'tape': 479}
 wake-front-with-no-slot late-block 367 0 {'tape': 367}
-wake-front-with-no-slot loss-thin 1072 0 {'tape': 1072}
+wake-front-with-no-slot loss-thin 1108 0 {'tape': 1108}
 wake-front-with-no-slot none 464 0 {'tape': 464}
-wake-front-with-no-slot push-deep 11057 0 {'tape': 11057}
+wake-front-with-no-slot push-deep 7062 0 {'tape': 7062}
 wake-front-with-no-slot push 428 0 {'tape': 428}
-wake-front-with-no-slot rr-stripe 9285 0 {'tape': 9285}
+wake-front-with-no-slot rr-stripe 5889 0 {'tape': 5889}
 wake-front-with-no-slot silent 535 0 {'tape': 535}
 wake-front-with-no-slot withholders 424 0 {'tape': 424}
-wake-front-with-no-slot without-a 8571 0 {'tape': 8571}
+wake-front-with-no-slot without-a 8630 0 {'tape': 8630}
 wake-front-with-no-slot without-b 0 0 {}
 release-next-not-woken announce 0 0 {}
 release-next-not-woken cap-wait 0 0 {}
@@ -9501,54 +9484,71 @@ release-next-not-woken silent 0 0 {}
 release-next-not-woken withholders 0 0 {}
 release-next-not-woken without-a 0 0 {}
 release-next-not-woken without-b 0 0 {}
-nts-urgent-no-wake announce 2310 117667 {'reached': 16, 'tape': 2294}
-nts-urgent-no-wake cap-wait 2378 114972 {'reached': 13, 'tape': 2365}
-nts-urgent-no-wake dcb20 7 128810 {'reached': 7}
-nts-urgent-no-wake hand5-publish 0 56 {}
-nts-urgent-no-wake hand5 0 56 {}
-nts-urgent-no-wake hold 2324 117675 {'reached': 16, 'tape': 2308}
-nts-urgent-no-wake ihave-limits 2428 119285 {'reached': 20, 'tape': 2408}
-nts-urgent-no-wake late-block 2614 117443 {'reached': 18, 'tape': 2596}
-nts-urgent-no-wake loss-thin 3354 115327 {'reached': 382, 'tape': 2972}
-nts-urgent-no-wake none 2324 117675 {'reached': 16, 'tape': 2308}
-nts-urgent-no-wake push-deep 4694 122276 {'reached': 4015, 'tape': 679}
-nts-urgent-no-wake push 2337 120917 {'reached': 22, 'tape': 2315}
-nts-urgent-no-wake rr-stripe 4051 123212 {'reached': 3400, 'tape': 651}
-nts-urgent-no-wake silent 2405 116586 {'reached': 12, 'tape': 2393}
-nts-urgent-no-wake withholders 2374 119768 {'reached': 16, 'tape': 2358}
-nts-urgent-no-wake without-a 4052 139117 {'reached': 2440, 'tape': 1612}
-nts-urgent-no-wake without-b 0 126530 {}
-nts-urgent-wakes-itself announce 1064 0 {'tape': 1064}
-nts-urgent-wakes-itself cap-wait 1121 0 {'tape': 1121}
-nts-urgent-wakes-itself dcb20 0 0 {}
-nts-urgent-wakes-itself hand5-publish 0 0 {}
-nts-urgent-wakes-itself hand5 0 0 {}
-nts-urgent-wakes-itself hold 1064 0 {'tape': 1064}
-nts-urgent-wakes-itself ihave-limits 1124 0 {'tape': 1124}
-nts-urgent-wakes-itself late-block 1011 0 {'tape': 1011}
-nts-urgent-wakes-itself loss-thin 1337 0 {'tape': 1337}
-nts-urgent-wakes-itself none 1064 0 {'tape': 1064}
-nts-urgent-wakes-itself push-deep 494 0 {'tape': 494}
-nts-urgent-wakes-itself push 1063 0 {'tape': 1063}
-nts-urgent-wakes-itself rr-stripe 157 0 {'tape': 157}
-nts-urgent-wakes-itself silent 1123 0 {'tape': 1123}
-nts-urgent-wakes-itself withholders 1086 0 {'tape': 1086}
-nts-urgent-wakes-itself without-a 797 0 {'tape': 797}
-nts-urgent-wakes-itself without-b 0 0 {}
-nts-owed-alone-no-wake announce 0 0 {}
-nts-owed-alone-no-wake cap-wait 0 0 {}
-nts-owed-alone-no-wake dcb20 0 0 {}
-nts-owed-alone-no-wake hand5-publish 0 0 {}
-nts-owed-alone-no-wake hand5 0 0 {}
-nts-owed-alone-no-wake hold 0 0 {}
-nts-owed-alone-no-wake ihave-limits 0 0 {}
-nts-owed-alone-no-wake late-block 0 0 {}
-nts-owed-alone-no-wake loss-thin 0 7 {}
-nts-owed-alone-no-wake none 0 0 {}
-nts-owed-alone-no-wake push-deep 0 0 {}
-nts-owed-alone-no-wake push 0 0 {}
-nts-owed-alone-no-wake rr-stripe 0 0 {}
-nts-owed-alone-no-wake silent 0 0 {}
-nts-owed-alone-no-wake withholders 0 0 {}
-nts-owed-alone-no-wake without-a 0 0 {}
-nts-owed-alone-no-wake without-b 0 0 {}
+nts-urgent-wakes-first announce 119977 0 {'reads': 119977}
+nts-urgent-wakes-first cap-wait 117350 0 {'reads': 117350}
+nts-urgent-wakes-first dcb20 128817 0 {'reads': 128817}
+nts-urgent-wakes-first hand5-publish 56 0 {'reads': 56}
+nts-urgent-wakes-first hand5 56 0 {'reads': 56}
+nts-urgent-wakes-first hold 119999 0 {'reads': 119999}
+nts-urgent-wakes-first ihave-limits 121713 0 {'reads': 121713}
+nts-urgent-wakes-first late-block 120057 0 {'reads': 120057}
+nts-urgent-wakes-first loss-thin 118681 0 {'reads': 118681}
+nts-urgent-wakes-first none 119999 0 {'reads': 119999}
+nts-urgent-wakes-first push-deep 126970 0 {'reads': 126970}
+nts-urgent-wakes-first push 123254 0 {'reads': 123254}
+nts-urgent-wakes-first rr-stripe 127263 0 {'reads': 127263}
+nts-urgent-wakes-first silent 118991 0 {'reads': 118991}
+nts-urgent-wakes-first withholders 122142 0 {'reads': 122142}
+nts-urgent-wakes-first without-a 143169 0 {'reads': 143169}
+nts-urgent-wakes-first without-b 126530 0 {'reads': 126530}
+nts-owed-alone-wakes-first announce 0 0 {}
+nts-owed-alone-wakes-first cap-wait 0 0 {}
+nts-owed-alone-wakes-first dcb20 0 0 {}
+nts-owed-alone-wakes-first hand5-publish 0 0 {}
+nts-owed-alone-wakes-first hand5 0 0 {}
+nts-owed-alone-wakes-first hold 0 0 {}
+nts-owed-alone-wakes-first ihave-limits 0 0 {}
+nts-owed-alone-wakes-first late-block 0 0 {}
+nts-owed-alone-wakes-first loss-thin 7 0 {'reads': 7}
+nts-owed-alone-wakes-first none 0 0 {}
+nts-owed-alone-wakes-first push-deep 0 0 {}
+nts-owed-alone-wakes-first push 0 0 {}
+nts-owed-alone-wakes-first rr-stripe 0 0 {}
+nts-owed-alone-wakes-first silent 0 0 {}
+nts-owed-alone-wakes-first withholders 0 0 {}
+nts-owed-alone-wakes-first without-a 0 0 {}
+nts-owed-alone-wakes-first without-b 0 0 {}
+write-waits-wakes-nobody announce 2310 0 {'reached': 9, 'tape': 2301}
+write-waits-wakes-nobody cap-wait 2378 0 {'reached': 1, 'tape': 2377}
+write-waits-wakes-nobody dcb20 7 0 {'reached': 7}
+write-waits-wakes-nobody hand5-publish 0 0 {}
+write-waits-wakes-nobody hand5 0 0 {}
+write-waits-wakes-nobody hold 2324 0 {'reached': 8, 'tape': 2316}
+write-waits-wakes-nobody ihave-limits 2428 0 {'reached': 11, 'tape': 2417}
+write-waits-wakes-nobody late-block 2614 0 {'reached': 17, 'tape': 2597}
+write-waits-wakes-nobody loss-thin 3354 0 {'reached': 376, 'tape': 2978}
+write-waits-wakes-nobody none 2324 0 {'reached': 8, 'tape': 2316}
+write-waits-wakes-nobody push-deep 0 0 {}
+write-waits-wakes-nobody push 2337 0 {'reached': 15, 'tape': 2322}
+write-waits-wakes-nobody rr-stripe 0 0 {}
+write-waits-wakes-nobody silent 2405 0 {'reached': 1, 'tape': 2404}
+write-waits-wakes-nobody withholders 2374 0 {'reached': 3, 'tape': 2371}
+write-waits-wakes-nobody without-a 4052 0 {'reached': 2428, 'tape': 1624}
+write-waits-wakes-nobody without-b 0 0 {}
+write-waits-wakes-out-of-line announce 242714 9 {'reached': 241321, 'tape': 1393}
+write-waits-wakes-out-of-line cap-wait 199560 1 {'reached': 197876, 'tape': 1684}
+write-waits-wakes-out-of-line dcb20 260760 7 {'reached': 260720, 'tape': 40}
+write-waits-wakes-out-of-line hand5-publish 86 0 {'reached': 86}
+write-waits-wakes-out-of-line hand5 88 0 {'reached': 88}
+write-waits-wakes-out-of-line hold 241123 8 {'reached': 239652, 'tape': 1471}
+write-waits-wakes-out-of-line ihave-limits 241278 11 {'reached': 239695, 'tape': 1583}
+write-waits-wakes-out-of-line late-block 229156 17 {'reached': 228398, 'tape': 758}
+write-waits-wakes-out-of-line loss-thin 227779 376 {'reached': 225238, 'tape': 2541}
+write-waits-wakes-out-of-line none 241123 8 {'reached': 239652, 'tape': 1471}
+write-waits-wakes-out-of-line push-deep 0 0 {}
+write-waits-wakes-out-of-line push 245771 15 {'reached': 244431, 'tape': 1340}
+write-waits-wakes-out-of-line rr-stripe 0 0 {}
+write-waits-wakes-out-of-line silent 202374 1 {'reached': 200638, 'tape': 1736}
+write-waits-wakes-out-of-line withholders 246525 3 {'reached': 245023, 'tape': 1502}
+write-waits-wakes-out-of-line without-a 284072 2428 {'reached': 272655, 'tape': 11417}
+write-waits-wakes-out-of-line without-b 248810 0 {'reached': 248810}
