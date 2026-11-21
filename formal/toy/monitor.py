@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Runtime monitors on the spec's own code: the model's safety properties, checked on the toy (which
-executes ../protocol.md) after every event of check.py's 60-node cells.
+executes ../protocol.md) after each event at a node in check.py's 60-node cells.
 
     python3 -I formal/toy/monitor.py [--seeds 7,8,9] [--cells push,withholders,...] [-j 8] [--break askfilter]
 

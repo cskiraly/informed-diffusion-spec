@@ -125,12 +125,12 @@ def main():
         waits, woke, _ = write_waits(doc_v2, kind, False)
         ok = waits and not woke
         print(f"(c) p not in line, {kind}, the write waits {waits}: q woken {woke}: "
-              f"{'nothing woken' if ok else 'a wake for a writer not in line  <-- FAIL'}")
+              f"{'q not woken' if ok else 'a wake for a writer not in line  <-- FAIL'}")
         bad += not ok
         waits, woke, place = write_waits(doc_v2, kind, True, full=True)
         ok = waits and not woke and place
         print(f"(d) p in line, the window full, {kind}, the write waits {waits}: q woken {woke}, p keeps its place "
-              f"{place}: {'nothing woken' if ok else 'not as the rule says  <-- FAIL'}")
+              f"{place}: {'q not woken' if ok else 'not as the rule says  <-- FAIL'}")
         bad += not ok
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0
