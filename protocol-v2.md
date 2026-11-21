@@ -2833,16 +2833,18 @@ a control-only entry of the normal lane. It keeps its place in line. When the tr
 take that write at once (`protocol.md` §7.3), the writer calls `write_waits` as it starts to wait,
 and the window wake lets the first writer in line that can write try again, if room is free. A write
 that completes at once does not call `write_waits`. A client that cannot tell when a write starts
-to wait, as with a blocking write call, may call `write_waits` before a control write from the line.
-That is safe: `writing(p)` is true from `next_to_send`'s return, so `front` already skips the
-writer. Its cost is a change of schedule: the woken writer takes room only if no writer ahead of it
-in line can write (`front`).
+to wait, as with a blocking write call, may call `write_waits` before a control write from the line,
+once it has marked the write pending (`writing(p)` true, as from `next_to_send`'s return). That is
+safe: `front` then skips the writer, and admission still takes only the first writer in line that
+can write, and only while room is free. Its cost is a change of schedule: the early call can queue
+an extra run for the next writer even when the write then completes at once.
 
 **Open: room left unused after a queue edit.** A writer takes room only if its chosen entry
 fits: `in_flight + need <= W_BYTES`, or the window is empty (`acquire_room`). The first writer in
 line that can write may wait with a chunk that does not fit, say 12 KB with about 3 KB free. If a
 later discard (a dropped or expired group) leaves it a smaller entry that would fit, say a 2 KB
-cell, nothing wakes it until room frees: an acknowledgement, or a window timeout. Waking the front
+cell, the discard itself queues no run for that writer. The cell waits until another event wakes
+it: an urgent entry for its peer, or a holding or a window timeout that frees room. Waking the front
 writer when a discard changes its entry is a rule change, for a later release.
 
 **Below the writer** (v0.9 §7.3, as written). A writer should hand a chunk to the transport only
@@ -2915,12 +2917,14 @@ column cells by at most 36 ms at the median (seed 7).
   of the normal lane, which takes no room and reaches the lane's head when a writer's queued chunks
   are discarded (a dropped or expired group). The wake acts at the write, whatever the entry, so it
   covers that path with the other two. A client whose write call blocks may call `write_waits`
-  before a control write from the line instead, at the cost of a change of schedule: the woken
-  writer takes room only if no writer ahead of it in line can write (`front`).
+  before a control write from the line instead, once it has marked the write pending. The early call
+  can queue an extra run even for a write that completes at once, and admission still takes only the
+  first writer in line that can write, while room is free.
   `toy/write_wait_known.py --doc v2` checks all three paths: no wake before the write, a wake once
   the write waits, and none for a writer not in line. `protocol.md`
-  has no such third path: its control-only entry gives back the writer's slot
-  (`release_unused_slot`).
+  has no such third path: its control-only entry goes through `release_unused_slot`, which gives
+  back the writer's slot and also takes the writer out of the line when it holds none, so there a
+  control-only entry is never written from the line.
   `wake_front` is this document's own, since its room is counted in bytes (`W_BYTES`), where
   `protocol.md`'s counts slots.
 - *Replaced: the wake before the write* (v0.10.7's). It woke the next writer in line before every
