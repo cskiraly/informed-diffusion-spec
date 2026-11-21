@@ -2823,13 +2823,16 @@ the header a first push of a cell's group carries on the standalone binding
 come, first served over peers, and keep their place while they wait. A writer whose write has not
 completed (`writing`, as `protocol.md` §7.3 and its helpers define it) keeps its place but not the
 front: `acquire_room` admits the first waiter whose writer can write (`front`), and every wake goes
-to that one (`wake_front`, here over the window in bytes: only while room is free). A writer in line
-that writes control instead (an urgent entry, owed offers on their own, or a control-only entry of
-the normal lane) keeps its place. When that write does not complete at once, the writer calls
-`write_waits` as it starts to wait, which wakes the first writer in line that can write, as
-`protocol.md` §7.1's does; a write that completes at once wakes no one. Without this, a peer that
-stops reading while its writer heads the line holds all free room, and the node sends no chunk to
-any other peer.
+to that one (`wake_front`, here over the window in bytes: only while room is free). Without this, a
+peer that stops reading while its writer heads the line holds all free room, and the node sends no
+chunk to any other peer.
+
+**A writer in line whose control write waits wakes the next,** as `protocol.md` §7.1's does. A
+writer in line may write control, which takes no room: an urgent entry, owed offers on their own, or
+a control-only entry of the normal lane. It keeps its place in line. When the transport does not
+take that write at once (`protocol.md` §7.3), the writer calls `write_waits` as it starts to wait,
+and the first writer in line that can write tries again, if room is free. A write that completes at
+once wakes no one.
 
 **Below the writer** (v0.9 §7.3, as written). A writer should hand a chunk to the transport only
 while the connection has less than one chunk unsent. The backlog then waits in the queue, where
@@ -2891,21 +2894,30 @@ column cells by at most 36 ms at the median (seed 7).
   heads the line held every free byte. `toy/line_stall_known.py --doc v2` shows it on the `push`
   cell's network: with the source's line head stalled, nine other peers' chunks waited in an empty
   window and none was sent for two seconds. With the rule, none is held up.
-- *The control wake.* A burst of urgent entries woke writers in line that each blocked on its write,
-  and free room went to nobody. `protocol.md`'s monitor (its W2) found this in `loss-thin`. So a
-  writer in line that writes control first wakes the first other writer in line that can write, as
-  `protocol.md`'s does. Here control has a third path, a control-only entry of the normal lane,
-  which takes no room and reaches the lane's head when a writer's queued chunks are discarded (a
-  dropped or expired group); it wakes the same way (`control_wake_known.py`, which fails without
-  it). `protocol.md` has no such path: its control-only entry gives back the writer's slot
-  (`release_unused_slot`). `wake_front` is this document's own, since its room is counted in bytes
-  (`W_BYTES`), where `protocol.md`'s counts slots.
+- *The wake when a control write waits* (since `protocol.md` v0.10.9's §7.1). A burst of urgent
+  entries woke writers in line that each blocked on its write, and free room went to nobody.
+  `protocol.md`'s monitor (its W2) found this in `loss-thin`. So a writer in line whose control
+  write does not complete at once wakes the first writer in line that can write, as it starts to
+  wait (`write_waits`), as `protocol.md`'s does. Here control has a third path, a control-only entry
+  of the normal lane, which takes no room and reaches the lane's head when a writer's queued chunks
+  are discarded (a dropped or expired group). The wake acts at the write, whatever the entry, so it
+  covers that path with the other two. `toy/write_wait_known.py --doc v2` checks all three: no wake
+  before the write, a wake once the write waits, and none for a writer not in line. `protocol.md`
+  has no such third path: its control-only entry gives back the writer's slot
+  (`release_unused_slot`).
+  `wake_front` is this document's own, since its room is counted in bytes (`W_BYTES`), where
+  `protocol.md`'s counts slots.
+- *Not taken: the wake before the write* (v0.10.7's). It woke the next writer in line before every
+  control write of a writer in line, whether or not the write then waited. A write that completes at
+  once leaves its writer able to write, and waking another then changes only the order of the
+  schedule.
 - *The recorded cells* (`golden-v2.txt`, against v0.10.6's). Twelve move in their digest only:
   `push`, `hold`, `announce`, `none`, `withholders`, `silent`, `cap-wait`, `dcb20`, `rr-stripe`,
   `without-a`, `ihave-limits` and `push-deep`. Two move in their numbers too: `loss-thin` (p50 807
   to 814 ms, p99 922 to 894 ms, copies 1.64 to 1.65) and `late-block` (p99 727 to 718 ms).
   `without-b` is the same. The figures in this document measured before 2026-11-20 ran without the
-  rule.
+  rule. With the wake at the wait (v0.10.9), `rr-stripe` and `push-deep` move in their digest only,
+  back to their values before v0.10.7; every other cell is the same.
 
 ### 4.12 Which entry goes next
 
@@ -3054,7 +3066,7 @@ median, from 2.4 % shorter to 3.3 % longer); with 30 % withholders at 10 Mbps, o
 | §6.2 `gated` | `on_offer`, `filter_entry` | per interest |
 | §6.4 `on_pace_tick` | §4.8 | |
 | §7.2 `filter_entry`, `rarest` | `send`, `enqueue`; §4.12 | `rarest` unchanged; the writer takes a source's own chunks first (§4.12); `filter_entry` is this document's (§4.6): v0.5's promise starts when an ask on an offer is written; an ask sent as a `Want` (`want`, §3), a sampler's, a routed request's or the repair sample's, starts none (§4.10), but a claim's probe starts one (§4.6), and under the alarm option the member's ask of the claimant too |
-| §7.1 the window, §7.2 `next_to_send` | §4.11 | one window per node over every object type, counted in bytes; the entry is chosen before the room is taken; JOINs, GRAFTs and PRUNEs a full queue refused are queued first, in order (§4.1); the line skips a writer mid-write, and a writer in line that writes control first wakes the first other writer in line that can write, as v0.3's do (`front`; `wake_front` this document's own, in bytes; since 2026-11-20) |
+| §7.1 the window, §7.2 `next_to_send` | §4.11 | one window per node over every object type, counted in bytes; the entry is chosen before the room is taken; JOINs, GRAFTs and PRUNEs a full queue refused are queued first, in order (§4.1); the line skips a writer mid-write, and a writer in line whose control write does not complete at once wakes the first writer in line that can write as it starts to wait, as v0.3's do (`front`, `write_waits`; `wake_front` this document's own, in bytes; since 2026-11-20, the wake at the wait since v0.10.9) |
 | §7.1 `projected` | §4.9 | reads the type's K; off for a type without a code |
 | §8.2 limits | §6.3 | plus relations and groups per slot |
 
@@ -3143,7 +3155,8 @@ carried into them, with the date each was carried where it came later than the v
   writer in line that can write, and a writer in line that writes control first wakes another that
   can write. This draft carries both into its window in bytes (§4.11), with its own `wake_front`
   over `W_BYTES`, and wakes on a third path it has, a control-only entry of the normal lane;
-  `line_stall_known.py --doc v2` and `control_wake_known.py` show them.
+  `line_stall_known.py --doc v2` shows the first. Since v0.10.9 the wake comes when the write starts
+  to wait (`write_waits`), and `write_wait_known.py --doc v2` checks it on all three paths.
 - v0.10.8 (2026-11-21): `protocol.md` is the same but for its version line, and the Lean twin's
   record and a first piece of a refinement come into `formal/`; nothing to carry.
 
