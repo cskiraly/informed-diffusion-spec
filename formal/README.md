@@ -45,12 +45,13 @@ Outside the toy, nothing here checks its own functions.
 models §4–§7 for one group, written by hand at v0.4's rules with v0.5's as switches. TLC explores
 its smallest instances, exhaustively or to a depth, and random simulation samples runs of three or
 four nodes; checking v0.4 and the fixes proposed for it this way found the ten gaps that v0.5 and
-v0.8 closed. Runtime monitors (`formal/toy/monitor.py`) check five of its safety properties on the
-code itself, on twelve of `toy/check.py`'s cells: W1 and W2 after each event, S1 and P4 (in a weaker
-form) at each transmission, and A1 on the run's count of penalties. W2 is asked of the line as
-`protocol.md` §7.1 has it: with a slot free, the first writer in line that can write has a run
-queued.
-At this commit they find no violation in those cells at seeds 7 to 9, and each of their three known
+v0.8 closed. The model stays at v0.5's rules, as the model that found those gaps, and is not
+ported to later versions: porting a model written by hand at v0.4 would cost much, and runtime
+monitors (`formal/toy/monitor.py`) check five of its safety properties on the code itself. They run
+on twelve of `toy/check.py`'s cells: W1 and W2 after each event, S1 and P4 (in a weaker form) at each
+transmission, and A1 on the run's count of penalties. W2 is asked of the line as `protocol.md` §7.1
+has it: with a slot free, the first writer in line that can write has a run queued.
+At this commit they find no violation in those cells at seeds 7 to 9, and each of their four known
 answers, a rule taken out of the document, makes its monitor fire. Beside the model,
 `formal/wire/check_wire.py` checks §1–§2's arithmetic, restated in the script from v0.4's and v0.5's
 rules, for every compressed length of a coded group and, for plain groups, the shortest and the
@@ -149,7 +150,9 @@ instances, exhaustively with TLC; runtime monitors that check the same safety pr
 [toy](../toy/), which runs the document itself; and an exhaustive check of the wire's arithmetic
 (§1–§2). The model was written against draft v0.4, and the rules v0.5 added are switches in it, so
 one model checks both. Checking v0.4, and the fixes proposed for it, found ten gaps (F1 to F10,
-below): v0.5 fixes eight, and v0.8 the other two (F6, F9), as their rows say.
+below): v0.5 fixes eight, and v0.8 the other two (F6, F9), as their rows say. The model stays at
+v0.5's rules and is not ported further: it is kept as the model that found F1 to F10, and the map
+above gives the reason.
 
 **Scope: small instances.** Three or four nodes, one group of K = 1 or 2 data chunks out of at most
 N = 4. TLC explores every reachable state only at K = 1; at K = 2 it covers every state within 29
@@ -294,9 +297,9 @@ check catches it. The sweep has a row for each of F1 to F10 where the finding sh
 writer's ask filter, S1 and A1 fail (in TLC at the 14th state at K = 2); without either wake-up,
 W2; with IDONTWANT handled before IWANT on a coalescing transport, A1; with the source's HAVE
 unpaced, P4 (in TLC at the third state at K = 1); and without fairness TLC finds a run that stutters
-before it is quiet. L4 has no known answer. In the toy, three rules taken out of the extracted
-document make their monitors fire (`--break askfilter`: S1 and A1; `wake`: W2; `p4`: P4); W1 has no
-known answer there.
+before it is quiet. L4 has no known answer. In the toy, four rules taken out of the extracted
+document make their monitors fire (`--break askfilter`: S1 and A1; `wake`: W2; `writewait`: W2;
+`p4`: P4); W1 has no known answer there.
 
 ### The findings, and v0.5
 

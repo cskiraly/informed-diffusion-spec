@@ -2,7 +2,8 @@
 /**
  * The protocol of ../protocol.md, draft v0.4 (8d735e5), §4–§7 for one group: what a node does
  * when an RPC arrives (§4.1–§4.6), how it forwards (§5.2), asks (§6.1–§6.2) and sends (§7.1–§7.2),
- * and how the source publishes (§5.1). The rules v0.5 added are switches (README.md).
+ * and how the source publishes (§5.1). The rules v0.5 added are switches (README.md). The model
+ * stays at v0.5's rules and is not ported further: it is kept as the model that found F1 to F10.
  *
  * One step is one event: a link delivers its oldest RPC, a writer runs once, a timer fires, a node
  * finishes decoding, the source publishes. Links are FIFO and deliver at any time; timers fire at
