@@ -140,6 +140,8 @@ def main(argv):
     ap.add_argument("--break", dest="brk", default="", help="known answers, one rule taken out: " + ",".join(BREAKS))
     a = ap.parse_args(argv)
     brks = [b for b in a.brk.split(",") if b]
+    if len(brks) > 1:                           # each break's property must be caught with that rule alone out
+        ap.error("--break: one break a run (two breaks that break the same property would share one count)")
     for b in brks:
         if b not in BREAKS:
             ap.error(f"--break {b}: none such; the breaks are " + ",".join(BREAKS))

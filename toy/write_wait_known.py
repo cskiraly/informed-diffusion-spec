@@ -5,14 +5,17 @@ the transport (`write_waits`), and not before the write.
 
     python3 write_wait_known.py [--doc v2]
 
-The check, on one node of a small network that is built and not run: the window is empty, and two peers wait in its
-line, p first, then q. For each way p's writer writes control (an urgent entry; owed offers on their own; and, under
-`protocol-v2.md`, a control-only entry of the normal lane):
-- (a) `next_to_send(p)` returns the control, and q has no run queued: the wake does not come before the write. The
-  code before v0.10.9 woke q here, and this part fails on it.
+The check, on one node of a small network that is built and not run, a new network for each case: the window is
+empty, and two peers wait in its line, p first, then q. A run queued for q is an event in the simulator's queue that
+runs q's writer, and the check reads the queue itself. For each way p's writer writes control (an urgent entry; owed
+offers on their own; and, under `protocol-v2.md`, a control-only entry of the normal lane):
+- (a) `next_to_send(p)` returns the control, and q has no run queued: the wake does not come before the write.
+  v0.10.7 and v0.10.8 woke q here, and this case fails on them.
 - (b) p's writer writes the control, and its transport takes no more after it (the toy's send buffer is full): the
   write waits, and q has a run queued. With no wake at all, q would wait though the window is empty.
-- (c) the control: as (b), with p not in line. No run is queued for q.
+- (c) as (b), with p not in line: no run is queued for q.
+- (d) as (b), with the window full: no run is queued for q, since no slot (or room) is free.
+In (a), (b) and (d), p keeps its place at the head of the line.
 The toy is not changed: the check builds the network with `run.py`'s own options and sets the node's tables.
 """
 import sys
@@ -37,17 +40,24 @@ def build(doc_v2):
     return got["sim"]
 
 
-def setup(sim, kind, in_line):
+def queued(sim, node, peer):
+    """Whether the simulator's queue holds a run of node's writer for peer (Node.kick's event)."""
+    return any(e[2] is node and e[3] == node._write and e[4] == (peer,) for e in sim.q)
+
+
+def setup(sim, kind, in_line, full=False):
     import wire as Wm
     from bits import bitmap
     node = sim.nodes[NODE]
     ns = node.ns
+    if queued(sim, node, Q) or Q in node.writer_kicked or P in node.writer_kicked:
+        raise SystemExit("write_wait_known.py: the network as built already has a writer's run queued")
     w = ns["waiters"]
     w.clear()
     if in_line:
         w.append(P)
     w.append(Q)
-    ns["in_flight"] = 0                             # the window is empty: a slot, or room, is free
+    ns["in_flight"] = (ns["W_BYTES"] if "W_BYTES" in ns else ns["W"]) if full else 0   # full, or empty
     if "slot_held" in ns:
         ns["slot_held"][P] = False
     q = ns["queue"][P]
@@ -61,26 +71,35 @@ def setup(sim, kind, in_line):
         ns["owed"][P][G] = bitmap({1})
     else:                                           # a control-only entry of the normal lane (protocol-v2.md)
         q.normal.append(Wm.Entry(control=ctrl))
-    node.writer_kicked.discard(Q)
     node.writer_blocked.discard(P)
     node.writer_blocked.discard(Q)
     sim.links[NODE].backlog[P] = 0
     return node, ns
 
 
-def before_write(sim, kind):
+def woken(sim, node):
+    """q has a run queued; the flag Node.kick keeps must agree with the queue."""
+    w = queued(sim, node, Q)
+    if w != (Q in node.writer_kicked):
+        raise SystemExit("write_wait_known.py: q's flag and the simulator's queue disagree")
+    return w
+
+
+def before_write(doc_v2, kind):
+    sim = build(doc_v2)
     node, ns = setup(sim, kind, True)
     out = ns["next_to_send"](P)
     wrote = out is not None and out is not ns["WAIT"] and not out.chunk
-    return wrote, Q in node.writer_kicked
+    return wrote, woken(sim, node), list(ns["waiters"])[:1] == [P]
 
 
-def write_waits(sim, kind, in_line):
-    node, ns = setup(sim, kind, in_line)
+def write_waits(doc_v2, kind, in_line, full=False):
+    sim = build(doc_v2)
+    node, ns = setup(sim, kind, in_line, full)
     if sim.send_buffer is None:
         raise SystemExit("write_wait_known.py: the network has no send buffer, so no write can wait")
     node._write(P)
-    return P in node.writer_blocked, Q in node.writer_kicked
+    return P in node.writer_blocked, woken(sim, node), list(ns["waiters"])[:1] == [P]
 
 
 def main():
@@ -88,26 +107,30 @@ def main():
         print("usage: write_wait_known.py [--doc v2]")
         return 2
     doc_v2 = sys.argv[1:] == ["--doc", "v2"]
-    sim = build(doc_v2)
     kinds = ["an urgent entry", "owed offers on their own"]
     if doc_v2:
         kinds.append("a control-only entry of the normal lane")
     bad = 0
     for kind in kinds:
-        wrote, woken = before_write(sim, kind)
-        ok = wrote and not woken
-        print(f"(a) p in line, {kind}: next_to_send returns it {wrote}, q woken {woken}: "
-              f"{'no wake before the write' if ok else 'a wake before the write  <-- FAIL'}")
+        wrote, woke, place = before_write(doc_v2, kind)
+        ok = wrote and not woke and place
+        print(f"(a) p in line, {kind}: next_to_send returns it {wrote}, q woken {woke}, p keeps its place {place}: "
+              f"{'no wake before the write' if ok else 'not as the rule says  <-- FAIL'}")
         bad += not ok
-        waits, woken = write_waits(sim, kind, True)
-        ok = waits and woken
-        print(f"(b) p in line, {kind}, the write waits {waits}: q woken {woken}: "
-              f"{'the next writer that can write is woken' if ok else 'q is not woken  <-- FAIL'}")
+        waits, woke, place = write_waits(doc_v2, kind, True)
+        ok = waits and woke and place
+        print(f"(b) p in line, {kind}, the write waits {waits}: q woken {woke}, p keeps its place {place}: "
+              f"{'the next writer that can write is woken' if ok else 'not as the rule says  <-- FAIL'}")
         bad += not ok
-        waits, woken = write_waits(sim, kind, False)
-        ok = waits and not woken
-        print(f"(c) the control: p not in line, {kind}, the write waits {waits}: q woken {woken}: "
-              f"{'nothing woken' if ok else 'a wake that should not happen  <-- FAIL'}")
+        waits, woke, _ = write_waits(doc_v2, kind, False)
+        ok = waits and not woke
+        print(f"(c) p not in line, {kind}, the write waits {waits}: q woken {woke}: "
+              f"{'nothing woken' if ok else 'a wake for a writer not in line  <-- FAIL'}")
+        bad += not ok
+        waits, woke, place = write_waits(doc_v2, kind, True, full=True)
+        ok = waits and not woke and place
+        print(f"(d) p in line, the window full, {kind}, the write waits {waits}: q woken {woke}, p keeps its place "
+              f"{place}: {'nothing woken' if ok else 'not as the rule says  <-- FAIL'}")
         bad += not ok
     print("ok" if not bad else "FAIL")
     return 1 if bad else 0

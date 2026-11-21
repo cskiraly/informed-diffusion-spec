@@ -131,13 +131,14 @@ where one has a control that must come out the other way, it is named:
   kept in a wrapper.
 - `write_wait_known.py [--doc v2]`: §7.1 and §7.2 (`protocol-v2.md` §4.11), a writer in the
   window's line that writes control wakes the first writer in line that can write when its write
-  starts to wait for the transport (`write_waits`), and not before. With two writers in line and the
-  window empty, for each way the first writes control (an urgent entry, owed offers on their own,
-  and under `protocol-v2.md` a control-only entry of the normal lane), three cases, each from a fresh
-  setup: in the first, `next_to_send` returns the control and the second gets no run; in the second,
-  the first's writer writes the control, the write waits for the transport, and the second gets a
-  run; in the third, the control, the same with the first not in line, and nothing is woken. The
-  first case fails on the documents before v0.10.9, which woke the second before the write.
+  starts to wait for the transport (`write_waits`), and not before. Two writers wait in line, p
+  first, then q. For each way p's writer writes control (an urgent entry, owed offers on their own,
+  and under `protocol-v2.md` a control-only entry of the normal lane), four cases, each on a network
+  built anew: (a) `next_to_send(p)` returns the control, and q gets no run; (b) p's writer writes
+  it, the write waits, and q gets a run; (c) as (b) with p not in line, and q gets no run; (d) as
+  (b) with the window full, and q gets no run. In (a), (b) and (d), p keeps its place. A run for q
+  is read from the simulator's queue of events. Case (a) fails on v0.10.7 and v0.10.8, which woke q
+  before the write.
 - `second_id_known.py`: §4.2, in both documents, a copy under an id the node has not seen, at an
   index it has already received, is acknowledged and neither forwarded nor put in the gossip
   history; a copy of an index held only as rebuilt is still forwarded, and the publisher's first
