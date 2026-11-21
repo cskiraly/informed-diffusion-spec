@@ -68,13 +68,12 @@ rule, by inspection:
   acknowledgement, which the models take as an environment event, a HAVE or a timeout, since the
   window is not modelled. Their result then has one more case: the neighbour is the source, the
   receiver is outside the push plan, and the chunk is not acknowledged yet. §5.1's open item, a
-  chunk that is never acknowledged, is a
-  known answer there. What the source's HAVE names, and when it sends it (§5.1's P4, and
-  `origin_written` at `PUBLISH`), is outside these proofs: the source's HAVE is an environment event
-  that only keeps its peers from pushing or announcing the chunk to the source. A HAVE naming the
-  chunk that the source receives is the chunk's acknowledgement; the models take any such HAVE while
-  the chunk is
-  unacknowledged, which covers the spec's first new one, a repeat included once its claim has
+  chunk that is never acknowledged, is a known answer there. What the source's HAVE names, and when
+  it sends it (§5.1's P4, and `origin_written` at `PUBLISH`), is outside these proofs: the source's
+  HAVE is an environment event that only keeps its peers from pushing or announcing the chunk to the
+  source. A HAVE naming the chunk that the source receives is the chunk's acknowledgement; the
+  models take any such HAVE while the chunk is unacknowledged, which covers the spec's first new
+  one, a repeat included once its claim has
   lapsed (`HAVE_TTL`).
   v0.9's §7.3, on what the transport below the writer should hold, is not modelled: the models'
   queues may refuse any entry, and drain.
@@ -268,10 +267,10 @@ are about any one chunk of the group, so they hold for each:
   neighbour's offer of the chunk, or, at `ACK`, the neighbour is the source, the node is outside the
   push plan, and the chunk is not acknowledged yet. It models the source's publish, forwarding
   (pushed or announced, any targets, never to the sender or a peer known to hold it), queues that
-  may refuse any entry
-  (owed and offered, A′), the writer's cancel and projection (A′), what is owed, announcements
-  recorded as offers, the deferred store (refused copies as offers, F7's fix, which since v0.8 the
-  ties of §4.2 make at the block's installation), copies taken in at installation, repair, and a
+  may refuse any entry (owed and offered, A′), the writer's cancel and projection (A′), what is
+  owed, announcements recorded as offers, the deferred store (refused copies as offers, F7's fix,
+  which since v0.8 the ties of §4.2 make at the block's installation), copies taken in at
+  installation, repair, and a
   mesh that changes: peers join it (by a GRAFT, sent or accepted, and are then announced what the
   node holds: §5.4, F9's rule) and leave it (a PRUNE), and
   connections close, with what is queued, owed or in flight on them and the state kept per
@@ -283,7 +282,8 @@ are about any one chunk of the group, so they hold for each:
     candidates (§5.3, §8.3). The rest of its mesh is announced the chunk at the acknowledgement:
     a HAVE naming it, any while it is unacknowledged (the spec's first new one among them), or a
     window timeout of a copy the source wrote, a push or an answer, while its connection still
-    holds the copy's slot. Until then, the step's fourth case above holds on the source's links.
+    holds the copy's slot. Until then, the step's fourth case above holds on the source's links
+    whose receivers are outside the push plan.
   - The source's `fwd` stands for two operations, the planned pushes and the announcements at the
     acknowledgement, and may push or announce to either, as forwarding at any node may. What the
     source's HAVE names, and when it sends it (§5.1's P4), is not checked here.
@@ -734,11 +734,11 @@ rebuilt in place in one build on the same machine, with Lake replaying the other
 on 16 hardware threads of eight cores (`LEAN_NUM_THREADS=8`) and took 30 minutes:
 - `NoStallEquivAdv.lean` took 30 minutes, the two transport models 6.9 and 7.8 minutes,
   `SenderFault.lean` 5.4 minutes, and `NoStallCount.lean` about a second, side by side;
-- the guard's samples of their processes together peaked at 35,633 MiB, every 20 seconds, so the
-  true peak may be higher;
+- the guard sampled the processes every 20 seconds, and the highest sum it saw was 35,633 MiB, so
+  the true peak may be higher;
 - the largest process alone reached 29.5 GiB (GNU time's maximum resident set size).
 
-The tables give these four models' times from that rebuild.
+The tables give the two transport models' and `NoStallEquivAdv.lean`'s times from that rebuild.
 
 Veil checks as many conditions at once as `LEAN_NUM_THREADS` says, each with its own SMT run, or,
 where it is not set, as many as `getconf _NPROCESSORS_ONLN` reports; the variable also sizes Lean's
@@ -747,9 +747,10 @@ own task pool, for each Lean process. It does not bound the build's CPU: with
 seven cores on average. Pin the CPUs with `taskset` and cap the memory as well, with room above the
 peaks of the whole library's build: its processes together reached about 25 GiB (25,856 MiB,
 sampled every 20 seconds), and the largest of them alone 23.3 GiB (GNU time's maximum resident set
-size). At `LEAN_NUM_THREADS=8`, in the rebuild above, they reached about 35 GiB together and 29.5
-GiB for the largest process: leave room above those. For larger instances `#model_check compiled` builds a native checker, which needs `clang`,
-`lld`, `libc++-dev` and `libc++abi-dev`. In an earlier check, on the pre-release, it found the
+size). At `LEAN_NUM_THREADS=8`, in the rebuild above, the sampled peak was about 35 GiB together,
+and the largest process reached 29.5 GiB: leave room above those. For larger instances
+`#model_check compiled` builds a native checker, which needs `clang`, `lld`, `libc++-dev` and
+`libc++abi-dev`. In an earlier check, on the pre-release, it found the
 127,504 states of the window's instance above in about 80 seconds with its build; the library's
 build runs `interpreted` only.
 

@@ -7,8 +7,8 @@ is pending, a node that has its block holds every chunk a mesh neighbour receive
 pulling the group (the transport delivers the chunk or leaves the neighbour's offer, and the asking
 resolves the offer). Where the source announces at a chunk's acknowledgement, they give it on the
 source's links only as said below. A node that has not stopped holds only chunks it received: it
-rebuilds only after its decode claim (`NoStallTransport`'s `stored`). The step from there to Q1 is counting, here
-in plain Lean, without Veil:
+rebuilds only after its decode claim (`NoStallTransport`'s `stored`). The step from there to Q1 is
+counting, here in plain Lean, without Veil:
 
 - a node stops pulling at its K-th received chunk, and the source, stopped, has at least K in `rcv`
   (published, or received);
@@ -190,8 +190,11 @@ theorem every_honest_reachable_node_completes {Node : Type} {N : Nat} (K : Nat)
 
 /-- the builder releases only K of the N chunks: a source that has published any K distinct ones
 (`rcv` as for any node) suffices; a chunk it withholds reaches nodes from those that hold it without
-having received it (repair, an announcement on a join), and its per-link step is the transport
-piece with no source, or with the source publishing to the mesh it has -/
+having received it (repair, an announcement on a join), and its per-link step (`link`, a
+hypothesis) is the transport piece's with no source, or with the source publishing to the mesh it
+has. Where the source announces at a chunk's acknowledgement, the transport gives that step on the
+source's links only for a chunk that is acknowledged, or whose receiver received it, has stopped,
+or holds the source's offer of it, which the asking resolves -/
 theorem completes_from_K_chunks {Node : Type} {N : Nat} (K : Nat)
     (mesh : Node → Node → Prop) (src : Node)
     (rcv : Node → Fin N → Bool) (stop complete : Node → Prop)
