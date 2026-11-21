@@ -85,25 +85,28 @@ trace replay, and linked to the Veil models on the other, by refinement.
 **Trace replay checks the twin against the code.** A tracer runs the toy and records, for each
 top-level call of a function that the trace selects (among those the twin has, where the node uses
 the implementation that the twin covers), what the call read and wrote of the node's tables, what it
-asked of the rest of the node, and what it returned or raised; the twin replays each call from the
-recorded state, with the recorded answers, and must read the entries the Python read, leave those it
-wrote as the Python left them, and return what it returned. `formal/twin/check.sh` passes at this
-commit. It builds the twin from nothing; traces one of `toy/check.py`'s cells, whose digest must be
-the recorded one, a few short runs under both documents, each giving the digest of the same run
-untraced, and directed sets, states generated to reach what the cells do not, with the toy's own
-functions called on them; replays every trace through the twin with no record mismatched; and runs
-controls that must fail, among them altered records, a mutant (a twin with one rule changed) and a
-trace of another tree. Replay is evidence on the calls traced, not on every input, and a faithful
-twin copies a mistake of the code: it checks the copying, not the rules. The twin's README says what
-`check.sh` checks and what the replay cannot see.
+asked of the rest of the node, and what it returned or raised. The twin replays each call from the
+recorded state, with the recorded answers, and `formal/twin/check.sh` requires it to read the
+entries the Python read, leave those it wrote as the Python left them, and return what it returned
+or raise what it raised. The replay does not count a read that the Python made and the twin did not
+as a mismatch: it counts such reads separately, and `check.sh` refuses a read left unmade as well as
+a mismatch. `check.sh` passes at this commit. It builds the twin from nothing; traces one of
+`toy/check.py`'s cells, whose digest must be the recorded one, a few short runs under both
+documents, each giving the digest of the same run untraced, and directed sets, states generated to
+reach what the cells do not, with the toy's own functions called on them; replays every trace
+through the twin with no record mismatched and no read left unmade; and runs controls that must
+fail, among them altered records, a mutant (a twin with one rule changed) and a trace of another
+tree. Replay is evidence on the calls traced, not on every input, and a faithful twin copies a
+mistake of the code: it checks the copying, not the rules. The twin's README says what `check.sh`
+checks and what the replay cannot see.
 
 **The twin's record is in [`formal/twin/record/`](twin/record/).** It holds the outputs of one run
 of `record.sh`, which traces every cell of `toy/check.py` under both documents, the hand runs and
 the directed sets, and replays each trace through the twin. The traces themselves are not kept:
 `manifest/hashes.txt` there names each by its two hashes. It also holds the matrix of the mutants,
-which shows which mutants part of those traces tell from the twin. Its
-[`RECORD.md`](twin/record/RECORD.md) says what else the directory holds, what the record ran, what
-it shows and what it does not show.
+which shows which mutants part of those traces tell from the twin, by a mismatched record or by a
+read left unmade. Its [`RECORD.md`](twin/record/RECORD.md) says what else the directory holds, what
+the record ran, what it shows and what it does not show.
 
 **Refinement, from the twin to the Veil models, has a first piece.** A refinement proof would show
 that the twin's initial states and each of its steps, projected onto a model's state, are states and
@@ -124,8 +127,9 @@ satisfies `Invariants`, read through the abstraction, the package proves that ev
 too. This result takes as hypotheses the model's own statements that `retryAsk` and `retryNoop` keep
 `Invariants`; those for `promiseDue` and `parkOther` serve the proof for a promise falling due. A
 second result, for a run whose first state is an initial state of the model, read through the
-abstraction, takes the model's statement for its initializer in place of the assumption on the first
-state. It is not a proof that the twin satisfies the model's properties.
+abstraction, gives the model's safety clause, `offers_resolve`, for the abstraction of every state
+of the run. It takes the model's statement for its initializer in place of the assumption on the
+first state. The piece is not a proof that the twin satisfies the model's properties.
 
 **At this commit.** Together, the links are meant to carry the proofs to the code: properties proved
 of the models, refinement showing that the twin behaves as the models do, and replay that the code

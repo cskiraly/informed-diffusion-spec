@@ -47,9 +47,11 @@ moves.
   assumed (or, for a promise falling due in the cases its theorems cover, proved). For such a run,
   the package proves that the abstraction of every state satisfies `Invariants` if that of the first
   does, given the model's own statements for `retryAsk` and `retryNoop`; those for `promiseDue` and
-  `parkOther` serve the proof for a promise falling due. A second result, for a run that starts in
-  an initial state of the model, takes the statement for its initializer in place of assuming
-  `Invariants` there. It is not a proof that the twin satisfies the model's properties.
+  `parkOther` serve the proof for a promise falling due. A second result, for a run whose first
+  state, read through the abstraction, is an initial state of the model, gives the model's safety
+  clause, `offers_resolve`, for the abstraction of every state of the run; it takes the statement
+  for its initializer in place of assuming `Invariants` there. The piece is not a proof that the
+  twin satisfies the model's properties.
 - **How the checks fit together** (`formal/README.md`): the map, the paragraphs on the Veil models,
   the twin, its record and refinement, "At this commit" and the list of files follow these changes.
 
