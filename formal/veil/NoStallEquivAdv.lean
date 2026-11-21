@@ -45,10 +45,12 @@ root that never installs (the tie stays), or one whose bid commits another group
 with the adversary's offers, the retry armed once the gate is open). Since v0.10 a tie also goes
 when the slot its sender's first copy named leaves the live window (§8.1, `drop_stale_waits`): the
 adversary chooses that slot, so its tie to the builder's root can go before that block installs, at
-any time here, dropped as `dropTie` drops a tie (`stale`). An honest copy names its block's slot,
-which level 1 checks (§3), so an honest tie goes only at the group's end, which the asking
-outlasts. A sender tied to any root is
-passed over (`tiedToRoot`, §4.2's `tied_to_root`). **F13**: where `drop_tie` drops the sender's
+any time here, dropped as `dropTie` drops a tie (`stale`: the tie, the adversary's offers and its
+asks and promise, by reading the action; the slot's age, the heartbeat and the deferred store are
+not modelled). An honest copy names its block's slot, which level 1 checks (§3), so an honest tie
+cannot age out while the group is live: lifetimes are assumed to outlast diffusion. Installation
+and a close still remove honest ties, as modelled. A sender tied to any root is passed over
+(`tiedToRoot`, §4.2's `tied_to_root`). **F13**: where `drop_tie` drops the sender's
 offers and leaves its asks (the known answers turn `dropAsks`, below, off), an ask still queued is
 written once the tie is gone, the retry, finding no announcer, ends, and the sender's next offer is
 recorded with nothing scheduled, the ask outstanding (§4.4); while it is, the last resort for a

@@ -52,11 +52,12 @@ same group or different ones.
   time (forwarding, answers, repair and the source's pushes, §4.1, §4.6, §5); sends a HAVE bit for
   any index in `mine`, which grows by the chunks that passed level 1 and the decode claim's N bits
   (§4.2, §4.6, §5.1; the source's paced HAVE names a subset); and announces, as an IHAVE bit, any
-  index in `mine` or of a chunk it stores (what it can serve: §4.2's forwarding, §5.1, §5.4's join,
-  §6.4's gossip). A HAVE or IHAVE bit stands for a bitmap's bit: a bitmap is penalised when any of
-  its bits is. That covers the length check because an honest bitmap drops its trailing zero bytes
-  (§2), so its length is set by its highest bit; a longer encoding is not modelled. An IHAVE entry
-  that is a chunk's id is not a bitmap and is never penalised (§4.4), so it is not modelled.
+  index in `mine` or of a chunk it stores, which covers what it can serve (§4.2's forwarding, §5.1,
+  §5.4's join, §6.4's gossip). A HAVE or IHAVE bit stands for a bitmap's bit: a bitmap is
+  penalised when any of its bits is. That covers the length check because an honest bitmap drops
+  its trailing zero bytes (§2), so its length is set by its highest bit; a longer encoding is not
+  modelled. An IHAVE entry that is a chunk's id is not a bitmap and is never penalised (§4.4), so it
+  is not modelled.
 - **Messages** are sets: any order, any loss, duplicates ignored. Expiry, the live window, a group
   past `MAX_PENDING_GROUPS`, a refused deferral and a closed connection only drop messages or state
   (`dropChunk`, `dropHave`, `dropIhave`, `dropDeferred`, `expire`).
