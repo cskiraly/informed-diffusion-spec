@@ -16,22 +16,27 @@ solver; the plain-Lean files are theorems.
   announces at the chunk's acknowledgement (§5.1's default), the neighbour is the source and the
   chunk is not acknowledged yet; when the asking machinery has nothing left to do, every such offer
   is resolved; and, counting in plain Lean, every honest node reachable from the source along mesh
-  links stops at K and completes, where the source announces at the publish or each chunk the
-  counting needs is acknowledged (below). The mesh may change on the
+  links stops at K and completes. Where the source announces at a chunk's acknowledgement, this
+  needs each chunk the counting uses on the source's links acknowledged, received or offered
+  (below); where it announces at publish, nothing more. The mesh may change on the
   way (peers join and leave it, connections close), with F9's rule, `protocol.md` §5.4 since v0.8: a
   peer that joins the mesh is announced what the node holds. How the pieces make Q1 is below. The
   counting also gives Q1 with a builder that releases only K of the N chunks, with a source that
   drops out, and with nodes that never install the block.
 - `NoStallEquiv.lean`: the asking piece under equivocation, with F6's two rules, §4.2's ties and
   §6.1's rule against a second ask of a peer at once since v0.8, in place of `NoStallAsk.lean` when
-  a proposer signs two blocks for the slot: Q1 then holds for every honest
-  node reachable from the source through nodes that installed the builder's block, given that
+  a proposer signs two blocks for the slot: Q1 then holds, under the same assumptions as above (at
+  `ACK`, the source's links), for every honest node reachable from the source through nodes that
+  installed the builder's block, given that
   every honest copy, rebuilt ones included, names that block (a node that relabels chunks under the
   other block's root breaks this: `protocol.md` §4.6 lists the gap as open).
 - `NoStallAskAdv.lean`, `NoStallTransportAdv.lean` and `NoStallEquivAdv.lean`: the per-chunk pieces
   with malicious peers. With the counting through honest nodes, Q1 holds for every honest node the
   source reaches along links between honest nodes, into nodes that installed the block, whatever the
-  other peers do, relabelled copies excluded. `NoStallEquivAdv.lean` is v0.8's asking among them,
+  other peers do, relabelled copies excluded, and at `ACK` with the chunks acknowledged on the
+  source's links (below). An adversary chosen as a push target can keep a chunk unacknowledged by
+  closing its connection, which is `ka_never_acknowledged`'s run. `NoStallEquivAdv.lean` is v0.8's
+  asking among them,
   and shows two findings: F13, closed in v0.8, and F14, which `protocol.md` §6.1 leaves open.
 - `Agreement.lean` (plain Lean): level 2 is all or none, a check that succeeds recovers the bytes the
   root commits, and two honest nodes never deliver different payloads for a group, under the codec's
@@ -63,8 +68,11 @@ rule, by inspection:
   window is not modelled. Their result then has one more case: the neighbour is the source, and
   the chunk is not acknowledged yet. §5.1's open item, a chunk that is never acknowledged, is a
   known answer there. What the source's HAVE names, and when it sends it (§5.1's P4, and
-  `origin_written` at `PUBLISH`), is outside these proofs: a HAVE is an environment event that
-  only keeps its receiver from pushing or announcing the chunk to its sender.
+  `origin_written` at `PUBLISH`), is outside these proofs: the source's HAVE is an environment event
+  that only keeps its peers from pushing or announcing the chunk to the source. A HAVE that the
+  source receives is its acknowledgement; the models take any such HAVE while the chunk is
+  unacknowledged, which covers the spec's first new one, a repeat included once its claim has
+  lapsed (`HAVE_TTL`).
   v0.9's §7.3, on what the transport below the writer should hold, is not modelled: the models'
   queues may refuse any entry, and drain.
 - **v0.10, four rules for what waits for its block** (§4.2, §6.1, §8.1), and where each stands:
@@ -91,13 +99,14 @@ rule, by inspection:
 - **v0.10, the node's own order of announcers** (§6.1, §8.1): the announcers beyond a chunk's
   ordered list are tried in an order keyed by a secret the node draws. The models let the retry ask
   any unparked announcer, so they cover every order.
-- **v0.10.3, the constants in three kinds** (§8.3), with reference values for gossipsub's two IHAVE
-  limits. The models take those limits as any values. `GOSSIP_RETRANSMISSION` is now a bound, at
-  least 3. The v0.7 asking models answer a peer's first eligible ask, and any later one or not, as
-  the run chooses; the equivocation models the first three, and any later one or not; so each
-  covers every value the bound allows. One value changed: `MAX_SEGMENT_SIZE` is a fixed 32 KiB
-  where it was `2 * UNIT`, which changes level 1 for a builder whose `UNIT` differs.
-  `SenderFault.lean`'s `good` stands for every check of level 1 but the block's, this one included.
+- **v0.10.3 divides the constants into three kinds** (§8.3), and gives reference values for
+  gossipsub's two IHAVE limits. The models take those limits as any values.
+  `GOSSIP_RETRANSMISSION` is now a bound, at least 3. The v0.7 asking models answer a peer's first
+  eligible ask, and any later one or not, as the run chooses; the equivocation models the first
+  three, and any later one or not; so each covers every value the bound allows. One code line
+  changed: `MAX_SEGMENT_SIZE` is written as its value, 32 KiB, where it was `2 * UNIT`. Level 1
+  changes only for a builder whose `UNIT` is not the default. `SenderFault.lean`'s `good` stands
+  for every check of level 1 but the block's, this one included.
 - **v0.10.4** (§4.1, §5.1, §5.4):
   - an IDONTWANT entry that is not a HAVE bitmap is kept as stock gossipsub keeps an id, where every
     entry went to `on_have`. The models have no stock ids as state; `NoStallAskAdv.lean`'s header
@@ -205,9 +214,9 @@ a root and a slot and carries a piece (its index, the descriptor, the proof and 
 duplication; expiry, the window, §8.2's limits and refused deferrals only drop messages or state. A
 HAVE or IHAVE bit stands for a bitmap's bit, which covers the length check because an honest bitmap
 drops its trailing zero bytes (§2). An honest node may announce any index in `mine` or of a chunk
-it stores, which covers what it can serve. v0.10's two checks add no rule: an honest node sends a
-chunk as level 1 passed it, its slot included, and announces only what passed level 1, or what its
-decode claim names (`gateLevel1`). The header
+it stores, which covers what it can serve. Honest traffic already passes v0.10's two checks: an
+honest node sends a chunk as level 1 passed it, its slot included, and announces only what passed
+level 1, or what its decode claim names (`gateLevel1`). The header
 says the rest.
 
 | switch | rule | where |
@@ -246,7 +255,8 @@ several), and is the source's chunk byte for byte where it names the same root.
 
 Q1: **when nothing is left to happen, every honest node reachable from the source along the mesh it
 then has is complete**, the links followed from each node to the peers in its mesh, to which it
-forwards. In three pieces, each proved for any number of nodes; the first two are about any one
+forwards. Where the source announces at a chunk's acknowledgement (§5.1's default), this needs, on
+the source's links, the chunks the counting uses acknowledged, received, or offered (below). In three pieces, each proved for any number of nodes; the first two are about any one
 chunk of the group, so they hold for each:
 
 - **The transport** (`NoStallTransport`): when it has nothing left to do, a node that has its block
@@ -265,8 +275,9 @@ chunk of the group, so they hold for each:
   - At `ACK`, the default, publishing makes it due only to the peers the source chose to push the
     chunk to: any set of them, none included, so the model covers every `R` and every set of
     candidates (§5.3, §8.3). The rest of its mesh is announced the chunk at the acknowledgement:
-    the first HAVE that newly names it, or a window timeout of a copy the source wrote, a push or
-    an answer, while its connection still holds the copy's slot. The step then has one more case:
+    a HAVE naming it, any while it is unacknowledged (the spec's first new one among them), or a
+    window timeout of a copy the source wrote, a push or an answer, while its connection still
+    holds the copy's slot. The step then has one more case:
     the neighbour is the source, the node was not a push target, and the chunk is not acknowledged
     yet.
   - The source's `fwd` stands for two operations, the planned pushes and the announcements at the
@@ -341,16 +352,16 @@ parts of it):
 - lifetimes that outlast diffusion;
 - a send window that lets every queue drain, adversaries' too. This is an assumption: W2
   (`../README.md`) checks a narrower rule on small instances, that with a slot free the first writer
-  in line that can write has a run queued. Since v0.10.7 (§7.1), a peer that stops reading no
-  longer holds up the line, so the assumption fails only for that peer's own queue, which these
-  models leave out;
+  in line that can write has a run queued. Since v0.10.7 (§7.1), a writer that cannot write is
+  passed over in the line, though its connection's slots stay taken until they are released or
+  time out. A peer that stops reading is left out of these models;
 - an honest builder's code;
 - the one group admitted by §8.2's limits, its ties included (`tie_room`), so a copy that waits
   always ties its sender (§4.2);
 - at `ACK`, for Q1 through the source's links, that each chunk the counting needs there is
   acknowledged, or that the neighbour received it, stopped, or holds the source's offer of it. The
   counting takes the per-link step as its hypothesis, for every chunk and link it uses; on the
-  source's links the transport gives that step only so. The composition is by inspection. §5.1
+  source's links the transport gives that step only then. The composition is by inspection. §5.1
   names a chunk that is never acknowledged as open, and `ka_never_acknowledged` reaches it; Q3
   does not force an acknowledgement.
 
@@ -416,8 +427,9 @@ only with that block, is answered (`third_answered`). Known answers: without `RO
 leaves every announcer parked and asked once more, with nothing on its way, so no ask follows (F6's
 first form); without `NO_REASK_OPEN` a provider is asked a third time before the switch, the bound
 F6's second form breaks (its stall, some 30 steps, is the Quint model's); and the last-resort counts
-kept across a close. With `NoStallEquiv` in place of `NoStallAsk`, Q1 holds for the honest nodes
-reachable from the source through nodes that installed the builder's block, along whom the counting
+kept across a close. With `NoStallEquiv` in place of `NoStallAsk`, Q1 holds, under the assumptions
+above (at `ACK`, on the source's links), for the honest nodes reachable from the source through
+nodes that installed the builder's block, along whom the counting
 runs (`every_installed_reachable_node_completes`): a node that installs only the other block cannot
 validate the chunks, so nothing reaches a node behind it. This rests on every honest copy naming the
 builder's block, rebuilt ones included, which the models assume. v0.7's §4.6 let a rebuilt chunk
@@ -633,9 +645,9 @@ every later step has its effect (with fields as functions), and so, in the trans
 a source: a theorem under it would be empty. With Q1, by the same composition by
 inspection, under Q1's assumptions, and given that every decode that starts eventually returns
 (Q1's counting assumes decoding succeeds), every honest node the source reaches through nodes with
-the builder's block eventually completes. At `ACK` this needs each chunk the counting uses on the
-source's links acknowledged before the environment stops, since both acknowledgements are
-environment events.
+the builder's block eventually completes. At `ACK`, where an acknowledgement is what gives a step
+the counting uses on the source's links, it must come before the environment stops, since both
+acknowledgements are environment events.
 
 **Why**: every step of a piece lowers a lexicographic tuple of counts of relations, its levels,
 highest first; the environment may raise it, finitely often. `QuietRanking.lean` (plain Lean, on

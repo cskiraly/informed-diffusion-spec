@@ -53,11 +53,11 @@ names how SEACAST diffuses.
     links is incomplete, under the assumptions its README states, with the mesh changing and
     connections closing. Where the source announces at a chunk's acknowledgement (§5.1's default),
     the source's links need the chunks acknowledged; §5.1 leaves open a chunk that never is;
-  - Q1 under equivocation, with §4.2's ties and §6.1's rule against a second ask of a peer at once,
-    for the nodes the source reaches through nodes that installed the builder's block
+  - Q1 under equivocation, likewise, with §4.2's ties and §6.1's rule against a second ask of a peer
+    at once, for the nodes the source reaches through nodes that installed the builder's block
     (`NoStallEquiv.lean`);
-  - Q1 with malicious peers, for the honest nodes the source reaches through honest nodes that
-    installed the block, relabelled copies excluded; and a run in which an announcer that is never
+  - Q1 with malicious peers, likewise, for the honest nodes the source reaches through honest nodes
+    that installed the block, relabelled copies excluded; and a run in which an announcer that is never
     parked holds the last resort off, which `protocol.md` §6.1 leaves open;
   - a run goes quiet (Q3): with finitely many nodes and weak fairness, once the environment stops
     (with malicious peers, their actions included), the transport and v0.8's asking (with
