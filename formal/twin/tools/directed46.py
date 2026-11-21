@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §4.6's claim_group and drop_group (protocol.md lines 823-827 and 851-858), called
+"""Directed records for §4.6's claim_group and drop_group (protocol.md §4.6), called
 directly. The toy's own functions are called in a toy node's namespace on generated states, and trace3.py's
 tracer logs each call with the node's whole state.
 

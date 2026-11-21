@@ -1,0 +1,28 @@
+# The outputs of the checks and of their controls, which a run writes beside the scripts (check.sh --out DIR
+# writes its own elsewhere). The references (statements.txt) and the sources stay tracked.
+# A check's temporaries (manifest.before, build.tmp, statements.new) are removed at its end; a run stopped before
+# then leaves them.
+/asking/manifest.before
+/asking/build.tmp
+/asking/statements.new
+/carry/manifest.before
+/carry/build.tmp
+/carry/statements.new
+/twinstep/manifest.before
+/twinstep/build.tmp
+/twinstep/statements.new
+/asking/check.txt
+/asking/audit.txt
+/asking/check-controls.txt
+/asking/controls/
+/carry/check.txt
+/carry/audit.txt
+/carry/check-controls.txt
+/carry/check-controls-A.txt
+/carry/check-controls-B.txt
+/carry/controls/
+/twinstep/check.txt
+/twinstep/audit.txt
+/twinstep/generated.txt
+/twinstep/check-controls.txt
+/twinstep/controls/

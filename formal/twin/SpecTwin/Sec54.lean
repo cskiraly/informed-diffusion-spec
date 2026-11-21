@@ -1,8 +1,8 @@
 import SpecTwin.Sec52
 import SpecTwin.Sec53
 
-/-! # The twin of protocol.md's `forward` (§5.2, lines 1164–1175), `candidates_for_source` (§5.1, lines 1049–1051)
-and `on_mesh_join` (§5.4, lines 1298–1301) (v0.10.4, spec 34f60f8)
+/-! # The twin of protocol.md's `forward` (§5.2), `candidates_for_source` (§5.1)
+and `on_mesh_join` (§5.4) (v0.10.4, spec 34f60f8)
 
 - **`forward` at a node that runs something else under the name** (the cells silent and cap-wait: a faulty node
   forwards nothing; a directed set's scenario) is asked of the node by its caller, on_validated, as
@@ -19,7 +19,7 @@ open Node61 Tables
 
 variable {m : Type → Type} [Monad m] [Tables m] [Node61 m]
 
-/-- `candidates_for_source(f)` (lines 1049–1051) [c13] -/
+/-- `candidates_for_source(f)` (§5.1) [c13] -/
 def candidatesForSource (f : ChunkF) : M m (List Peer) := do
   enter "candidates_for_source"
   let c := (← read).c
@@ -28,7 +28,7 @@ def candidatesForSource (f : ChunkF) : M m (List Peer) := do
   branch (if stripe then "candidates_for_source: every connected peer" else "candidates_for_source: the mesh")
   pool.filterM fun p => return !(← peerHas p f.g).has f.i   -- `if not peer_has[p][f.group].has(f.index)`
 
-/-- `forward(f, from_peer)` (lines 1164–1175) [c3, c4, c11, c17] -/
+/-- `forward(f, from_peer)` (§5.2) [c3, c4, c11, c17] -/
 def forward (f : ChunkF) (fromPeer : Peer) : M m Unit := do
   enter "forward"
   let g := f.g
@@ -48,7 +48,7 @@ def forward (f : ChunkF) (fromPeer : Peer) : M m Unit := do
   gossipPut f                                               -- stock message cache (§6.4)
   branch (if budget == 0 then "forward: no budget" else "forward: a budget")
 
-/-- `on_mesh_join(p)` (lines 1298–1301): p joins our mesh -/
+/-- `on_mesh_join(p)` (§5.4): p joins our mesh -/
 def onMeshJoin (p : Peer) : M m Unit := do
   enter "on_mesh_join"
   for g in ← chunksGroups do                                -- `for g in list(chunks):`

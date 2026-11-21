@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §4.3's on_have (protocol.md lines 660-670). The toy's own function is called in a toy
+"""Directed records for §4.3's on_have (protocol.md §4.3). The toy's own function is called in a toy
 node's namespace on generated states, and trace3.py's tracer logs each call with the node's whole state.
 
     python3 directed43.py TOYDIR OUT.jsonl.gz [--n N] [--seed S]

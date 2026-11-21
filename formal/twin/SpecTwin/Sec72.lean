@@ -3,10 +3,9 @@ import SpecTwin.Sec71
 import SpecTwin.Sec52
 import SpecTwin.Sec51
 
-/-! # protocol.md §7.2, "Choosing what to send, at the moment of sending" [c8, c9, c12, c14] (v0.10.7,
-lines 1831–1896)
+/-! # protocol.md §7.2, "Choosing what to send, at the moment of sending" [c8, c9, c12, c14] (v0.10.7)
 
-next_to_send's line at PUBLISH (line 1855, `if SOURCE_OFFERS == PUBLISH: origin_written(out.chunk)`) came with
+next_to_send's line at PUBLISH (`if SOURCE_OFFERS == PUBLISH: origin_written(out.chunk)`) came with
 v0.10.4; `origin_written` is §5.1's (Sec51.lean). Every cell runs at ACK: the line runs in
 hand5-publish and directed7p.
 

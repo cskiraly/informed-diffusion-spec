@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §3's level 1, validate_chunk and committed_descriptor (protocol.md lines 341-358). The
+"""Directed records for §3's level 1, validate_chunk and committed_descriptor (protocol.md §3). The
 toy's own functions are called in two toy nodes' namespaces on generated chunks and blocks, and trace3.py's tracer
 logs each call with the node's whole state.
 

@@ -1,8 +1,8 @@
 import SpecTwin.Sec42
 import SpecTwin.Sec52
 
-/-! # The twin of protocol.md §5.1, "Publishing" [c3, P4] (v0.10.4, spec 34f60f8): `publish` (lines 1000–1032),
-`origin_acked` (lines 1034–1041) and `origin_written` (lines 1043–1047)
+/-! # The twin of protocol.md §5.1, "The source" [c3, P4] (v0.10.4, spec 34f60f8): `publish`,
+`origin_acked` and `origin_written`
 
 `origin_written` came with v0.10.4: at
 `SOURCE_OFFERS = PUBLISH` a chunk of a group the node publishes joins its HAVE at its first write (next_to_send,
@@ -25,7 +25,7 @@ open Node61 Tables
 
 variable {m : Type → Type} [Monad m] [Tables m] [Node61 m]
 
-/-- `origin_written(f)` (lines 1043–1047) [P4]: at PUBLISH, a chunk of a group we publish leaves for the first
+/-- `origin_written(f)` (§5.1) [P4]: at PUBLISH, a chunk of a group we publish leaves for the first
 time (§7.2): it joins our HAVE, which goes to the mesh as at the acknowledgement -/
 def originWritten (f : ChunkF) : M m Unit := do
   enter "origin_written"
@@ -40,7 +40,7 @@ def originWritten (f : ChunkF) : M m Unit := do
       for q in ← meshList do sendHave q g                   -- `for q in mesh: send_have(q, g)`
       branch "origin_written: the HAVE grows"
 
-/-- `origin_acked(g, i)` (lines 1034–1041) [c3, P4]: a chunk of a group we publish is acknowledged: a peer's HAVE
+/-- `origin_acked(g, i)` (§5.1) [c3, P4]: a chunk of a group we publish is acknowledged: a peer's HAVE
 names it (§4.3), or a copy's slot timed out first (§7.1) -/
 def originAcked (g : Group) (i : Nat) : M m Unit := do
   enter "origin_acked"
@@ -59,7 +59,7 @@ def originAcked (g : Group) (i : Nat) : M m Unit := do
       announce p g (1 <<< i)                                --   `announce(p, g, bitmap({i}))`
   branch "origin_acked: the HAVE grows"
 
-/-- `publish(block, d, shards)` (lines 1000–1032) [c2, c3, P4]: the source of a group. It holds every chunk from
+/-- `publish(block, d, shards)` (§5.1) [c2, c3, P4]: the source of a group. It holds every chunk from
 the start, plans R copies of each, sends the first copy of every chunk before any second, and leaves the mesh
 peers not pushed a chunk to be announced it (at its acknowledgement, or now at PUBLISH).
 

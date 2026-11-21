@@ -21,7 +21,11 @@ line, with the exit code:
      mutants are others (each is listed)
 
 The Python's line (its version and platform) is reported where it differs and decides nothing: the traces' bytes
-do. Exit code 2: a manifest that cannot be read as one.
+do. The documents line, where a manifest has one, is reported the same way and decides nothing either. It gives
+the sha256 of each document's file, for the record's provenance. The content line names the documents by their
+code (content.py, version 2), so an edit of their prose alone changes the documents line and not the content
+line. A content line of version 1 against one of version 2 counts as another content, and the report names the
+version. Exit code 2: a manifest that cannot be read as one.
 
 --matrix: a matrix replays its mutants on traces of its own making (its traces.sha256 and directed.sha256, each
 line "WHOLE  BODY  NAME"). Its traces are the record's where each has a line in the record's manifest with the same
@@ -45,6 +49,7 @@ sys.path.insert(0, str(HERE))
 import content                          # noqa: E402
 
 HEAD = ("content", "python", "replay", "twin", "mutants")
+INFO = ("documents",)                   # a head line that a manifest may have, reported where it differs, deciding nothing
 TRACE = re.compile(r"([0-9a-f]{64})  ([0-9a-f]{64})  (\S+)")
 
 
@@ -53,7 +58,8 @@ class Unreadable(Exception):
 
 
 def manifest(text, whole=True):
-    """({content, python, replay, twin, mutants: the line's text after its word}, {trace: (whole, body)}). With
+    """({content, python, replay, twin, mutants, and documents where it is: the line's text after its word},
+    {trace: (whole, body)}). With
     whole=False (--matrix, which compares traces alone) a head line may be missing: a manifest of an earlier kit."""
     head, traces = {}, {}
     for l in text.splitlines():
@@ -64,10 +70,10 @@ def manifest(text, whole=True):
             traces[m[3]] = (m[1], m[2])
             continue
         word, _, rest = l.partition(" ")
-        if word not in HEAD or word in head or not rest:
+        if word not in HEAD + INFO or word in head or not rest:
             raise Unreadable(f"not a line of a manifest, or a line twice: {l[:80]!r}")
         head[word] = rest
-    if (whole and set(head) != set(HEAD)) or not traces:
+    if (whole and not set(HEAD) <= set(head)) or not traces:
         raise Unreadable(f"a manifest without {sorted(set(HEAD) - set(head)) or 'a trace'}")
     return head, traces
 
@@ -83,6 +89,9 @@ def compare(rec, run, rec_content=None, run_content=None):
             bad = True
     if rh["python"] != uh["python"]:
         out.append(f"(python: the record's {rh['python']}, the run's {uh['python']}: reported, it decides nothing)")
+    if rh.get("documents") != uh.get("documents"):
+        out.append(f"(documents: the record's {rh.get('documents', 'none')}, the run's "     # whole: two hashes
+                   f"{uh.get('documents', 'none')}: reported, it decides nothing)")
     for n in sorted(set(rt) - set(ut)):
         out.append(f"{n}: in the record, not in the run")
         bad = True
@@ -196,6 +205,28 @@ def self_test():
     ok = "content: protocol.md: other bytes" in out
     bad += not ok
     print(f"against self-test, another content names the file that differs: {'so' if ok else 'NOT so  <-- FAIL'}")
+    c3 = content.line({"content": {"version": 2, "files": {"protocol.md": H("9"), "toy/node.py": H("2")}}})
+    rc, out = compare(manifest(base), manifest(other), c1, c3)
+    ok = rc == 3 and "content: the version of the content's form differs" in out
+    bad += not ok
+    print(f"against self-test, a record of content version 1 against a run of version 2: exit code {rc}, the version "
+          f"named: {'so' if ok else 'NOT so  <-- FAIL'}")
+    docs = f"documents protocol.md {H('7')} protocol-v2.md {H('8')} (each file's sha256: reported, it decides nothing)\n"
+    for name, rec, run, want, words in (
+            ("a documents line in both, the same", base + docs, base + docs, 0, "as recorded: "),
+            ("a documents line in both, another document's bytes", base + docs, base + docs.replace(H("8"), H("9")), 0,
+             "(documents: the record's"),
+            ("a documents line in the run alone (a record of an earlier kit)", base, base + docs, 0, "(documents: the record's none"),
+            ("a documents line in both, the second document's hash another in its last digit", base + docs,
+             base + docs.replace(H("8"), H("8")[:-1] + "9"), 0, f"the run's protocol.md {H('7')} protocol-v2.md {H('8')[:-1]}9")):
+        try:
+            rc, out = compare(manifest(rec), manifest(run), c1, c1)
+            ok = rc == want and any(words in l for l in out)
+        except Unreadable as e:
+            rc, out, ok = None, [str(e)], False
+        bad += not ok
+        print(f"against self-test, {name}: exit code {rc}, must be {want}; "
+              f"{'says' if any(words in l for l in out) else 'does NOT say'}: {words}{'' if ok else '  <-- FAIL'}")
     for name, text in (("no trace", "\n".join(base.splitlines()[:5]) + "\n"), ("a head line twice", base + f"content {H('a')}\n"),
                        ("a line that is none of a manifest's", base + "something else\n"), ("no twin line", base.replace(f"twin {H('c')} (32 files: twin-sources.txt)\n", ""))):
         try:

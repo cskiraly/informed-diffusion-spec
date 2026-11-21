@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §7.1's window (protocol.md lines 1722-1770, v0.10.7): front, wake_front, acquire_slot,
+"""Directed records for §7.1's window (protocol.md, v0.10.7): front, wake_front, acquire_slot,
 release_unused_slot, track_in_flight, window_release, window_timeout and free_slot. The toy's own functions are
 called in a toy node's namespace on generated states, and trace3.py's tracer logs each call with the node's whole
 state.

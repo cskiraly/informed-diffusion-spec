@@ -204,8 +204,63 @@ def v2_kept(names, p_src, v2_src, cut=TAPE):
     return tuple(n for n in names if n not in gone)
 
 
+_PARSED = {}
+
+
+def toy_args(argv, toy=None):
+    """The toy's own parser and what it reads from argv: run.py's main is called once with argparse's parse_args
+    wrapped, so that it builds its parser, parses argv, and stops before it runs anything. So an abbreviation of an
+    option, its "=" form, and whatever else that parser takes are read as the toy reads them. `toy`, where given,
+    is put first on the module path (a reader of a trace's header; the tracer has it there already). Arguments the
+    parser refuses end the process, as they end the toy's run."""
+    key = (tuple(argv), str(toy))
+    if key in _PARSED:
+        return _PARSED[key]
+    import argparse
+    if toy is not None:
+        sys.path.insert(0, str(Path(toy).resolve()))
+    import run                          # noqa: E402: the toy's run.py, from TOYDIR
+
+    class Parsed(Exception):
+        pass
+    got = []
+    orig = argparse.ArgumentParser.parse_args
+
+    def probe(self, args=None, namespace=None):
+        got.append((self, orig(self, args, namespace)))
+        raise Parsed
+    argparse.ArgumentParser.parse_args = probe
+    try:
+        run.main(list(argv))
+    except Parsed:
+        pass
+    finally:
+        argparse.ArgumentParser.parse_args = orig
+    if len(got) != 1:
+        raise SystemExit("trace3: the toy's run.py did not parse its arguments once, as the tracer asks it to")
+    _PARSED[key] = got[0]
+    return got[0]
+
+
+def toy_reads_a_dump(argv):
+    """Whether the toy, given argv, reads a dump (--topology FILE) or turns on its cross-check recorder (--xcheck),
+    as the toy's own parser reads argv (toy_args). --topology is the one option of the toy that reads a file
+    (xcheck.load); --xcheck reads none, and is refused for its recorder."""
+    ap, a = toy_args(argv)
+    return a.topology != ap.get_default("topology") or a.xcheck != ap.get_default("xcheck")
+
+
+def doc_parsed(argv):
+    """The document the toy runs, as its own parser reads argv (toy_args): "v2" or None."""
+    ap, a = toy_args(argv)
+    return "v2" if a.doc == "v2" else None
+
+
 def doc_of(argv):
-    """The document run.py is given (--doc v2 or --doc=v2), or None for protocol.md."""
+    """The document a trace's arguments name (--doc v2 or --doc=v2), or None for protocol.md: read from the words
+    themselves, so that it reads a directed set's arguments too, which are no toy's command line. For a trace of the
+    toy's command line the tracer has already refused arguments where this reading and the toy's parser's differ
+    (Tracer3, cli), so a header's arguments read here name the document the toy ran."""
     for i, a in enumerate(argv):
         if a == "--doc" and i + 1 < len(argv):
             return argv[i + 1]
@@ -350,7 +405,7 @@ def v2_kept_self_test():
 
 
 class Tracer3(Tracer):
-    def __init__(self, toy, out, argv, whole=False):     # not Tracer's: the header differs
+    def __init__(self, toy, out, argv, whole=False, cli=False):     # not Tracer's: the header differs
         self.whole = whole
         self.only61 = os.environ.get("TRACE3_ONLY") == "sec61"     # §6.1's twelve alone: the baseline's records
         self.toy = Path(toy).resolve()
@@ -379,12 +434,17 @@ class Tracer3(Tracer):
         # what is traced: §6.1's twelve alone (TRACE3_ONLY=sec61); under --doc v2, the block's names that are
         # protocol.md's all the way down; otherwise the block
         self.doc_v2 = doc_of(argv) == "v2"
-        if any(a.split("=")[0] in ("--xcheck", "--topology") for a in argv):
+        # the toy's command line (cli: this script's own main) is read as the toy's parser reads it (toy_args); a
+        # directed set's arguments are no command line of the toy's, and are read by their words
+        if (toy_reads_a_dump(argv) if cli else any(a.split("=")[0] in ("--xcheck", "--topology") for a in argv)):
             # --topology reads a dump, an input the content line does not name; and the toy's cross-check recorder
             # keeps `max(peak, ns["in_flight"])`, which hands out the count's cell
             raise SystemExit("trace3: --xcheck and --topology are not traced: a dump is an input the content line "
                              "does not name, and the toy's recorder there keeps the window's count, which is a cell "
                              "of the tracer's here")
+        if cli and doc_parsed(argv) != (doc_of(argv) if doc_of(argv) == "v2" else None):
+            raise SystemExit("trace3: the document is given in a form whose words do not name what the toy runs: give "
+                             "it as --doc v2 or --doc=v2, so that the trace's header names it")
         self.v2_defs = ({d.name for d in ast.parse(N.generate(N.DOC2)).body if isinstance(d, ast.FunctionDef)}
                         if self.doc_v2 else set())
         if self.only61:
@@ -1434,7 +1494,7 @@ class _MeshAnd:
 
 def main(argv):
     toy, out, rest = Path(argv[0]).resolve(), argv[1], argv[2:]
-    tr = Tracer3(toy, out, rest)
+    tr = Tracer3(toy, out, rest, cli=True)
     orig = tr.N.Node._override
 
     def _override(self, ns):

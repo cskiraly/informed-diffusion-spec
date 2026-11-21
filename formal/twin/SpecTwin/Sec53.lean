@@ -1,7 +1,7 @@
 import SpecTwin.Readers
 
 /-! # The twin of protocol.md §5.3, "Whom to push to: furthest behind first" [c16] (v0.10.4, spec 34f60f8):
-`choose_push` and `guard_fails` (lines 1228–1247)
+`choose_push` and `guard_fails`
 
 - **The push order's keys are questions:** for each candidate, in the candidates' order, the node
   answers `tiebreak(f, p)`, a number, and `peer_id_bytes(p)`, the peer's id as bytes (their hex here: of ids of
@@ -22,7 +22,7 @@ open Node61 Tables
 
 variable {m : Type → Type} [Monad m] [Tables m] [Node61 m]
 
-/-- `guard_fails(p, g)` (lines 1244–1247) [c16]: the proof guard -/
+/-- `guard_fails(p, g)` (§5.3) [c16]: the proof guard -/
 def guardFails (p : Peer) (g : Group) : M m Bool := do
   enter "guard_fails"
   let e := (← pushedEntry? p g).getD {}                     -- `e = pushed[p][g]`
@@ -38,7 +38,7 @@ def guardFails (p : Peer) (g : Group) : M m Bool := do
   branch (if heard then "guard_fails: a HAVE seen" else "guard_fails: demoted")   --   while we keep pushing it
   return !heard
 
-/-- `choose_push(f, cands, budget, at_source)` (lines 1228–1242) [c16] -/
+/-- `choose_push(f, cands, budget, at_source)` (§5.3) [c16] -/
 def choosePush (f : ChunkF) (cands : List Peer) (budget : Nat) (atSource : Bool) : M m (List Peer) := do
   enter "choose_push"
   if budget ≥ cands.length then                             -- everyone, no ordering needed

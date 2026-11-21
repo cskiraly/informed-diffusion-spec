@@ -3,12 +3,12 @@ import SpecTwin.Sec2
 import SpecTwin.Sec3
 import SpecTwin.Sec54
 
-/-! # protocol.md §4.2, "A chunk arrives" [c5, c7, c10, c14] (v0.10.4, spec 34f60f8, lines 467–570
-and 459–477), and §6.1's `close_promises` (lines 1411–1421)
+/-! # protocol.md §4.2, "A chunk arrives" [c5, c7, c10, c14] (v0.10.4, spec 34f60f8),
+and §6.1's `close_promises`
 
 `on_chunk`, `on_validated`, `drop_beyond`, `send_have`, `have_bits` and `close_promises`; and the deferral path:
 `defer`, `tie`, `tie_room`, `on_block_installed`, `drop_tie` and `drop_stale_waits`. Line for line.
-`drop_offer` (§6.1, lines 1423–1433) is here too: it stands after `close_promises`, which it calls.
+`drop_offer` (§6.1) is here too: it stands after `close_promises`, which it calls.
 Python's meanings kept on purpose:
 - `or` and `and` short-circuit, so the node is asked in the Python's order: `seen(mid)` before `mid in
   pending_ids`, `expired` before `live`, `admitted` before `tie_room`, `state[g] == COLLECTING` before
@@ -96,7 +96,7 @@ def closePromises (g : Group) (i : Nat) (of_ : Option Peer) : M m Unit := do
     if b.has i then setOffered q g (b.clear i)
   branch "close_promises: every key"
 
-/-- `drop_offer(g, i, p)` (§6.1, lines 1423–1433): p's offers of chunk i of g go, under every key that names it,
+/-- `drop_offer(g, i, p)` (§6.1): p's offers of chunk i of g go, under every key that names it,
 and its asks of the chunk with them (§4.2's drop_tie; the offers' expiry).
 - The asks queued to p are removed in **the normal lane alone**: the document's loop is over `queue[p].normal`.
 - `queue[p].normal = [...]` where p has no queue: the toy's detached queue takes the empty lane and joins no table
@@ -205,9 +205,9 @@ def tie (p : Peer) (f : ChunkF) : M m Unit := do
   closePromises f.g f.i (some p)                            -- p answered: its promise for the index closes
   branch "tie: tied"
 
-/-- `claim_group(g)` (§4.6, lines 835–839) [c10]: at the K-th chunk, before decoding. Here, and not with §4.6's
+/-- `claim_group(g)` (§4.6) [c10]: at the K-th chunk, before decoding. Here, and not with §4.6's
 others (Sec46.lean), since on_validated calls it and it calls send_have. `close_promises_of_group` is the node's
-(§8.2's interface): a call with its log. -/
+(§8.1's interface): a call with its log. -/
 def claimGroup (g : Group) : M m Unit := do
   enter "claim_group"
   setStopPull g true                                        -- [c6] no further asks for this group

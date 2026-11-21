@@ -4,8 +4,8 @@
     python3 header3.py TOYDIR TRACE [TRACE ...]
 
 A trace's first line must be this tree's content line, byte for byte (content.py, made over TOYDIR, the documents
-beside it and these tools): a trace kept from other tools, another toy or other documents is refused, and the
-reason names the first file whose bytes differ. The replay makes the same comparison with the file it is given;
+beside it and these tools): a trace kept from other tools, another toy or documents with other code is refused,
+and the reason names the first name whose hash differs (a document's code, any other file's bytes). The replay makes the same comparison with the file it is given;
 this one is made against the tree itself. cells3.py asks it of each trace it has just made.
 
 What the replay does not check of the header, the second line: the tracer's name, and that the functions traced
@@ -47,18 +47,20 @@ def kind_of(toy, traced, args):
     """The name of a traced list's kind, or None. A trace run with --doc v2 has one kind, v2's kept, and a trace run
     without it never has that one: the block's list under --doc v2 does not pass."""
     t = tuple(traced) if isinstance(traced, list) else None
-    if trace3.doc_of(args or []) == "v2":
+    if trace3.doc_of(args or []) == "v2":           # the words of the trace's arguments: see trace3.doc_of
         return f"v2's kept, {len(t)} functions" if t is not None and t == v2_kind(toy) else None
     return KINDS.get(t)
 
 
 def head_lines(trace):
-    """A trace's first line as text, and its header (the second line), or the reason it has none."""
+    """A trace's first line as text, and its header (the second line), or the reason it has none. Read as bytes,
+    so that a line end is compared as it was written: a text reader would turn a CRLF into an LF."""
     trace = Path(trace)
     try:
-        with (gzip.open(trace, "rt") if trace.suffix == ".gz" else open(trace)) as f:
-            line1 = f.readline()
-            second = json.loads(f.readline())
+        with (gzip.open(trace, "rb") if trace.suffix == ".gz" else open(trace, "rb")) as f:
+            line1 = f.readline().decode("utf-8", "replace")
+            second = json.loads(f.readline().decode("utf-8"))   # UTF-8, as the tracer writes it: bytes given
+            #                                                     to json.loads would have their encoding guessed
     except (OSError, ValueError) as e:
         return None, None, f"its first two lines cannot be read: {e}"
     h = second.get("header") if isinstance(second, dict) else None

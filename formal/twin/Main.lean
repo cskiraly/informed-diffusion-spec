@@ -5,10 +5,11 @@ import SpecTwin.Strict
 when no file is named, so that a gzipped trace goes through `zcat`) through the twin, and print what matched,
 what did not, and how often each branch of the twin ran.
 
-A trace's first line is its content line: what it was made from, each file by its sha256 (`tools/content.py`).
-`--content FILE` gives the line the caller made over the tree it replays against, and the two must be the same
-bytes: a trace made from other documents, another toy or other tools fails, and so does every trace where no file
-is given. The header is the second line and the nodes line the third (each node's constants and the traced names
+A trace's first line is its content line: what it was made from, each document by the sha256 of its code and each
+file of the toy and the tools by the sha256 of its bytes (`tools/content.py`). `--content FILE` gives the line the
+caller made over the tree it replays against, and the two must be the same bytes: a trace made from documents with
+other code, another toy or other tools fails, and so does every trace where no file is given.
+The header is the second line and the nodes line the third (each node's constants and the traced names
 its namespace has replaced). A trace also fails with a header that is not its only one, with a record of a node
 the nodes line does not name, with a line the tracer would not write (`Strict.lean`: a member given twice, which
 the parser would drop in silence, a number that is not a plain integer, white space), with an envelope line that
@@ -27,8 +28,9 @@ def members (what : String) (j : Json) (may must : List String) : Except String 
 def headerFields : List String :=
   ["format", "whole", "own", "foreign", "traced", "tracer", "args"]
 
-/-- The content line (`tools/content.py`): `{"content":{"files":{NAME:SHA256,...},"version":1}}`. Its names with
-their hashes, or why the line is none. -/
+/-- The content line (`tools/content.py`): `{"content":{"files":{NAME:SHA256,...},"version":2}}`, or version 1
+(each document named by its bytes, not by its code). Its names with their hashes, or why it is not one. A trace
+passes only with the line of `--content`, byte for byte, so the two lines are always of one version. -/
 def contentFiles (line : String) : Except String (List (String × String)) := do
   let text := if line.endsWith "\n" then (line.dropEnd 1).toString else line
   Strict.strictLine text
@@ -36,11 +38,13 @@ def contentFiles (line : String) : Except String (List (String × String)) := do
   members "the content line" j ["content"] ["content"]
   let c ← j.getObjVal? "content"
   members "content" c ["files", "version"] ["files", "version"]
-  if (c.getObjValAs? Nat "version").toOption != some 1 then throw "content: its version is not 1"
+  if !([some 1, some 2].contains (c.getObjValAs? Nat "version").toOption) then
+    throw "content: its version is neither 1 nor 2"
   let .ok kvs := (← c.getObjVal? "files").getObj? | throw "content: files is not an object"
   kvs.toList.mapM fun (k, v) => do return (k, ← v.getStr?)
 
-/-- Where a trace's content line is not the caller's: the first name, in the names' order, whose bytes differ. -/
+/-- Where a trace's content line is not the caller's: the first name, in the names' order, whose hash differs or
+that one line alone has. -/
 def contentDiff (expected got : String) : String :=
   match contentFiles expected, contentFiles got with
   | .error e, _ => s!"the file given with --content is no content line ({e})"
@@ -49,7 +53,7 @@ def contentDiff (expected got : String) : String :=
     let names := sortBy (· < ·) ((a.map (·.1) ++ b.map (·.1)).eraseDups)
     match names.find? fun n => a.lookup n != b.lookup n with
     | some n => match a.lookup n, b.lookup n with
-      | some _, some _ => s!"{n}: other bytes"
+      | some _, some _ => s!"{n}: another hash"
       | some _, none => s!"{n}: not in the trace's"
       | _, _ => s!"{n}: in the trace's alone"
     | none => "the same names and hashes, written otherwise"

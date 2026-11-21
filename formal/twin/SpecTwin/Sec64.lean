@@ -2,7 +2,7 @@ import SpecTwin.Sec42
 import SpecTwin.Sec52
 
 /-! # The twin of protocol.md §6.4, "Heartbeat gossip and pacing" [c15] (v0.10.4, spec 34f60f8): `on_heartbeat`,
-`on_pace_tick` and `send_gossip` (lines 1652–1673)
+`on_pace_tick` and `send_gossip`
 
 - **`pace_queue` is the twin's own table:** one entry, `jobs`, whose value is the jobs in order, read and
   written whole as a lane of a peer's queue is. An empty queue is no value.
@@ -27,7 +27,7 @@ open Node61 Tables
 
 variable {m : Type → Type} [Monad m] [Tables m] [Node61 m]
 
-/-- `send_gossip(q, ids)` (lines 1671–1673) [c7] -/
+/-- `send_gossip(q, ids)` (§6.4) [c7] -/
 def sendGossip (q : Peer) (ids : List Key) : M m Unit := do
   enter "send_gossip"
   for (g, bits) in ← groupBits ids do                       -- `for g, bits in group_bits(ids):`
@@ -45,7 +45,7 @@ def gossipCount (len : Nat) : M m Nat := do
   let k := if fl ≤ 0 then 0 else if fl ≥ len.toFloat then len else fl.toUInt64.toNat
   return min len (max c.D_LAZY k)
 
-/-- `on_heartbeat()` (lines 1652–1662) -/
+/-- `on_heartbeat()` (§6.4) -/
 def onHeartbeat : M m Unit := do
   enter "on_heartbeat"
   clearIhaveFrames; clearIhaveAsked                           -- §4.4's limits start again,
@@ -90,7 +90,7 @@ def paceTurns : Nat → M m Unit
         sendGossip job.q job.ids
         branch "on_pace_tick: one job's gossip sent"        -- one peer per tick, even if nothing was left to send
 
-/-- `on_pace_tick()` (lines 1664–1669) [c15]: every HEARTBEAT / 16, from the first job queued -/
+/-- `on_pace_tick()` (§6.4) [c15]: every HEARTBEAT / 16, from the first job queued -/
 def onPaceTick : M m Unit := do
   enter "on_pace_tick"
   paceTurns (← paceJobs .jobs).length

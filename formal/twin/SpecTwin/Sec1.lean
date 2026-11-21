@@ -2,8 +2,7 @@ import SpecTwin.Basic
 
 /-! # The twin of protocol.md §1, "The payload, the code and the commitment" (v0.10.4, spec 34f60f8)
 
-group_id, group_key, K, N, segment_length, valid_descriptor and build_group (protocol.md lines 136–154 and
-156–168), line for line.
+group_id, group_key, K, N, segment_length, valid_descriptor and build_group (protocol.md §1), line for line.
 
 - **What is asked, not computed:** `sha256`, `serialize`, `snappy_block_encode`,
   `pad_each`, `rs_parity`, `merkle_root`, `merkle_proof`. The toy's are stand-ins, so each is a question, asked
@@ -59,19 +58,19 @@ variable {m : Type → Type} [Monad m] [Node61 m]
 
 /-! ## §1 The payload, the code and the commitment [c1, c6] -/
 
-/-- `group_id(d)` (lines 136–137) -/
+/-- `group_id(d)` (§1) -/
 def groupId (d : Descriptor) : M m Hex := do
   enter "group_id"
   sha256 ("02" ++ (← serialize d))                           -- `sha256(b"\x02" + serialize(d))`
 
-/-- `group_key(gid, slot)` (lines 139–140): the group's name in diffusion: a group id committed at a slot -/
+/-- `group_key(gid, slot)` (§1): the group's name in diffusion: a group id committed at a slot -/
 def groupKey (gid : Hex) (slot : Nat) : M m Hex := do
   enter "group_key"
   if slot ≥ 2 ^ 64 then                                     -- `uint64_le(slot)`
     return (← crash "OverflowError: int too big to convert (group_key: uint64_le(slot))")
   sha256 ("03" ++ gid ++ leHex 8 slot)                       -- `sha256(b"\x03" + gid + uint64_le(slot))`
 
-/-- `K(d)` (line 142): the data chunks. `d` is what the caller read: `K(desc[g])` of a group with no descriptor
+/-- `K(d)` (§1): the data chunks. `d` is what the caller read: `K(desc[g])` of a group with no descriptor
 raises here, in `K`. -/
 def K (d : Option Descriptor) : M m Nat := do
   enter "K"
@@ -83,14 +82,14 @@ def K (d : Option Descriptor) : M m Nat := do
   | some k => return k
   | none => crash "OverflowError: integer division result too large for a float (K)"
 
-/-- `N(d)` (line 143) -/
+/-- `N(d)` (§1) -/
 def N (d : Option Descriptor) : M m Nat := do
   enter "N"
   let some d := d
     | crash "AttributeError: 'NoneType' object has no attribute 'count' (N)"
   return d.count
 
-/-- `segment_length(d, i)` (lines 145–147) -/
+/-- `segment_length(d, i)` (§1) -/
 def segmentLength (d : Descriptor) (i : Nat) : M m Int := do
   enter "segment_length"
   if (i : Int) == ((← K (some d)) : Int) - 1 then           -- `if i == K(d) - 1:` the last data chunk
@@ -99,7 +98,7 @@ def segmentLength (d : Descriptor) (i : Nat) : M m Int := do
   branch "segment_length: data and parity"
   return (d.segmentSize : Int)
 
-/-- `valid_descriptor(d)` (lines 149–154): checked before any state is allocated for the group -/
+/-- `valid_descriptor(d)` (§1): checked before any state is allocated for the group -/
 def validDescriptor (d : Descriptor) : M m Bool := do
   enter "valid_descriptor"
   let c := (← read).c
@@ -128,7 +127,7 @@ def validDescriptor (d : Descriptor) : M m Bool := do
   branch "valid_descriptor: no such version"
   return false
 
-/-- `build_group(body)` (lines 187–199): at bid time -/
+/-- `build_group(body)` (§1): at bid time -/
 def buildGroup (body : Blob) : M m (Descriptor × List Shard) := do
   enter "build_group"
   let c := (← read).c

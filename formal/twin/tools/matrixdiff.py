@@ -3,6 +3,9 @@
 other does not.
 
     python3 matrixdiff.py OLD NEW        two directories as `mutants3.py --merge` writes them
+    python3 matrixdiff.py --common OLD NEW   the same, over the mutants of both alone (a matrix with mutants added
+                                         or dropped); the first line names those of one alone, which are counted
+                                         neither lost nor gained, and the mutants of both must be in one order
     python3 matrixdiff.py --self-test
 
 A mutant is told on a trace where a record mismatches or a read of the Python's is not made (the pairs' count or
@@ -71,15 +74,31 @@ def told(v):
     return v[0] > 0 or v[1] > 0
 
 
-def compare(old, new):
-    """(exit code, lines)."""
+def keep(p, names):
+    """A pairs table restricted to the given mutants (None stays None)."""
+    return None if p is None else {k: v for k, v in p.items() if k[0] in names}
+
+
+def compare(old, new, common=False):
+    """(exit code, lines). With common, the mutants of both alone are compared, in OLD's order; those of one alone
+    are named on the first line and counted neither lost nor gained."""
     out = []
     on, nn = names(old), names(new)
-    if on != nn:
+    if common:
+        so, sn = set(on), set(nn)
+        both = [m for m in on if m in sn]
+        if [m for m in nn if m in so] != both:
+            return 2, ["the mutants of both are not in one order in the two matrices"]
+        out.append(f"mutants in both: {len(both)} (OLD {len(on)}, NEW {len(nn)}); "
+                   f"in OLD alone: {', '.join(m for m in on if m not in sn) or 'none'}; "
+                   f"in NEW alone: {', '.join(m for m in nn if m not in so) or 'none'}")
+        on = nn = both
+    elif on != nn:
         return 2, [f"the two matrices are not of the same mutants in one order ({len(on)} and {len(nn)})"]
+    sel = set(on)
     lost_m, gained_m = [], []
     # the cells
-    po, pn = pairs(Path(old) / "mutants-pairs.txt"), pairs(Path(new) / "mutants-pairs.txt")
+    po, pn = keep(pairs(Path(old) / "mutants-pairs.txt"), sel), keep(pairs(Path(new) / "mutants-pairs.txt"), sel)
     if po is None or pn is None:
         return 2, ["a cells' pairs file is missing"]
     if set(po) != set(pn):
@@ -109,7 +128,8 @@ def compare(old, new):
     out.append(f"cells: {len(po)} pairs: told in both {both} ({moved} with another count or kinds), lost {lost}, gained {gained}; "
                f"mutants told by a cell: OLD {cells_old}, NEW {cells_new} of {len(on)}")
     # the directed sets
-    do, dn = pairs(Path(old) / "mutants-directed-pairs.txt"), pairs(Path(new) / "mutants-directed-pairs.txt")
+    do = keep(pairs(Path(old) / "mutants-directed-pairs.txt"), sel)
+    dn = keep(pairs(Path(new) / "mutants-directed-pairs.txt"), sel)
     if do is not None and dn is not None:
         if set(do) != set(dn):
             return 2, out + [f"the directed pairs are not of the same (mutant, set): {len(set(do) ^ set(dn))} differ"]
@@ -119,7 +139,8 @@ def compare(old, new):
         dg = sum(1 for k in do if told(dn[k]) and not told(do[k]))
         how = f"by their pairs: {len(do)} (mutant, set), lost {dl}, gained {dg}"
     else:
-        ro, rn = report(Path(old) / "mutants-directed.txt"), report(Path(new) / "mutants-directed.txt")
+        ro = {m: v for m, v in report(Path(old) / "mutants-directed.txt").items() if m in sel}
+        rn = {m: v for m, v in report(Path(new) / "mutants-directed.txt").items() if m in sel}
         if set(ro) != set(on) or set(rn) != set(on):
             return 2, out + [f"a directed report does not have a line for each mutant ({len(ro)} and {len(rn)} of {len(on)})"]
         ta = {m: told(ro[m]) for m in on}
@@ -188,6 +209,26 @@ def self_test():
     c5 = dict(cells); del c5[("m3", "b")]
     rc, out = compare(a, matrix("k", c5, dpairs, rep))
     cases.append(("a pair missing", rc == 2))
+    # --common: NEW has a mutant more (m4, told by a cell and a set); OLD's three compared alone
+    c6 = dict(cells); c6[("m4", "a")] = (4, 0, "{'tape': 4}"); c6[("m4", "b")] = (0, 0, E)
+    d6 = dict(dpairs); d6[("m4", "d")] = (1, 0, "{'tape': 1}")
+    rep6 = rep + ["m4: x: 1 mismatched records in 1 of 22 traces, by {'tape': 1}; 0 reads not made"]
+    more = matrix("l", c6, d6, rep6, mutants=("m1", "m4", "m2", "m3"))
+    rc, out = compare(a, more)
+    cases.append(("a mutant more in NEW, without --common: refused", rc == 2))
+    rc, out = compare(a, more, common=True)
+    cases.append(("a mutant more in NEW, --common: OLD's three compared, nothing lost, m4 named and not counted",
+                  rc == 0 and out[0] == "mutants in both: 3 (OLD 3, NEW 4); in OLD alone: none; in NEW alone: m4"
+                  and out[-1] == "0 mutants lost, 0 gained" and any("mutants told by a cell: OLD 2, NEW 2 of 3" in l for l in out)
+                  and any("mutants told: OLD 3, NEW 3 of 3" in l for l in out)))
+    c7 = dict(c6); c7[("m2", "b")] = (0, 0, E)
+    rc, out = compare(a, matrix("m", c7, d6, rep6, mutants=("m1", "m4", "m2", "m3")), common=True)
+    cases.append(("--common: a mutant of both lost by the cells", rc == 1 and "a mutant LOST: cells: m2" in out))
+    rc, out = compare(more, a, common=True)
+    cases.append(("--common: a mutant in OLD alone named, not counted lost",
+                  rc == 0 and out[0] == "mutants in both: 3 (OLD 4, NEW 3); in OLD alone: m4; in NEW alone: none"))
+    rc, out = compare(a, matrix("n", c6, d6, rep6, mutants=("m1", "m4", "m3", "m2")), common=True)
+    cases.append(("--common: the names in both in another order: refused", rc == 2))
     for name, ok in cases:
         bad += not ok
         print(f"matrixdiff self-test, {name}: {'as it must be' if ok else 'NOT  <-- FAIL'}")
@@ -198,11 +239,14 @@ def self_test():
 def main(argv):
     if argv == ["--self-test"]:
         return self_test()
+    common = argv[:1] == ["--common"]
+    if common:
+        argv = argv[1:]
     if len(argv) != 2:
         print(__doc__)
         return 2
     try:
-        rc, out = compare(argv[0], argv[1])
+        rc, out = compare(argv[0], argv[1], common)
     except (OSError, Unreadable) as e:
         print(f"matrixdiff: cannot be read: {e}")
         return 2

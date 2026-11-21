@@ -2,7 +2,7 @@ import SpecTwin.Readers
 import SpecTwin.Sec51
 
 /-! # The twin of protocol.md §7.1, the window [c14] (v0.10.7): `front`, `wake_front`, `acquire_slot`,
-`release_unused_slot`, `track_in_flight`, `window_release`, `window_timeout` and `free_slot` (lines 1722–1770)
+`release_unused_slot`, `track_in_flight`, `window_release`, `window_timeout` and `free_slot`
 
 - **The window's three tables are the twin's own:** `in_flight`, a signed count in one entry (free_slot at 0
   leaves −1 on a drawn state); `waiters`, the line, one entry, the peers in order; `sent`, the send's time under
@@ -32,7 +32,7 @@ def underW (n : Int) : M m Bool := do
   | none => return true
   | some w => return n < (w : Int)
 
-/-- `front()` (lines 1726–1727): the first in line whose writer can write. `writing` is asked of each in turn, up to
+/-- `front()` (§7.1): the first in line whose writer can write. `writing` is asked of each in turn, up to
 that one, as the generator asks it -/
 def front : M m (Option Peer) := do
   enter "front"
@@ -41,7 +41,7 @@ def front : M m (Option Peer) := do
     else return some q                                      --   (§7.3) keeps its place
   return none
 
-/-- `wake_front(past=None)` (lines 1729–1732): a slot is free: the first in line that can write, other than
+/-- `wake_front(past=None)` (§7.1): a slot is free: the first in line that can write, other than
 `past`, tries again (§7.2). `writing` is asked of each in turn but `past`, up to that one -/
 def wakeFront (past : Option Peer) : M m Unit := do
   enter "wake_front"
@@ -55,13 +55,13 @@ def wakeFront (past : Option Peer) : M m Unit := do
       wake q                                                -- `if q is not None: wake(q)`
       return
 
-/-- `free_slot()` (lines 1767–1770) -/
+/-- `free_slot()` (§7.1) -/
 def freeSlot : M m Unit := do
   enter "free_slot"
   setInFlight .count ((← inFlight .count) - 1)              -- `in_flight -= 1`
   wakeFront none                                            -- the first writer in line that can write tries again
 
-/-- `acquire_slot(p)` (lines 1734–1742): true, p's writer holds a slot; false, it waits in line -/
+/-- `acquire_slot(p)` (§7.1): true, p's writer holds a slot; false, it waits in line -/
 def acquireSlot (p : Peer) : M m Bool := do
   enter "acquire_slot"
   let n ← inFlight .count
@@ -81,7 +81,7 @@ def acquireSlot (p : Peer) : M m Bool := do
   branch "acquire_slot: in line"
   return false
 
-/-- `release_unused_slot(p)` (lines 1744–1750): p's writer has no chunk to send now -/
+/-- `release_unused_slot(p)` (§7.1): p's writer has no chunk to send now -/
 def releaseUnusedSlot (p : Peer) : M m Unit := do
   enter "release_unused_slot"
   let line ← waitersLine .line
@@ -93,7 +93,7 @@ def releaseUnusedSlot (p : Peer) : M m Unit := do
     setSlotHeld p false
     freeSlot
 
-/-- `track_in_flight(p, f)` (lines 1752–1756): the writer's slot now travels with chunk f -/
+/-- `track_in_flight(p, f)` (§7.1): the writer's slot now travels with chunk f -/
 def trackInFlight (p : Peer) (f : ChunkF) : M m Unit := do
   enter "track_in_flight"
   let k : SendKey := (p, f.g, f.i)
@@ -105,7 +105,7 @@ def trackInFlight (p : Peer) (f : ChunkF) : M m Unit := do
   setSentAt k now                                           -- `sent[key] = now`
   after (← read).c.WINDOW_TIMEOUT (.windowTimeout k now)    -- `after(WINDOW_TIMEOUT, window_timeout, key, now)`
 
-/-- `window_release(p, g, i)` (lines 1758–1759): p holds chunk i, from anyone (§4.3) -/
+/-- `window_release(p, g, i)` (§7.1): p holds chunk i, from anyone (§4.3) -/
 def windowRelease (p : Peer) (g : Group) (i : Nat) : M m Unit := do
   enter "window_release"
   let k : SendKey := (p, g, i)
@@ -114,7 +114,7 @@ def windowRelease (p : Peer) (g : Group) (i : Nat) : M m Unit := do
     freeSlot
     branch "window_release: a send released"
 
-/-- `window_timeout(key, at)` (lines 1761–1765) -/
+/-- `window_timeout(key, at)` (§7.1) -/
 def windowTimeout (k : SendKey) (at_ : Float) : M m Unit := do
   enter "window_timeout"
   if (← sentAt? k) == some at_ then                         -- `if sent.get(key) == at:`

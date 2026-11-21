@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §6.4's on_pace_tick and send_gossip (protocol.md lines 1578-1587). The toy's own
+"""Directed records for §6.4's on_pace_tick and send_gossip (protocol.md §6.4). The toy's own
 functions are called in a toy node's namespace on generated states, and trace3.py's tracer logs each call with
 the node's whole state.
 

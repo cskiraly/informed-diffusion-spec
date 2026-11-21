@@ -1,7 +1,7 @@
 import SpecTwin.Sec1
 
 /-! # The twin of protocol.md §3, "Validation: three levels, and what each gates" [c1, c6, c10] (v0.10.4, spec
-34f60f8): level 1, `validate_chunk` (lines 341–351) and `committed_descriptor` (lines 353–358)
+34f60f8): level 1, `validate_chunk` and `committed_descriptor`
 
 - **A chunk is wide where level 1 reads it:** its descriptor, its proof and its data, a blob. A chunk without
   them here is a crash: the record did not carry what the call reads.
@@ -22,7 +22,7 @@ open Node61
 
 variable {m : Type → Type} [Monad m] [Node61 m]
 
-/-- `committed_descriptor(block, f)` (lines 353–358) -/
+/-- `committed_descriptor(block, f)` (§3) -/
 def committedDescriptor (block : Block) (f : ChunkF) : M m (Option Descriptor) := do
   enter "committed_descriptor"
   -- `bid = block.body.signed_execution_payload_bid.message`
@@ -35,7 +35,7 @@ def committedDescriptor (block : Block) (f : ChunkF) : M m (Option Descriptor) :
     return if ok then some fd else none
   return block.desc                                         -- design B: `bid.execution_payload_segment_descriptor`
 
-/-- `validate_chunk(f)` (lines 341–351): level 1, the chunk is the committed piece at its index -/
+/-- `validate_chunk(f)` (§3): level 1, the chunk is the committed piece at its index -/
 def validateChunk (f : ChunkF) : M m Verdict := do
   if (← read).replaced.contains "validate_chunk" then return ← validateChunkNode f.narrow     -- the node's own
   enter "validate_chunk"

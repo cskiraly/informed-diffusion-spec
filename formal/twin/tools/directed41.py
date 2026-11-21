@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Directed records for §4.1's on_frame and respond, and §4.5's on_iwant (protocol.md lines 430-448 and 786-799,
-at spec 34f60f8). The toy's own functions are called in two toy nodes' namespaces on generated states, and
+"""Directed records for §4.1's on_frame and respond, and §4.5's on_iwant (protocol.md at
+spec 34f60f8). The toy's own functions are called in two toy nodes' namespaces on generated states, and
 trace3.py's tracer logs each call with the node's whole state.
 
     python3 directed41.py TOYDIR OUT.jsonl.gz [--n N] [--seed S]
@@ -21,7 +21,7 @@ claimed, served once; no queue refuses; a frame has one or two parts):
   a chunk whose HAVE comes in the same frame; an empty frame;
 - a frame's chunk: a duplicate accepted before (acknowledged), a duplicate rejected before, a group expired, a copy
   rejected (penalised), a copy accepted and stored, the K-th of them (the claim);
-- **an IDONTWANT's entry that is no bitmap** (since v0.10.4, lines 436-437; no cell sends one): a stock id of 20
+- **an IDONTWANT's entry that is no bitmap** (since v0.10.4; no cell sends one): a stock id of 20
   bytes, a structured id of 56 (a held chunk's, or one nobody holds), beside bitmaps and alone, one twice in a
   frame, one the peer said already, into a peer's set that is there and into one the call makes. Their counts are
   printed.
@@ -237,7 +237,7 @@ def main(argv):
                     if rng.random() < 0.3:
                         og = rng.choice(groups)
                         hs.append(Wm.HaveBitmap(group=og, bits=B.Bits(rng.randrange(1, 1 << counts[og]))))
-                    # (v0.10.4) entries that are no bitmap: opaque ids, kept in unwanted[p] (lines 436-437)
+                    # (v0.10.4) entries that are no bitmap: opaque ids, kept in unwanted[p] (§4.1)
                     r = rng.random()
                     if r < 0.45:
                         ids = []

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for publish (protocol.md lines 1000-1032 at v0.10.4). The toy's own publish is called in a
+"""Directed records for publish (protocol.md §5.1). The toy's own publish is called in a
 toy node's namespace on generated states, and trace3.py's tracer logs each call with the node's whole state.
 
     python3 directed51.py TOYDIR OUT.jsonl.gz [--n N] [--seed S]

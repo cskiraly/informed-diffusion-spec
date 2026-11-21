@@ -496,7 +496,7 @@ def main(argv):
     one = json.loads(content_line())
     one["content"]["files"]["toy/node.py"] = "0" * 64
     Path(other).write_text(content.line(one))
-    more = content_line().replace(',"version":1}}', ',"note":1,"version":1}}')
+    more = re.sub(r',"version":(\d+)\}\}$', r',"note":1,"version":\1}}', content_line(), flags=re.M)   # any version
     assert more != content_line()
     hdr, trailer = lines[0], lines[-1]
 
@@ -528,7 +528,7 @@ def main(argv):
     cases = {   # name -> (lines, --content, the exit code it must give, the words its refusal must have)
         "the trace, the right --content": (lines, head, 0, None),
         # the content line: the trace's first line, the bytes of the file given with --content
-        "another content than --content's": (lines, other, 1, "content: NOT --content's: toy/node.py: other bytes"),
+        "another content than --content's": (lines, other, 1, "content: NOT --content's: toy/node.py: another hash"),
         "no content line": ([RAW] + lines, head, 1, "content: NOT --content's: the trace's first line is no content line"),
         "the trace, with no --content given": (lines, None, 1, "content: not compared (no --content given): the trace does not pass"),
         "the content line twice": ([RAW, cl, cl] + lines, head, 1, "content: a content line that is not the trace's first line"),
@@ -538,7 +538,7 @@ def main(argv):
                                               "content: NOT --content's: the trace's first line is no content line"),
         "a content line with a member more": ([RAW, more[:-1]] + lines, head, 1,
                                               "content: NOT --content's: the trace's first line is no content line"),
-        "a content line with a space in it": ([RAW, cl.replace('"version":1', '"version": 1')] + lines, head, 1,
+        "a content line with a space in it": ([RAW, re.sub(r'"version":(\d+)', r'"version": \1', cl)] + lines, head, 1,
                                               "content: NOT --content's: "),
         "a header of format 6, with its commit, and no content line": (
             [RAW, variant(format=6, spec_head="0" * 40, spec_clean=True)] + lines[1:], head, 1,
@@ -3016,10 +3016,12 @@ def header3_controls(hdr, hand_hdr, work, directed, directed44):
         "another footprint.py": (other(f"{T}/footprint.py"), False, f"content: not this tree's: {T}/footprint.py: other bytes"),
         "another gen/schema.py": (other(f"{T}/gen/schema.py"), False, f"content: not this tree's: {T}/gen/schema.py: other bytes"),
         "another directed41.py": (other(f"{T}/directed41.py"), False, f"content: not this tree's: {T}/directed41.py: other bytes"),
-        "another protocol.md": (other("protocol.md"), False, "content: not this tree's: protocol.md: other bytes"),
+        "another protocol.md": (other("protocol.md"), False, "content: not this tree's: protocol.md: other code"),
         "another toy/node.py": (other("toy/node.py"), False, "content: not this tree's: toy/node.py: other bytes"),
         "a module more in the toy": (other("toy/zz.py"), False, "content: not this tree's: toy/zz.py: only in the second"),
         "no content line": ([RAW, hdr, hdr], False, "content: the first line is no content line"),
+        "the content line ending CRLF": ([RAW, content_line()[:-1] + "\r", hdr], False,
+                                         "content: this tree's names and hashes, written otherwise"),
         "format 6": (variant(format=6), False, "format: 6, must be 7"),
         "another table among the foreign": (variant(foreign=["queue"]), False, "foreign: ['queue']"),
         "traced, neither the block nor §6.1 alone": (variant(traced=["may_ask"]), False, "traced: ['may_ask']"),

@@ -9,9 +9,14 @@ WORKDIR, changes one thing, and traces the same cell there. What each must give 
 
 - the tree copied, unchanged, traced from another place and another directory: the trace's bytes are TRACE's, and
   the replay, given this tree's content line, passes it;
-- a document, a file of the toy or a tool with other bytes, or a module more in the toy: the tracer runs, the
-  trace from its second line on is TRACE's byte for byte (the change touches nothing this cell runs), its first
-  line is another, and the replay refuses it and names the file;
+- a document's code with another statement, a heading over a code block relabelled, a comment inside a code
+  block, a file of the toy (a module, a data file) or a tool (one the tracer loads, one it does not) with other
+  bytes, a module more in the toy or a file less: the tracer runs, the trace from its second line on is TRACE's
+  byte for byte (no change alters what this cell does), its first line is another, and the replay refuses
+  it and names the file (content.py: a document is named by its code, the text the toy's extract.py makes of it);
+- a document's prose, its version line among it, or a README (the toy's, the tools', one added below the tools):
+  the line is the same (content.py, version 2: prose is not named), the trace's bytes are TRACE's, and the replay
+  passes it;
 - a name the line cannot hold, or a link, under the toy: the tracer stops before it writes;
 - a bytecode file of other code beside a source of the toy: a Python that looks for bytecode beside the sources
   runs it (the case shows that first), the tracers' Python does not, and the trace's bytes are TRACE's;
@@ -145,13 +150,65 @@ def main(argv):
 
     def more(p):
         p.write_bytes(p.read_bytes() + b"\n# one line more\n")
-    changed("a document with other bytes", "protocol-v2.md", lambda p: p.write_bytes(p.read_bytes() + b"\nOne line more.\n"),
-            "protocol-v2.md: other bytes")
-    changed("a file of the toy with other bytes", "toy/xcheck.py", more, "toy/xcheck.py: other bytes")
+
+    def edit(old, new):                 # one replacement in the file, which must take exactly once
+        def do(p):
+            text = p.read_text()
+            if text.count(old) != 1:
+                raise AssertionError(f"the change did not take: {old!r} is in {p.name} {text.count(old)} times, not once")
+            p.write_text(text.replace(old, new))
+        return do
+    def sub_once(pattern, new):         # the first match of a pattern replaced; there must be one
+        def do(p):
+            text, n = re.subn(pattern, new, p.read_text(), count=1, flags=re.M)
+            if n != 1:
+                raise AssertionError(f"the change did not take: no {pattern!r} in {p.name}")
+            p.write_text(text)
+        return do
+    # protocol-v2.md's code is compiled for --doc v2 alone (the toy's node.py), so this cell's records are TRACE's
+    changed("a document's code with another statement", "protocol-v2.md", sub_once(r"^```python\n", "```python\n_unused = 0\n"),
+            "protocol-v2.md: another hash")
+    changed("a fence that no longer marks a block as python", "protocol-v2.md", sub_once(r"^```python\n", "```py\n"),
+            "protocol-v2.md: another hash")
+    changed("a heading over a code block relabelled", "protocol.md",
+            edit("### 4.2 A chunk arrives\n", "### 4.2 A chunk comes in\n"), "protocol.md: another hash")
+    changed("a comment inside a code block", "protocol.md", edit("#   decode takes (§8.1)", "#   decode takes (§8.1) here"),
+            "protocol.md: another hash")
+    changed("a file of the toy with other bytes", "toy/xcheck.py", more, "toy/xcheck.py: another hash")
+    changed("a data file of the toy with other bytes", "toy/golden.txt",
+            lambda p: p.write_bytes(p.read_bytes() + b"\n"), "toy/golden.txt: another hash")
     changed("a tool with other bytes, one this tracer does not load", f"{tools}/directed41.py", more,
-            f"{tools}/directed41.py: other bytes")
+            f"{tools}/directed41.py: another hash")
+    changed("a tool with other bytes, one this tracer loads", f"{tools}/trace61.py", more, f"{tools}/trace61.py: another hash")
     changed("a module more in the toy", "toy/zz.py", lambda p: p.write_text("ZZ = 1\n"), "toy/zz.py: in the trace's alone")
-    changed("a file less in the toy", "toy/README.md", lambda p: p.unlink(), "toy/README.md: not in the trace's")
+    changed("a file less in the toy", "toy/graft_check.py", lambda p: p.unlink(), "toy/graft_check.py: not in the trace's")
+
+    # 2b. prose: these edits of a document's prose, or of a README: the line is the same, and the trace is TRACE's
+    def same(name, rel, do):
+        tag = re.sub(r"[^A-Za-z0-9]+", "-", name)
+        t = copy_tree(toy, work / tag / "tree")
+        before = (t / rel).read_bytes() if (t / rel).exists() else None
+        do(t / rel)
+        took = (t / rel).read_bytes() != before
+        out = work / f"{tag}.jsonl.gz"
+        rc, said = trace(t, out, py)
+        f, b = lines(out)
+        say(f"{name} ({rel})", took and rc == 0 and f == first0 and b == body0 and passes(out),
+            f"{'the change took' if took else 'the change did NOT take'}, tracer rc={rc}, first line "
+            f"{'the same' if f == first0 else 'ANOTHER'}, the rest {'the same' if b == body0 else 'ANOTHER'}, "
+            f"the replay {'passes it' if passes(out) else 'does NOT pass it'}",
+            "the change taken; rc=0, every byte TRACE's, passed")
+    same("a document's version line changed", "protocol.md",
+         sub_once(r"\*\*DRAFT v[0-9.]+, [0-9]{4}-[0-9]{2}-[0-9]{2}\.\*\*", "**DRAFT v9.9.9, 2099-01-01.**"))
+    same("a document's prose changed", "protocol.md",
+         edit("This document defines what a node does", "This document says what a node does"))
+    same("the other document's prose with a line more", "protocol-v2.md",
+         lambda p: p.write_bytes(p.read_bytes() + b"\nOne line more.\n"))
+    # a heading with no python block under it before the next heading: extract.py never writes its text
+    same("a heading with no code under it changed", "protocol.md", edit("## 0. How to read this\n", "## 0. How to read it\n"))
+    same("the toy's README changed", "toy/README.md", lambda p: p.write_bytes(p.read_bytes() + b"\nOne line more.\n"))
+    same("the tools' README changed", f"{tools}/README.md", lambda p: p.write_bytes(p.read_bytes() + b"\nOne line more.\n"))
+    same("a README added below the tools", f"{tools}/gen/README.md", lambda p: p.write_text("About gen.\n"))
 
     # 3. what the line cannot name: the tracer stops, and leaves no trace the replay passes
     def stops(name, do, words, **kw):
@@ -212,6 +269,15 @@ def main(argv):
     stops("optimised", lambda t: {"py": [*py, "-O"]}, "trace3: Python runs optimised (-O)")
     stops("with a dump named on its command line", lambda t: {"args": [*ARGS, "--topology", "x.json"]},
           "trace3: --xcheck and --topology are not traced")
+    # the toy's parser takes a unique prefix of an option, and an "=" form: the tracer asks that parser what it read
+    stops("with a dump named by an abbreviation of its option (--topo)", lambda t: {"args": [*ARGS, "--topo", "x.json"]},
+          "trace3: --xcheck and --topology are not traced")
+    stops("with a dump named by a shorter abbreviation (--to)", lambda t: {"args": [*ARGS, "--to", "x.json"]},
+          "trace3: --xcheck and --topology are not traced")
+    stops("with a dump named in the option's = form (--topology=FILE)", lambda t: {"args": [*ARGS, "--topology=x.json"]},
+          "trace3: --xcheck and --topology are not traced")
+    stops("with the cross-check recorder asked by an abbreviation (--xc)", lambda t: {"args": [*ARGS, "--xc"]},
+          "trace3: --xcheck and --topology are not traced")
     stops("with its output under the toy", lambda t: {"out": t / "toy" / "out.jsonl.gz"},
           "trace3: the output lies under the toy or the tools")
 
@@ -230,6 +296,49 @@ def main(argv):
     say("isolated, with the same random.py on PYTHONPATH", rc == 0 and (f, b) == (first0, body0),
         f"tracer rc={rc}, the trace {'TRACE byte for byte' if (f, b) == (first0, body0) else 'ANOTHER'}",
         "rc=0, TRACE byte for byte")
+
+    # 5. the document the toy runs, as the tracer reads it: on the toy's command line the tracer asks the toy's own
+    #    parser (trace3.doc_parsed) and refuses arguments where its words (trace3.doc_of, which a header is read by)
+    #    name another document; the whole block traced, so that the document decides what is traced
+    stops("the document given twice, --doc v2 then --doc v03 (the words read the first, the toy's parser the last)",
+          lambda t: {"env": {"TRACE3_ONLY": ""}, "args": [*ARGS, "--doc", "v2", "--doc", "v03"]},
+          "trace3: the document is given in a form whose words do not name what the toy runs")
+    def doc_trace(tag, extra):
+        t = copy_tree(toy, work / tag / "tree")
+        out = work / f"{tag}.jsonl.gz"
+        rc, said = trace(t, out, py, env={"TRACE3_ONLY": ""}, args=[*ARGS, *extra])
+        f, b = lines(out)
+        return rc, f, b
+
+    def head_rest(b):                   # the header without its args, and the records after it
+        h, rest = b.split(b"\n", 1)
+        hd = json.loads(h)
+        hd["header"].pop("args", None)
+        return hd, rest
+    rc0, f0, b0 = doc_trace("doc-v2", ["--doc", "v2"])
+    # --do is no abbreviation the toy takes (it could match --down and --doc): the toy's parser refuses it, and the
+    # tracer with it, since the tracer asks that parser
+    stops("the document given as --do v2, which the toy's parser refuses as ambiguous",
+          lambda t: {"args": [*ARGS, "--do", "v2"]}, "ambiguous option: --do could match")
+    for name, extra in (("--doc=v2, the = form", ["--doc=v2"]),):
+        rc, f, b = doc_trace(re.sub(r"[^A-Za-z0-9]+", "-", name), extra)
+        same = rc0 == 0 and rc == 0 and f == f0 and b0 is not None and b is not None and head_rest(b) == head_rest(b0)
+        say(f"the document given as {name}: traced as given as --doc v2", same,
+            f"tracer rc={rc} (--doc v2: rc={rc0}), first line {'the same' if f == f0 else 'ANOTHER'}, "
+            f"{'the same header but its args, the same records' if same else 'ANOTHER header or other records'}",
+            "rc=0, the same first line, header but its args, and records as --doc v2's")
+
+    # 6. a directed set still traces: its tracer is built with the set's own arguments, which are no command line of
+    #    the toy's, and the toy's parser is not asked about them (Tracer3's cli). directed1 at its small size, the
+    #    whole block: its records, as many as the known answer
+    t = copy_tree(toy, work / "directed1" / "tree")
+    out = work / "directed1.jsonl.gz"
+    rc, said = trace(t, out, py, env={"TRACE3_ONLY": ""}, args=["--n", "10", "--seed", "1"],
+                     program=t / "formal" / "twin" / "tools" / "directed1.py")
+    want = "directed1: 535 records"
+    say("a directed set (directed1, --n 10 --seed 1), whose arguments are no command line of the toy's",
+        rc == 0 and want in said, f"rc={rc}, {'says' if want in said else 'does NOT say'}: {want}",
+        "rc=0, its records as many as the known answer")
 
     print("the tree's content line: sha256 " + hashlib.sha256(first0).hexdigest())
     print("ok: every control of the content line as it must be" if not bad else f"{bad} controls of the content line wrong")

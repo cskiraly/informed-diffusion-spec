@@ -38,6 +38,7 @@ replay's first reason for a record: "return", "tape", "state" (the whole state a
 and the state before the notes, so a record that fails by "reads" or "writes" had all three as the Python's.
 """
 import argparse
+import ast
 import hashlib
 import re
 import shutil
@@ -1277,6 +1278,90 @@ def blocks(path, names):
     return out, [int(x) for x in m.groups()]
 
 
+SAMPLE_FILE = HERE / "sample_drafts.txt"   # the drafts' sample: "NAME<tab>REASON" a line, made by --sample-make
+
+
+def group_of(name):
+    """The table of this tool a mutant comes from: the drafts' sample takes at least one of each group and kind."""
+    if name in M2.MUTANTS:
+        return "IN_TABLES" if name in IN_TABLES else "MOVED" if name in MOVED else "M2"
+    for g, t in (("NEW", NEW), ("SLICE1", SLICE1), ("V010", V010), ("SLICE2A", SLICE2A), ("QMOVE", QMOVE),
+                 ("AEND", AEND), ("GA5", GA5), ("CYCLE1", CYCLE1), ("CYCLE2", C2.CYCLE2)):
+        if name in t:
+            return g
+    raise SystemExit(f"mutants3: {name}: in no table of this tool")
+
+
+def sample_table(merged, main_override=None):
+    """The drafts' sample, made from a merged matrix's two pairs files: [(name, reason)] in the tool's order. A
+    mutant is in it for the first of these that holds: the first of its group with its main kind (the kind most of
+    its mismatched records have, or "none"); the footprint class (main kind `reads` or `writes`: the tables' notes);
+    told by the notes alone; told by the count of reads not made alone. (Every mutant goes on the directed sets in a
+    draft's run, so one only the directed sets tell needs no place here.) `main_override` changes main kinds: the
+    control of --sample-check."""
+    def pairs(p):
+        out = {}
+        for l in Path(p).read_text().splitlines():
+            m, t, c, r, k = l.split(" ", 4)
+            out.setdefault(m, []).append((int(c) if c.isdigit() else 0, int(r), Counter(ast.literal_eval(k))))
+        return out
+    d, c = pairs(Path(merged) / "mutants-directed-pairs.txt"), pairs(Path(merged) / "mutants-pairs.txt")
+    if set(d) != set(MUTANTS) or set(c) != set(MUTANTS):
+        raise SystemExit(f"mutants3: {merged}: its pairs are not of this tool's {len(MUTANTS)} mutants")
+    told = {n: [p for p in d[n] + c[n] if p[0] > 0 or p[1] > 0] for n in MUTANTS}
+    kinds = {n: sum((p[2] for p in told[n]), Counter()) for n in MUTANTS}
+    main = {n: (kinds[n].most_common(1)[0][0] if kinds[n] else "none") for n in MUTANTS}
+    main.update(main_override or {})
+    reason, seen = {}, set()
+    for n in MUTANTS:
+        if (group_of(n), main[n]) not in seen:
+            seen.add((group_of(n), main[n]))
+            reason[n] = f"the first of group {group_of(n)} told mainly by {main[n]}"
+    for n in MUTANTS:
+        if main[n] in ("reads", "writes"):
+            reason.setdefault(n, "the footprint class: told mainly by the tables' notes")
+        if told[n] and set(kinds[n]) <= {"reads", "writes"}:
+            reason.setdefault(n, "told by the notes alone")
+        if told[n] and all(p[0] == 0 for p in told[n]):
+            reason.setdefault(n, "told by the count of reads not made alone")
+    return [(n, reason[n]) for n in MUTANTS if n in reason]
+
+
+def sample_read():
+    """The tool's drafts' sample: {name: reason}."""
+    if not SAMPLE_FILE.exists():
+        raise SystemExit(f"mutants3: no drafts' sample ({SAMPLE_FILE.name}): make it with --sample-make MERGED")
+    rows = [l.split("\t", 1) for l in SAMPLE_FILE.read_text().splitlines() if l.strip()]
+    names = [r[0] for r in rows]
+    if any(len(r) != 2 for r in rows) or len(set(names)) != len(names) or not set(names) <= set(MUTANTS):
+        raise SystemExit(f"mutants3: {SAMPLE_FILE.name}: not a table of this tool's mutants, each once with a reason")
+    return dict(rows)
+
+
+def sample_make(merged):
+    """--sample-make MERGED: the drafts' sample made from a merged matrix, written to sample_drafts.txt."""
+    t = sample_table(merged)
+    SAMPLE_FILE.write_text("".join(f"{n}\t{r}\n" for n, r in t))
+    by = Counter("one per group and kind" if r.startswith("the first") else r.split(":")[0] for _, r in t)
+    print(f"the drafts' sample: {len(t)} of {len(MUTANTS)} mutants, by reason {dict(by)}")
+    return 0
+
+
+def sample_check(merged):
+    """--sample-check MERGED: the sample made again from MERGED is the tool's table; and its control: with one
+    mutant of the footprint class given another main kind, the table made is another."""
+    t = sample_table(merged)
+    tool = list(sample_read().items())
+    same = [tuple(x) for x in tool] == t
+    print(f"the drafts' sample made again from {merged}: {len(t)} mutants; the tool's: {len(tool)}; "
+          f"{'the same, each with its reason' if same else 'NOT the same'}")
+    fp = [n for n, r in t if r.startswith("the footprint class")]
+    ctl = bool(fp) and sample_table(merged, {fp[0]: "tape"}) != t
+    print(f"control, {fp[0] if fp else 'no footprint member'} given the main kind tape: "
+          f"{'another table, as it must be' if ctl else 'the same table  <-- FAIL'}")
+    return 0 if same and ctl else 1
+
+
 def merge(outdir, parts):
     """The parts of one matrix, read as one. PARTS are the directories the matrix step of `check.sh` writes
     (`matrix/out`), part 1 first. Refused unless: each part holds exactly its slice of the tool's mutants; every
@@ -1290,6 +1375,9 @@ def merge(outdir, parts):
     n = len(parts)
     if not 2 <= n <= 8:
         raise SystemExit("merge: two to eight parts")
+    for d in parts:                                 # a draft's sample ran only some mutants on the cells: no matrix
+        if (d / "SAMPLE").exists():
+            raise SystemExit(f"merge: {d} is a part of a draft's sample, not of a matrix: the merge reads a matrix's parts alone")
     whole = whole_list()
     first = parts[0]
     sha, pairs, dpairs, cells, directed = {}, {}, {}, {}, {}
@@ -1448,6 +1536,10 @@ def main(argv):
         return check_report(*argv[1:-2], part=part_of(argv[-1]))
     if len(argv) in (3, 4) and argv[0] == "--check-report":
         return check_report(*argv[1:])
+    if len(argv) == 2 and argv[0] == "--sample-make":
+        return sample_make(argv[1])
+    if len(argv) == 2 and argv[0] == "--sample-check":
+        return sample_check(argv[1])
     if argv[:1] == ["--places"]:
         return places(argv[1:])
     if argv[:1] == ["--typecheck"]:
@@ -1462,6 +1554,8 @@ def main(argv):
     ap.add_argument("--hashes", default=None, help="write the sha256 of each mutant's replay, as built, to this file")
     ap.add_argument("--pairs", default=None, help="write a line per mutant and trace to this file: its count, reads not made, kinds")
     ap.add_argument("--part", default="1/1", help="K/N: the Kth of N parts of the mutants (every Nth, from the Kth)")
+    ap.add_argument("--sample", choices=["drafts"], default=None,
+                    help="drafts: of the part's mutants, the drafts' sample's alone (sample_drafts.txt); a draft's run, never a matrix")
     ap.add_argument("mutants", nargs="*")
     a = ap.parse_intermixed_args(argv)
     global REUSE
@@ -1476,6 +1570,11 @@ def main(argv):
     work.mkdir(parents=True, exist_ok=True)
     content_file(work)
     names = part_names(a.mutants or list(MUTANTS), part_of(a.part))
+    if a.sample:                                # a draft's run: the sample's mutants of the part, in its order
+        s = sample_read()
+        whole = len(names)
+        names = [n for n in names if n in s]
+        print(f"a draft's sample ({SAMPLE_FILE.name}): {len(names)} of the part's {whole} mutants; not a matrix")
     toy = layout.toy()
     for t in traces:                            # a trace kept from other tools or documents is refused before
         why = header3.check(toy, t)             #   anything runs

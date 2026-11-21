@@ -1,8 +1,7 @@
 import SpecTwin.Sec61
 import SpecTwin.Sec1
 
-/-! # protocol.md §4.4, "An IHAVE arrives" [c3, c5, c7], and §6.2's `gated` (v0.10.4, spec 34f60f8, lines 687–720
-and 1199)
+/-! # protocol.md §4.4, "An IHAVE arrives" [c3, c5, c7], and §6.2's `gated` (v0.10.4, spec 34f60f8)
 
 `on_ihave`, `over_ihave_limits`, `valid_id` and `expand`, line for line, and `gated`. Python's meanings kept on
 purpose:

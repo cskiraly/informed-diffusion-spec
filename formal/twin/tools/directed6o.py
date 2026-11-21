@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for drop_offer (protocol.md §6.1, lines 1423-1433). The toy's own drop_offer is called in a
+"""Directed records for drop_offer (protocol.md §6.1). The toy's own drop_offer is called in a
 toy node's namespace on generated states, and trace3.py's tracer logs each call with the node's whole state. It
 asks nothing of the rest of the node: it reads and writes the twin's own tables alone, and calls close_promises.
 

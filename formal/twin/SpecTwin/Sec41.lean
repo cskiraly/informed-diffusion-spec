@@ -3,9 +3,9 @@ import SpecTwin.Sec43
 import SpecTwin.Sec44
 
 /-! # The twin of protocol.md §4.1, "The order of handling", and §4.5, "An IWANT arrives" (v0.10.4, spec 34f60f8):
-`on_frame` (lines 430–438), `respond` (lines 440–448) and `on_iwant` (lines 786–799)
+`on_frame` (§4.1), `respond` (§4.1) and `on_iwant` (§4.5)
 
-`on_frame`'s branch for an IDONTWANT entry that is not a bitmap (lines 436–437, `else: unwanted[p].add(h)`) came
+`on_frame`'s branch for an IDONTWANT entry that is not a bitmap (`else: unwanted[p].add(h)`) came
 with v0.10.4. No cell handles such an entry: directed41's records do.
 
 - **One record per frame:** `on_frame` calls the twin's own `on_chunk`, `on_ihave`, `on_iwant`, `on_have` and
@@ -29,7 +29,7 @@ open Node61 Tables
 
 variable {m : Type → Type} [Monad m] [Tables m] [Node61 m]
 
-/-- `on_iwant(p, iw)` (lines 786–799): the answers (§4.1) -/
+/-- `on_iwant(p, iw)` (§4.5): the answers (§4.1) -/
 def onIwant (p : Peer) (ids : List Key) : M m (List ChunkF) := do
   enter "on_iwant"
   let mut answers : List (Key × ChunkF) := []               -- by id: one answer per id per frame
@@ -60,7 +60,7 @@ def onIwant (p : Peer) (ids : List Key) : M m (List ChunkF) := do
       branch "on_iwant: answered"
   return answers.map (·.2)                                  -- [c14] one chunk per queue entry (§4.1)
 
-/-- `respond(p, asks, answers, prunes)` (lines 440–448): one response per frame handled. `prunes`: how many. -/
+/-- `respond(p, asks, answers, prunes)` (§4.1): one response per frame handled. `prunes`: how many. -/
 def respond (p : Peer) (asks : List Key) (answers : List ChunkF) (prunes : Nat) : M m Unit := do
   enter "respond"
   -- `control = IWANT(asks) + PRUNE(prunes) if asks or prunes else None`: an empty part is left out by the queue
@@ -80,7 +80,7 @@ def respond (p : Peer) (asks : List Key) (answers : List ChunkF) (prunes : Nat) 
       branch "respond: an answer refused, owed"
   branch "respond: answers"
 
-/-- `on_frame(p, frame)` (lines 430–438) -/
+/-- `on_frame(p, frame)` (§4.1) -/
 def onFrame (p : Peer) (fr : Frame) : M m Unit := do
   enter "on_frame"
   for f in fr.chunks do onChunk p f                         -- §4.2

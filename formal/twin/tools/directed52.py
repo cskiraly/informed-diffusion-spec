@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §5.2's announce, unpush, owe and note_push (protocol.md lines 1097-1113). The toy's own
+"""Directed records for §5.2's announce, unpush, owe and note_push (protocol.md §5.2). The toy's own
 functions are called in a toy node's namespace on generated states, and trace3.py's tracer logs each call with
 the node's whole state.
 
@@ -8,7 +8,7 @@ the node's whole state.
 What the records reach that the cells do not (in the fifteen cells a queue never refuses an IHAVE, so announce
 owes nothing; a push is unpushed outside the mesh twice in one cell; and no entry of `pushed` is there with no
 bit when a push is noted, but for what unpush left):
-- announce: an offer a full queue refuses, owed in its place (line 1180, which no cell runs); nothing to offer
+- announce: an offer a full queue refuses, owed in its place (which no cell runs); nothing to offer
   (the bits pushed already, or held by the peer, or none given), where nothing is enqueued; a peer with no entry
   in `pushed` or in `peer_has`, with one of them, with both; bits of all three kinds in one call;
 - unpush: an entry of `pushed` that is missing (it stays missing), that has the index (its last bit too: the

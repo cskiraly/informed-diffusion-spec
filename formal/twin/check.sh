@@ -1,6 +1,7 @@
 #!/bin/bash
 # The quick check of the twin: the twin built from nothing, small traces of the toy replayed through it, and the
-# controls that must fail. About ten minutes on eight cores.
+# controls, which must fail but for a few of the content line's, which must pass. About ten minutes on eight
+# cores.
 #
 #   bash formal/twin/check.sh [--toy DIR] [--out DIR] [-j N] [--steps a,b,...]
 #   bash formal/twin/record.sh [the same options]     the record's run: this script with --record (below)
@@ -19,8 +20,9 @@
 #
 # The steps, and what each must show:
 #   build     a copy of the twin's sources, built from nothing with `lake build replay`; twin-sources.txt: each
-#             source file of the twin, this script and record.sh by sha256 (a link among them is refused); the
-#             copy is that list's, and at the end of the run the sources and the copy still are
+#             source file of the twin, this script and record.sh by sha256 (a link among them is refused; a
+#             file whose name ends in .md, prose, is left out of the list); the copy, listed the same way, is
+#             that list, and at the end of the run the sources and the copy still are
 #   selftests each tool's own cases (content.py, mutants3.py, altered3.py, commentsonly.py, fullid.py, against.py,
 #             matrixdiff.py, and trace3.py's of the names protocol-v2.md keeps)
 #   tables    the twin's generated files are the schema's (gen.py, makers.py); the views' own cases (footprint_test.py)
@@ -38,7 +40,8 @@
 #   headers   every trace's first line is this tree's content line, and its header of the kind its name says
 #             (header3.py); hashes.txt: each trace's two hashes (the whole, and from its second line on)
 #   picks     the replay's pick of a replaced name's records, and a directed set's draw (fixcontrols.py)
-#   controls  each must FAIL, for its reason: a mutant that compiles (one record or more mismatched); altered
+#   controls  each must FAIL, for its reason, but for the content line's cases that must pass (below): a mutant
+#             that compiles (one record or more mismatched); altered
 #             records, wrong content lines, headers and malformed nodes lines (altered3.py); a trace cut short; a trace of another tree, and a tracer started so that what runs
 #             need not be what its content line names (contentcontrols.py). A build error or a tree it cannot
 #             read fails the control, never passes it.
@@ -58,7 +61,8 @@
 #   sizes     sizes.txt: each of the record's traces as the tracer wrote it: bytes, lines, the longest line; and
 #             full-id-keys.txt: its records that hold a chunk's full id anywhere but where one stands by design
 #             (fullid.py): none in a cell's trace under either document, where the nodes ask by index
-#   manifest  record-manifest.txt: the content line's sha256, the Python and the platform, and the two hashes of
+#   manifest  record-manifest.txt: the content line's sha256, the Python and the platform, each document's file
+#             sha256 (for provenance: the content line names the documents by their code), and the two hashes of
 #             each of the record's 55 traces (15 cells, three hand traces, 22 directed sets, 15 v2 cells)
 # The steps `replays`, `headers` and the hashes then cover the record's traces.
 # With --against DIR too (a record: a directory with a run's record-manifest.txt and content.line), a last step:
@@ -76,6 +80,9 @@
 #             reads the parts as one matrix and refuses parts that did not run the same content on the same traces.
 # --cells "C1 C2 …" with --record: a rehearsal of the record's steps over these cells alone (or over none, with
 # ""): every count is then of these, and its last line says it is no record.
+# --sample drafts with it: a draft's run, never a matrix: every mutant of the part on the directed sets, and on the
+# cells the drafts' sample alone (tools/sample_drafts.txt: each mutant with its reason; mutants3.py --sample-make,
+# --sample-check); its part is marked (matrix/out/SAMPLE), and `mutants3.py --merge` refuses it.
 # --rehearsal "M1 M2 …" with it: these mutants alone, on the hand traces and the directed sets alone (no cell):
 # a trial of the step and of the merge (`mutants3.py --merge … --rehearsal M1,M2,…`), never a part of a matrix.
 #
@@ -93,6 +100,7 @@ MATRIX_ALL="build mutants cells small directed replays headers matrix"
 RECORD=
 PART=
 REHEARSAL=
+SAMPLE=
 FEWCELLS=
 CELLS_GIVEN=
 AGAINST=
@@ -106,6 +114,7 @@ while [ $# -gt 0 ]; do
     --record) RECORD=1 ;;
     --matrix) RECORD=1; PART=$2; shift ;;
     --rehearsal) REHEARSAL=$2; shift ;;
+    --sample) SAMPLE=$2; shift ;;
     --cells) FEWCELLS=yes; CELLS_GIVEN=$2; shift ;;
     --against) AGAINST=$2; shift ;;
     *) echo "usage: check.sh [--record | --matrix K/N [--rehearsal \"M1 M2 ...\"]] [--toy DIR] [--out DIR] [-j N] [--steps a,b,...]"; exit 2 ;;
@@ -125,7 +134,9 @@ if [ -n "$PART" ]; then
   case "$PART" in [1-8]/[1-8]) ;; *) echo "check.sh: --matrix K/N, with N from 1 to 8 and K from 1 to N"; exit 2 ;; esac
   ALL=$MATRIX_ALL; [ "$OUT" != "$HERE/out/record" ] || OUT=$HERE/out/matrix-${PART%/*}-of-${PART#*/}
   [ -z "$REHEARSAL" ] || ALL="build small directed matrix"
-elif [ -n "$REHEARSAL" ]; then echo "check.sh: --rehearsal goes with --matrix K/N"; exit 2; fi
+  case "$SAMPLE" in ""|drafts) ;; *) echo "check.sh: --sample is drafts"; exit 2 ;; esac
+elif [ -n "$REHEARSAL" ]; then echo "check.sh: --rehearsal goes with --matrix K/N"; exit 2
+elif [ -n "$SAMPLE" ]; then echo "check.sh: --sample goes with --matrix K/N"; exit 2; fi
 [ -n "$STEPS" ] || STEPS=$ALL
 for s in $STEPS; do case " $ALL " in *" $s "*) ;; *) echo "check.sh: no step $s (the steps: $ALL)"; exit 2 ;; esac; done
 if [ "$STEPS" = "$ALL" ]; then rm -rf "$OUT"; fi
@@ -200,7 +211,9 @@ try:
         if e.is_symlink():
             raise content.Refused(f"a link: {e.name}")
         if e.is_dir():
-            out.update(content.walk(e, e.name))
+            out.update(content.walk(e, e.name))     # which leaves out a file whose name ends in .md, as below
+        elif e.name.endswith(".md"):
+            continue                                # prose (README.md), by its name, left out of the list
         else:
             import hashlib
             out[e.name] = hashlib.sha256(e.read_bytes()).hexdigest()
@@ -441,8 +454,9 @@ s_controls() {
   zcat "$OUT/traces/hand5.jsonl.gz" | head -n 50 | "$REPLAY" --content "$CONTENT" > "$OUT/c-cut.replay" 2>&1; rc=${PIPESTATUS[2]}
   if [ "$rc" = 1 ] && has -E '^trailer: ' "$OUT/c-cut.replay"; then echo "  control, a trace cut short: refused, as it must be: $(grep -m 1 '^trailer: ' "$OUT/c-cut.replay" | cut -c1-120)"
   else no "control, a trace cut short: rc=$rc, and no line about the trailer"; fi
-  # 4. the content line: a trace of another tree refused, the same tree at another place the same bytes, and a
-  #    tracer started so that what runs need not be what the line names refused (contentcontrols.py's own table)
+  # 4. the content line: a trace of another tree refused, the same tree at another place the same bytes, edits of
+  #    prose and READMEs leaving the line as it was, and a tracer started so that what runs need not be what the
+  #    line names refused (contentcontrols.py's own table)
   $PY "$T/contentcontrols.py" "$TOY" "$OUT/c-content" "$REPLAY" "$OUT/traces/hand5-sec61.jsonl.gz" > "$OUT/c-content.txt" 2>&1; rc=$?
   if [ "$rc" = 0 ] && ! has '<-- ' "$OUT/c-content.txt" && has -x "ok: every control of the content line as it must be" "$OUT/c-content.txt"; then
     echo "  control, the content line: $(grep -c '^content, ' "$OUT/c-content.txt") cases, each as it must be (c-content.txt)"
@@ -665,8 +679,11 @@ s_matrix() {            # part $PART of the mutants, on the directed sets first,
     || no "not every mutant of the part is told by a directed set"
   # shellcheck disable=SC2086
   $PY "$T/mutants3.py" "$m/cells" "$m/work" -j "$J" --twin "$OUT/twin" --part "$PART" --reuse \
-      --pairs "$o/mutants-pairs.txt" $REHEARSAL > "$o/mutants-cells.txt" 2>&1; rc=$?
+      --pairs "$o/mutants-pairs.txt" ${SAMPLE:+--sample "$SAMPLE"} $REHEARSAL > "$o/mutants-cells.txt" 2>&1; rc=$?
   [ "$rc" = 0 ] || no "the mutants on the cells: rc=$rc (matrix/out/mutants-cells.txt)"
+  # a draft's sample: every mutant of the part on the directed sets, the sample alone on the cells; marked, so
+  # that no merge reads it as a matrix's part
+  [ -z "$SAMPLE" ] || echo "$SAMPLE" > "$o/SAMPLE"
   if grep -q "'other'" "$o/mutants-directed.txt" "$o/mutants-cells.txt"; then no "a mismatch of a kind the reports do not name ('other')"; fi
   # what ties the part to what it ran and to its traces
   cp "$CONTENT" "$o/content.line" || no "the content line into the part"
@@ -694,6 +711,7 @@ s_manifest() {           # the record's 55 traces by their two hashes, with what
     echo "python $($PY -c 'import sys, platform; print(platform.python_version(), platform.machine(), sys.platform)')"
     echo "replay $(sha256sum < "$REPLAY" | cut -c1-64)"
     echo "twin $(sha256sum < "$OUT/twin-sources.txt" | cut -c1-64) ($(wc -l < "$OUT/twin-sources.txt") files: twin-sources.txt)"
+    echo "documents protocol.md $(sha256sum < "$TOY/../protocol.md" | cut -c1-64) protocol-v2.md $(sha256sum < "$TOY/../protocol-v2.md" | cut -c1-64) (each file's sha256: reported, it decides nothing)"
     $PY -c 'import sys, hashlib; sys.path.insert(0, sys.argv[1]); import mutants3 as M; n = list(M.MUTANTS); print("mutants", len(n), hashlib.sha256("\n".join(n).encode()).hexdigest(), "(their names, in the tool'"'"'s order)")' "$T"
     # shellcheck disable=SC2046
     (cd "$OUT" && $PY "$T/content.py" --hashes $(for t in $RTRACES; do echo "$t.jsonl.gz"; done))
@@ -724,10 +742,11 @@ s_manifest() {           # the record's 55 traces by their two hashes, with what
   if [ -n "$fail" ]; then echo "check.sh: FAIL ($(echo $fail | tr ' ' '\n' | awk '!seen[$0]++' | tr '\n' ' ' | sed 's/ $//'))"
   elif [ "$STEPS" != "$ALL" ]; then echo "check.sh: these steps passed ($STEPS): a part, not a pass"
   elif [ -n "$REHEARSAL" ]; then echo "check.sh: these steps passed ($STEPS): a rehearsal of the matrix's step, not a part"
+  elif [ -n "$SAMPLE" ]; then echo "check.sh: these steps passed ($STEPS): part $PART of a draft's sample ($SAMPLE), not a matrix"
   elif [ -n "$PART" ]; then echo "check.sh: PASS (part $PART of the matrix)"
   elif [ -n "$FEWCELLS" ]; then echo "check.sh: these steps passed ($STEPS): a rehearsal over the cells [$CELLS], not a record"
   elif [ -n "$RECORD" ]; then echo "check.sh: PASS (the record's run)"
   else echo "check.sh: PASS"; fi
 } 2>&1 | tee "$LOG"
 case "$(tail -n 1 "$LOG")" in "check.sh: PASS"|"check.sh: PASS (the record's run)"|"check.sh: PASS (part "*) true ;; *) false ;; esac \
-  || { { [ "$STEPS" != "$ALL" ] || [ -n "$REHEARSAL" ] || [ -n "$FEWCELLS" ]; } && tail -n 1 "$LOG" | grep -q '^check.sh: these steps passed'; }
+  || { { [ "$STEPS" != "$ALL" ] || [ -n "$REHEARSAL" ] || [ -n "$SAMPLE" ] || [ -n "$FEWCELLS" ]; } && tail -n 1 "$LOG" | grep -q '^check.sh: these steps passed'; }

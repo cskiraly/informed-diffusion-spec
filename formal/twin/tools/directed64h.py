@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §6.4's on_heartbeat (protocol.md lines 1652-1662). The toy's own function is called in
+"""Directed records for §6.4's on_heartbeat (protocol.md §6.4). The toy's own function is called in
 toy nodes' namespaces on generated states, and trace3.py's tracer logs each call with the node's whole state.
 
     python3 directed64h.py TOYDIR OUT.jsonl.gz [--n N] [--seed S]

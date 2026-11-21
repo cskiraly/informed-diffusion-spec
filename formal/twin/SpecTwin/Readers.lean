@@ -1,15 +1,15 @@
 import SpecTwin.Tables
 
-/-! # §4.2's two readers, `held(a)` and `tied_to_root(p, a)`: the twin's own code (v0.10.4, spec
+/-! # Two readers, `held(a)` (§8.1) and `tied_to_root(p, a)` (§4.2): the twin's own code (v0.10.4, spec
 34f60f8)
 
 `mine` and `tied` are the twin's own tables, since its own code writes them, so the two readers are code over
 them, and their reads go into a record's reads.
 
-- `held(a)` is the toy's (`toy/node.py` 648–650: an ask's chunk is in `mine`):
+- `held(a)` is the toy's (`toy/node.py`, `held` in `Node._namespace`: an ask's chunk is in `mine`):
   `group_index(a) is not None and mine[group].has(index)`. Every ask key has a group and an index (`Key`), so
   the first test always holds here.
-- `tied_to_root(p, a)` is protocol.md's (line 526): `any(t[p][group(a)].has(index(a)) for t in tied.values())`.
+- `tied_to_root(p, a)` is protocol.md's (§4.2): `any(t[p][group(a)].has(index(a)) for t in tied.values())`.
   The Python reads `tied` as a whole (`tied.values()`), then `t[p][group(a)]` for each root until one has the
   index. The twin reads the whole table once and decides from it: the same answer, and a subset of the Python's
   reads. A missing row or bitmap has no index. -/

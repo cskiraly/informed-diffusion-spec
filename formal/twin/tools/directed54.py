@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Directed records for forward (protocol.md lines 1164-1175), candidates_for_source (1025-1027) and on_mesh_join
-(1218-1221). The toy's own functions are called in a toy node's namespace on generated states, and trace3.py's
+"""Directed records for forward (protocol.md §5.2), candidates_for_source (§5.1) and on_mesh_join
+(§5.4). The toy's own functions are called in a toy node's namespace on generated states, and trace3.py's
 tracer logs each call with the node's whole state.
 
     python3 directed54.py TOYDIR OUT.jsonl.gz [--n N] [--seed S]

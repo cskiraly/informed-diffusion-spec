@@ -1,7 +1,7 @@
 import SpecTwin.Readers
 
 /-! # The twin of protocol.md §5.2, "A node forwards" [c3, c7] (v0.10.4, spec 34f60f8): `announce`, `unpush`,
-`owe` and `note_push` (lines 1177–1193)
+`owe` and `note_push`
 
 `forward`, the section's fifth function, is in Sec54.lean.
 
@@ -21,13 +21,13 @@ open Node61 Tables
 
 variable {m : Type → Type} [Monad m] [Tables m] [Node61 m]
 
-/-- `owe(p, g, bits)` (lines 1186–1188): an offer that must not be lost: the next write to p carries it (§7.2) -/
+/-- `owe(p, g, bits)` (§5.2): an offer that must not be lost: the next write to p carries it (§7.2) -/
 def owe (p : Peer) (g : Group) (bits : Bits) : M m Unit := do
   enter "owe"
   setOwed p g (((← owed? p g).getD 0) ||| bits)             -- `owed[p][g] |= bits`
   wake p
 
-/-- `note_push(p, g, i)` (lines 1190–1193) -/
+/-- `note_push(p, g, i)` (§5.2) -/
 def notePush (p : Peer) (g : Group) (i : Nat) : M m Unit := do
   enter "note_push"
   let e := (← pushedEntry? p g).getD {}                     -- `e = pushed[p][g]`: created at the first push
@@ -38,7 +38,7 @@ def notePush (p : Peer) (g : Group) (i : Nat) : M m Unit := do
   setPushed p g { bits := e.bits.set i, firstPush := first, ttl := (← read).c.PUSH_TTL }
   branch (if e.bits == 0 then "note_push: the first push" else "note_push: a later push")
 
-/-- `unpush(p, g, i)` (lines 1182–1184) [c3]: a chosen push that will not be made: not counted (the guard's clock
+/-- `unpush(p, g, i)` (§5.2) [c3]: a chosen push that will not be made: not counted (the guard's clock
 stays), offered instead -/
 def unpush (p : Peer) (g : Group) (i : Nat) : M m Unit := do
   enter "unpush"
@@ -51,7 +51,7 @@ def unpush (p : Peer) (g : Group) (i : Nat) : M m Unit := do
   else
     branch "unpush: not in the mesh"
 
-/-- `announce(p, g, bits)` (lines 1177–1180) [c3, c7] -/
+/-- `announce(p, g, bits)` (§5.2) [c3, c7] -/
 def announce (p : Peer) (g : Group) (bits : Bits) : M m Unit := do
   enter "announce"
   -- `b = bits & ~pushed[p][g] & ~peer_has[p][g].bits`

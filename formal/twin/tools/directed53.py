@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §5.3's choose_push and guard_fails (protocol.md lines 1228-1247). The toy's own functions
+"""Directed records for §5.3's choose_push and guard_fails (protocol.md §5.3). The toy's own functions
 are called in a toy node's namespace on generated states, and trace3.py's tracer logs each call with the node's
 whole state.
 

@@ -3,7 +3,6 @@ import SpecTwin.Sec51
 import SpecTwin.Sec71
 
 /-! # The twin of protocol.md §4.3, "A HAVE arrives in an IDONTWANT" [c7] (v0.10.4, spec 34f60f8): `on_have`
-(lines 660–670)
 
 - **`peer_has` and `holders` are the twin's own tables,** since on_have writes them. `peer_has[p][g]` is an
   entry of bits and a ttl, there from p's first HAVE for g, an empty one too. The writer's reads (§7.2) are of the
@@ -18,7 +17,7 @@ open Node61 Tables
 
 variable {m : Type → Type} [Monad m] [Tables m] [Node61 m]
 
-/-- `on_have(p, h)` (lines 660–670): h is a HAVE's bitmap, a group and its bits -/
+/-- `on_have(p, h)` (§4.3): h is a HAVE's bitmap, a group and its bits -/
 def onHave (p : Peer) (g : Group) (bits : Bits) : M m Unit := do
   enter "on_have"
   if ← expired g then                                       -- past its active lifetime (§8.1): ignored

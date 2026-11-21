@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §4.6's decode_group and push_rebuilt (protocol.md lines 829-838 and 840-849). The toy's
+"""Directed records for §4.6's decode_group and push_rebuilt (protocol.md §4.6). The toy's
 own functions are called in two toy nodes' namespaces on generated states, and trace3.py's tracer logs each call
 with the node's whole state.
 
