@@ -55,12 +55,18 @@ carries over to them is not checked:
   `ACK`, is not modelled.
   v0.9's §7.3, on what the transport below the writer should hold, is not modelled either: the
   models' queues may refuse any entry, and drain.
-- **v0.10, four rules for what waits for its block** (§4.2, §6.1, §8.1):
-  - a deferred copy beyond its sender's limit of unknown groups is ignored;
-  - at installation, a tied index the group does not have is dropped;
-  - when a group's count becomes known, what named an index at or beyond it goes;
-  - what waits for a root that never installs goes when its slot leaves the live window or its
-    group expires.
+- **v0.10, four rules for what waits for its block** (§4.2, §6.1, §8.1), and where each stands:
+  - a deferred copy beyond its sender's limit of unknown groups is ignored, and a tie beyond §8.2's
+    limits on ties (`tie_room`) ties nothing: the models assume §8.2's limits admit the one group
+    modelled, its ties included (below);
+  - at installation, a tied index the group does not have is dropped, and
+  - when a group's count becomes known, what named an index at or beyond it goes: both act only on
+    indices out of range, and the chunk modelled is in range;
+  - what waits for a root that never installs goes when the slot its sender's first copy named
+    leaves the live window, or when its group expires (`drop_stale_waits`). An honest copy names
+    its block's slot, which level 1 checks, so an honest tie goes only at the group's end, which the
+    models' lifetimes outlast. An adversary chooses that slot, so its tie to the builder's root can
+    go before the block installs: `NoStallEquivAdv.lean` has this (below).
 - **v0.10, level 1 checks the slot** (§3): it rejects a copy whose slot is not its block's.
   `SenderFault.lean` has it (below); in the other models such a copy fails level 1 as any copy
   that is not the committed piece does.
@@ -460,7 +466,10 @@ known answer, the last resort going on from the adversary to the honest announce
 adversaries and §4.2's ties by root. An adversary's waiting copy ties it to the builder's root before
 that block installs, released by the installation, or at any time to another root, which the
 builder's installation leaves: released by the proposer's other block's installation, dropped with
-the adversary's offers where its bid commits another group (`drop_tie`), or kept for good. The
+the adversary's offers where its bid commits another group (`drop_tie`), or kept for good. Since
+v0.10 a tie also goes when the slot its sender's first copy named leaves the live window
+(`drop_stale_waits`, §8.1). The adversary chooses that slot, so its tie to the builder's root can
+go before that block installs, dropped the same way (`dropTie` with `stale`, at any time here). The
 invariants about a provider's asks before the builder's block, and that the last-resort count goes
 with an offer, are for honest providers. Relabelled copies are excluded: every copy an honest node
 can take in names the builder's block, as the honest model assumes.
@@ -512,7 +521,7 @@ proposes the rule: it is in the file so that the option's asking part is checked
 |---|---|---|---|
 | transport, with adversaries | 220 of 220 conditions, 991 theorems | 14: the transport's 12, a false claim, an adversary's offer left in a quiet state | 5.2 minutes |
 | asking (v0.7's), with adversaries | 448 of 448 conditions, 1324 theorems | 14: the asking's 11, `adv_withholds`, `ka_count_per_chunk` (bound to the adversary's offer coming first) and its control | 7.3 minutes |
-| asking under v0.8's rules, with adversaries and the offers' expiry | 1134 of 1134 conditions (42 × 27: 41 actions and the initializer, 26 clauses and `doesNotThrow`), 2625 theorems | 29: `NoStallEquiv.lean`'s 11 (their nodes honest); an ask left at an adversary; an adversary tied to another root after the block, alone and beside an honest offer that resolves; a tie released; a tie dropped; an ask gone with expired offers; F13 by a dropped tie, by the expiry without the queued asks' part, and by the expiry without the promise's; under `byGroup`, an offer answered and a tie released, and the known answer without it; F14's five and its control | 71 minutes |
+| asking under v0.8's rules, with adversaries and the offers' expiry | 1134 of 1134 conditions (42 × 27: 41 actions and the initializer, 26 clauses and `doesNotThrow`), 2626 theorems | 30: `NoStallEquiv.lean`'s 11 (their nodes honest); an ask left at an adversary; an adversary tied to another root after the block, alone and beside an honest offer that resolves; a tie released; a tie dropped; an adversary's tie to the builder's root dropped before the block, its slot stale; an ask gone with expired offers; F13 by a dropped tie, by the expiry without the queued asks' part, and by the expiry without the promise's; under `byGroup`, an offer answered and a tie released, and the known answer without it; F14's five and its control | 71 minutes |
 
 ## Agreement and integrity (`Agreement.lean`)
 
