@@ -5,6 +5,61 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
+## After v0.10.8, not yet released
+
+`protocol.md` moves one wake in the window's line: a writer in line now wakes the next when its
+write starts to wait for the transport, not before the write (§7.1, §7.2), and `protocol-v2.md`
+carries the change (§4.11). No printed figure of the toy's cells moves. The Quint model stays at
+v0.5's rules and is not ported further.
+
+`protocol.md`:
+- **A writer in line wakes the next when its write starts to wait** (§7.1, §7.2). In v0.10.7, a
+  writer in the window's line that writes control (an urgent entry, or owed offers on their own)
+  first woke the first other writer in line that can write, since its own write might not complete.
+  That wake came before the write, so it also came where the write completes at once, and it moved
+  the schedule there. Now the writer calls `write_waits` when a write does not complete at once, as
+  it starts to wait for its transport (§7.3). If the writer is in line, that wakes the first writer
+  in line that can write, if a slot is free. A write that completes at once does not call
+  `write_waits`. `wake_front` loses its argument: by the time `write_waits` runs, the waiting
+  writer cannot write, so `front` skips it. §7.1 gives the line a paragraph of its own, and its
+  Rationale a paragraph on when the wake comes.
+
+`protocol-v2.md`:
+- **A writer in line whose write waits wakes the next** (§4.11), as `protocol.md` §7.1's does. The
+  wake before the write, which v0.10.7 put on three paths of `next_to_send` (an urgent entry, owed
+  offers on their own, and a control-only entry of the normal lane), goes. The writer calls
+  `write_waits` as its write starts to wait, and that wakes the first writer in line that can
+  write, if room is free. `wake_front` loses `past`. §5's list of the versions carried gains
+  v0.10.9.
+
+The toy:
+- **A known answer for the wake at the wait** (`toy/write_wait_known.py [--doc v2]`), in place of
+  `control_wake_known.py`, which tested the wake before the write. Two writers wait in line, and the
+  window is empty. For each way the first writes control (an urgent entry, owed offers on their own,
+  and under `protocol-v2.md` a control-only entry of the normal lane), it checks three cases, each
+  from a fresh setup: `next_to_send` returns the control, and the second writer has no run queued;
+  the first writer's write waits for the transport, and the second has a run queued; and, as the
+  control, with the first writer not in line, the write waits and the second has no run queued. Its
+  first case fails on the documents before this change.
+- **The toy calls `write_waits`** where a writer's transport first takes no more (`Node._write`).
+- **`golden.txt` and `golden-v2.txt` move** as an intended change, in two cells each: `rr-stripe` and
+  `push-deep`, whose writes all complete at once, move in their digests only, back to their values
+  without the wake before the write, with the same printed figures. Every other cell keeps its
+  digest in each file, `loss-thin` and `late-block` too: with the toy's send buffer
+  (`--send-buffer 1`, its default) every write there waits, so the wake at the wait comes in the
+  same instant as the wake before the write did, and queues the same run.
+
+`formal/`:
+- **A known answer for W2 at the wait** (`formal/toy/monitor.py --break writewait`): it makes
+  `write_waits` wake no one, and W2, the window's wake-up, must catch it. The twelve cells at seeds
+  7 to 9 (36 runs, about 47 million events) show no violation. Each of the four known answers, run
+  on the twelve cells at seed 7, is caught; under `writewait`, W2 fires 733 times, all in
+  `loss-thin`.
+- **The Quint model stays at v0.5's rules** (`formal/README.md`, `formal/diffusion.qnt`). It is
+  kept as the model that found F1 to F10, and it is not ported to later versions: porting a model
+  written by hand at v0.4 would cost much, and the toy's monitors check five of its safety
+  properties on the current code. The map counts four known answers for the monitors.
+
 ## v0.10.8, 2026-11-21
 
 The Lean twin's record comes into the repository, and the twin is no longer called a draft.

@@ -3155,10 +3155,14 @@ carried into them, with the date each was carried where it came later than the v
   writer in line that can write, and a writer in line that writes control first wakes another that
   can write. This draft carries both into its window in bytes (§4.11), with its own `wake_front`
   over `W_BYTES`, and wakes on a third path it has, a control-only entry of the normal lane;
-  `line_stall_known.py --doc v2` shows the first. Since v0.10.9 the wake comes when the write starts
-  to wait (`write_waits`), and `write_wait_known.py --doc v2` checks it on all three paths.
+  `line_stall_known.py --doc v2` shows the first.
 - v0.10.8 (2026-11-21): `protocol.md` is the same but for its version line, and the Lean twin's
   record and a first piece of a refinement come into `formal/`; nothing to carry.
+- v0.10.9 (2026-11-21): `protocol.md`'s wake in the window's line moves to the moment a writer
+  starts to wait for its transport (§7.1, §7.2). In this draft, `write_waits` wakes the first writer
+  in line that can write if the waiting writer is in line and the window has room (§4.11). It
+  replaces the wake before the write on the three control paths, and `wake_front` loses `past`;
+  `write_wait_known.py --doc v2` checks it on all three.
 
 ## 6. Settings
 
