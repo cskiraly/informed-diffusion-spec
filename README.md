@@ -46,7 +46,8 @@ names how SEACAST diffuses.
 - [`formal/veil/`](formal/veil/): properties of v0.8's rules, proved in Veil for any number of
   nodes, groups and chunks:
   - A1, an honest node is never penalised: for an ask, for a chunk that fails level 1, or for a
-    malformed HAVE. For an ask, it needs no assumption under the live window (`protocol.md` §8.1,
+    malformed HAVE or IHAVE bitmap, at every place `protocol.md` penalises a peer. For an ask, it
+    needs no assumption under the live window (`protocol.md` §8.1,
     with a group's key fixing its slot, §1), and, for groups without a slot, the bound on the
     tombstone;
   - no stall (Q1): no quiet state in which an honest node reachable from the source along mesh

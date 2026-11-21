@@ -7,9 +7,9 @@ temporal theorems the kernel checks too, their one-step facts proved by Lean's `
 solver; the plain-Lean files are theorems.
 
 - `ClaimWins.lean`: an honest node is never penalised for an ask, "the claim wins" (A1, §4.5);
-- `SenderFault.lean`: nor for a chunk that fails level 1 or a malformed HAVE (A1's other two
-  penalties, §3, §4.2, §4.3), so A1 holds at every place a node penalised in v0.8 (v0.10 adds one,
-  below);
+- `SenderFault.lean`: nor for a chunk that fails level 1, its slot checked since v0.10, nor for a
+  malformed HAVE or IHAVE bitmap (A1's other three penalties, §3, §4.2, §4.3, §4.4), so A1 holds at
+  every place `protocol.md` penalises a peer;
 - `NoStallTransport.lean`, `NoStallAsk.lean` and `NoStallCount.lean`: no stall (Q1). For any one
   chunk, when the transport has nothing left to do, a node with its block holds every chunk a mesh
   neighbour received, has stopped pulling, or holds that neighbour's offer; when the asking machinery
@@ -44,8 +44,9 @@ on three or four nodes, and not agreement or integrity (`../README.md` lists its
 
 **The models are of v0.8's rules** (`NoStallAsk.lean` and `NoStallAskAdv.lean` have v0.7's asking,
 which `NoStallEquiv.lean` and `NoStallEquivAdv.lean` take to v0.8's). Each header names the sections
-and the version it follows. `protocol.md` has changed since, and the models do not have these
-changes; whether each result carries over to them is not checked:
+and the version it follows. `protocol.md` has changed since. `SenderFault.lean` has two of the
+changes below, as their items say; the models do not have the others, and whether each result
+carries over to them is not checked:
 - **v0.9, the source's announcements at the acknowledgement** (§5.1): the source announces a chunk,
   and its HAVE names it, at the chunk's acknowledgement. In the transport model publishing makes the
   source's forwarding to each mesh peer due, a push or an announcement, as in v0.8. Since v0.10.3
@@ -61,11 +62,13 @@ changes; whether each result carries over to them is not checked:
   - what waits for a root that never installs goes when its slot leaves the live window or its
     group expires.
 - **v0.10, level 1 checks the slot** (§3): it rejects a copy whose slot is not its block's.
+  `SenderFault.lean` has it (below); in the other models such a copy fails level 1 as any copy
+  that is not the committed piece does.
 - **v0.10, IHAVE entries and bitmaps checked** (§4.4, §8.2): an entry is a bitmap or a chunk's valid
   id (`valid_id`), anything else ignored, and a bitmap is held to a HAVE's limits. One naming an
-  index at or beyond the group's count, once its descriptor is known, counts against its sender: a
-  penalty `SenderFault.lean` has for a HAVE only. §4.4 also leaves open one chunk under two keys,
-  where a sender can be asked once per key; in the models a chunk has one key.
+  index at or beyond the group's count, once its descriptor is known, counts against its sender:
+  `SenderFault.lean` has this penalty (below). §4.4 also leaves open one chunk under two keys, where
+  a sender can be asked once per key; in the models a chunk has one key.
 - **v0.10, the node's own order of announcers** (§6.1, §8.1): the announcers beyond a chunk's
   ordered list are tried in an order keyed by a secret the node draws. The models let the retry ask
   any unparked announcer, so they cover every order.
@@ -96,9 +99,9 @@ is not: in short, claims (HAVE bits from `mine`), asks, the writer's filter, a l
 stream of RPCs that a coalescing transport can join, the receiver's IWANT-before-IDONTWANT, claims
 that lapse, a group's expiry, its tombstone, the live window and the tombstone's end, and
 connections that close; not the chunks themselves, the send window or timers (every lifetime can
-end at any time), how a node tells a group's slot, and not the other two reasons for a penalty (a
-chunk failing level 1, a malformed HAVE). The queue is a set, so the result holds for any order the
-writer picks.
+end at any time), how a node tells a group's slot, and not the other reasons for a penalty (a
+chunk failing level 1, a malformed HAVE or IHAVE bitmap). The queue is a set, so the result holds
+for any order the writer picks.
 
 ### What it rests on
 
@@ -158,23 +161,28 @@ refreshes the peer's claim, whatever `HAVE_TTL` is. It takes an ask that stays q
 its chunk arrived until the group expired, at least `GROUP_TTL`, with a HAVE of the chunk leaving
 ahead of it.
 
-## The other two penalties (`SenderFault.lean`)
+## The other penalties (`SenderFault.lean`)
 
 Besides the claim rule, a node penalises a peer for a chunk that fails level 1 (§4.2: "level 1
-failures are the sender's") and for a malformed HAVE (§4.3, §8.2: longer than `MAX_HAVE_BYTES`, or
-naming an index at or beyond N once the descriptor is known). The model proves that neither falls on
-an honest node, with forgers that send anything, a builder that commits an inconsistent code or an
-invalid descriptor, and a proposer that signs several blocks for a slot, whose bids commit one group
-or different ones. A block is named by its root, so what its bid commits is the same at every node;
-a chunk carries a piece (its index, the descriptor, the proof and the data), and `good` stands for
-every check of §3 but the block's. Messages are sets, so any order, loss and duplication; expiry,
-the window, §8.2's limits and refused deferrals only drop messages or state. A HAVE bit stands for a
-bitmap's bit, which covers the length check because an honest bitmap drops its trailing zero bytes
-(§2). The header says the rest.
+failures are the sender's"), for a malformed HAVE (§4.3, §8.2: longer than `MAX_HAVE_BYTES`, or
+naming an index at or beyond N once the descriptor is known), and, since v0.10, for an IHAVE's
+bitmap malformed in the same way (§4.4). Since v0.10, level 1 also rejects a chunk whose slot is not
+its block's (§3). The model proves that none of the three falls on an honest node, with forgers that
+send anything, a builder that commits an inconsistent code or an invalid descriptor, and a proposer
+that signs several blocks for a slot, whose bids commit one group or different ones. A block is
+named by its root, so what its bid commits, and its slot, are the same at every node; a chunk names
+a root and a slot and carries a piece (its index, the descriptor, the proof and the data), and
+`good` stands for every check of §3 but the block's. Messages are sets, so any order, loss and
+duplication; expiry, the window, §8.2's limits and refused deferrals only drop messages or state. A
+HAVE or IHAVE bit stands for a bitmap's bit, which covers the length check because an honest bitmap
+drops its trailing zero bytes (§2); an honest node announces what it can serve, any index in `mine`
+or of a chunk it stores. v0.10's two checks add no rule: an honest node sends a chunk as level 1
+passed it, its slot included, and announces only what passed level 1 (`gateLevel1`). The header
+says the rest.
 
 | switch | rule | where |
 |---|---|---|
-| `gateLevel1` | level 1 before a chunk is stored, forwarded or served | §3 |
+| `gateLevel1` | level 1 before a chunk is stored, forwarded, served or announced | §3 |
 | `gateLevel2` | a rebuilt chunk only once level 2 has passed | §3, §4.6 |
 | `deferUnknown` | a chunk whose block is not installed waits, and is checked when it installs | §3, §4.2 |
 | `namedRoot` | level 1 checks the block the chunk names | §3 |
@@ -184,17 +192,17 @@ bitmap's bit, which covers the length check because an honest bitmap drops its t
 
 The proof rests on two assumptions about the world: level 1 checks the index against N, and a group
 with a piece that passes level 1 has a descriptor that passed `valid_descriptor`, so N is at most
-8192 (that an honest builder's does is `../wire/`'s W1). Nine more only keep the traces to worlds
+8192 (that an honest builder's does is `../wire/`'s W1). Twelve more only keep the traces to worlds
 that can happen (a block's bid commits one group and some group, the blocks that commit a group share
-its slot, indices start at zero, and so on); an earlier check, not this build, proved it without
-them.
+its slot, a block has one slot, indices start at zero, and so on); a check apart from this build
+proved it without them.
 
 | check | how | result |
 |---|---|---|
-| neither penalty on an honest node, any size | an inductive invariant of nine clauses; 200 verification conditions (the nine and `doesNotThrow`, for nineteen actions and the initializer), each a theorem Lean's kernel checks, the SMT solver not trusted | **holds**; in an earlier check, not this build, also with only the two assumptions it rests on |
-| the audit | as for the claim rule, the assumptions listed | 200 of 200; none trusted; all 799 theorems rest on `propext`, `Classical.choice` and `Quot.sound` |
-| not vacuous | `sat trace`, every rule on: the premises can all hold; a forger penalised for a chunk, and for a HAVE bit beyond N; a chunk ahead of its block accepted when the block installs; one node accepting chunks under two blocks of a slot whose bids commit the same group, and under two that commit different groups; an inconsistent code's authentic pieces relayed between honest nodes, unpenalised | all seven found |
-| known answers | `sat trace`, one rule off, every other on | **an honest node penalised in each**: a relay before level 1; a rebuilt chunk sent before level 2, from an inconsistent code; a chunk rejected ahead of its block; level 1 against the receiver's own block of the slot; a rebuilt chunk naming the slot's other block; a HAVE for a chunk on arrival; a HAVE judged by a forger's descriptor |
+| none of the three penalties on an honest node, any size | an inductive invariant of ten clauses; 275 verification conditions (the ten and `doesNotThrow`, for twenty-four actions and the initializer), each a theorem Lean's kernel checks, the SMT solver not trusted | **holds**; in a check apart from this build, also with only the two assumptions it rests on |
+| the audit | as for the claim rule, the assumptions listed | 275 of 275; none trusted; all 1020 theorems rest on `propext`, `Classical.choice` and `Quot.sound` |
+| not vacuous | `sat trace`, every rule on: the premises can all hold; a forger penalised for a chunk, for a HAVE bit beyond N, for an IHAVE bit beyond N, and for a copy of a committed piece that fails level 1 on its slot alone; a chunk ahead of its block accepted when the block installs; one node accepting chunks under two blocks of a slot whose bids commit the same group, and under two that commit different groups; an inconsistent code's authentic pieces relayed between honest nodes, unpenalised | all nine found |
+| known answers | `sat trace`, one rule off, every other on | **an honest node penalised in each**: a relay before level 1, and an announcement before level 1 of a forger's index beyond N; a rebuilt chunk sent before level 2, from an inconsistent code; a chunk rejected ahead of its block; level 1 against the receiver's own block of the slot; a rebuilt chunk naming the slot's other block; a HAVE for a chunk on arrival; a HAVE judged by a forger's descriptor |
 
 When two blocks of a slot commit a group, the group's chunks name either root, which is part of the
 id, and a decoder cannot tell which root the source's chunk at an index it never received names.
@@ -682,7 +690,8 @@ pre-release (`02791b2d`); the later ones are new on the release `v4.35.0`.
 - Veil's cost grows with the state's width: a 35-field model did not finish `#gen_spec` in 30
   minutes, while the pieces of 15 and 16 fields finish in under three. Splitting a model, each piece
   with its environment, is the remedy.
-- Where the SMT solver answers unsat but lean-smt cannot rebuild the proof ("no witness provided"),
+- Where the SMT solver answers unsat but lean-smt cannot rebuild the proof ("no witness provided",
+  or a failed `assumption`: in `SenderFault.lean` once chunks named a slot, at every condition),
   `set_option veil.solver "grind+smt"` tries Lean's `grind` first, kernel-checked as it is; and an
   action whose conditions nest quantifiers proves more easily split into one action per case.
 - On `v4.35.0`, a long trace may need more than the SMT solver's 60 s on a loaded machine
