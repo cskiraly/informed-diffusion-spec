@@ -42,7 +42,12 @@ root it names, its promise closed, either to the builder's, before that block in
 installation releases it (`releaseElse`: the park lifts, the last-resort count clears, an offer
 again; at any time once the gate is open, any number of times, where §4.2 allows one per block), a
 root that never installs (the tie stays), or one whose bid commits another group (`dropTie`: dropped
-with the adversary's offers, the retry armed once the gate is open). A sender tied to any root is
+with the adversary's offers, the retry armed once the gate is open). Since v0.10 a tie also goes
+when the slot its sender's first copy named leaves the live window (§8.1, `drop_stale_waits`): the
+adversary chooses that slot, so its tie to the builder's root can go before that block installs, at
+any time here, dropped as `dropTie` drops a tie (`stale`). An honest copy names its block's slot,
+which level 1 checks (§3), so an honest tie goes only at the group's end, which the asking
+outlasts. A sender tied to any root is
 passed over (`tiedToRoot`, §4.2's `tied_to_root`). **F13**: where `drop_tie` drops the sender's
 offers and leaves its asks (the known answers turn `dropAsks`, below, off), an ask still queued is
 written once the tie is gone, the retry, finding no announcer, ends, and the sender's next offer is
@@ -500,11 +505,16 @@ action releaseElse (n a : node) {
 -- last-resort count is left as it is; with F13's rule its queued asks go and its promise closes,
 -- which a tie has closed already; without the rule both are left: F13), and the recovery goes on
 -- without it, the retry armed once the gate is open; the adversary may stay tied to another root
--- (`still`)
-action dropTie (n a : node) (still : Bool) {
-  require tiedElse n a
-  if still = false then
-    tiedElse n a := false
+-- (`still`). Since v0.10 (§8.1, `drop_stale_waits`), the same drop for an adversary's tie to the
+-- builder's root before that block installs at n (`stale`): its first copy named a slot that has
+-- left the live window
+action dropTie (n a : node) (still stale : Bool) {
+  require (stale = false ∧ tiedElse n a) ∨ (stale = true ∧ adv a ∧ tied n a ∧ ¬ installed n)
+  if stale = true then
+    tied n a := false
+  else
+    if still = false then
+      tiedElse n a := false
   offered n a := false
   ledger n a := false
   if dropAsks then
@@ -1841,6 +1851,16 @@ sat trace [adv_tie_dropped] {
   dropTie
   assert (premises ∧ ∃ N A, ¬ adv N ∧ adv A ∧ installed N ∧ ¬ tiedToRoot N A ∧ ¬ offered N A ∧
     retryArmed N)
+}
+
+-- since v0.10 (`drop_stale_waits`): an adversary's tie to the builder's root goes before that block
+-- installs, the slot its copy named having left the live window; the installation then finds no tie
+-- to release, and the adversary is no offer
+sat trace [adv_stale_tie_dropped] {
+  advTie
+  dropTie
+  install
+  assert (premises ∧ ∃ N A, ¬ adv N ∧ adv A ∧ installed N ∧ ¬ tiedToRoot N A ∧ ¬ offered N A)
 }
 
 -- an adversary's offers expire with its ask still queued: the ask goes with them (F13's rule), and
@@ -3629,7 +3649,8 @@ prove_temporal_by [quiet]
     | 17 => ∃ n, ∃ a, NoStallEquivAdv.advTie.ext.tr ρ σ node kind ord χ n a th s s'
     | 18 => ∃ n, ∃ a, NoStallEquivAdv.advTieElse.ext.tr ρ σ node kind ord χ n a th s s'
     | 19 => ∃ n, ∃ a, NoStallEquivAdv.releaseElse.ext.tr ρ σ node kind ord χ n a th s s'
-    | 20 => ∃ n, ∃ a, ∃ still, NoStallEquivAdv.dropTie.ext.tr ρ σ node kind ord χ n a still th s s'
+    | 20 => ∃ n, ∃ a, ∃ still, ∃ stale,
+        NoStallEquivAdv.dropTie.ext.tr ρ σ node kind ord χ n a still stale th s s'
     | 21 => ∃ n, ∃ a, NoStallEquivAdv.advExpire.ext.tr ρ σ node kind ord χ n a th s s'
     | 22 => ∃ a, ∃ q, ∃ j, NoStallEquivAdv.advAsk.ext.tr ρ σ node kind ord χ a q j th s s'
     | 23 => ∃ n, NoStallEquivAdv.stopPull.ext.tr ρ σ node kind ord χ n th s s'
@@ -3697,7 +3718,7 @@ prove_temporal_by [quiet]
     | advTie n a => exact Or.inr (Or.inl ⟨⟨17, n, a, hl⟩, ho, hs⟩)
     | advTieElse n a => exact Or.inr (Or.inl ⟨⟨18, n, a, hl⟩, ho, hs⟩)
     | releaseElse n a => exact Or.inr (Or.inl ⟨⟨19, n, a, hl⟩, ho, hs⟩)
-    | dropTie n a still => exact Or.inr (Or.inl ⟨⟨20, n, a, still, hl⟩, ho, hs⟩)
+    | dropTie n a still stale => exact Or.inr (Or.inl ⟨⟨20, n, a, still, stale, hl⟩, ho, hs⟩)
     | advExpire n a => exact Or.inr (Or.inl ⟨⟨21, n, a, hl⟩, ho, hs⟩)
     | advAsk a q j => exact Or.inr (Or.inl ⟨⟨22, a, q, j, hl⟩, ho, hs⟩)
     | stopPull n => exact Or.inr (Or.inl ⟨⟨23, n, hl⟩, ho, hs⟩)
@@ -4042,7 +4063,7 @@ prove_temporal_by [quiet]
     · obtain ⟨n, a, hs⟩ := hc; exact h17 ⟨n, a, hs⟩
     · obtain ⟨n, a, hs⟩ := hc; exact h18 ⟨n, a, hs⟩
     · obtain ⟨n, a, hs⟩ := hc; exact h19 ⟨n, a, hs⟩
-    · obtain ⟨n, a, still, hs⟩ := hc; exact h20 ⟨n, a, still, hs⟩
+    · obtain ⟨n, a, still, stale, hs⟩ := hc; exact h20 ⟨n, a, still, stale, hs⟩
     · obtain ⟨n, a, hs⟩ := hc; exact h21 ⟨n, a, hs⟩
     · obtain ⟨a, q, j, hs⟩ := hc; exact h22 ⟨a, q, j, hs⟩
     · obtain ⟨n, hs⟩ := hc; exact h23 ⟨n, hs⟩
