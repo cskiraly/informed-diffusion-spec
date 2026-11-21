@@ -1798,15 +1798,18 @@ peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue's closing frees
   the real uplink costs.
 
 **The line.** The writers that wait for a slot form one line over the peers, first come, first
-served. A writer can write unless a write of its own has not completed (`writing`, §7.3). A writer
-takes a free slot if it is the first writer in line that can write (`front`), or if no writer in
-line can write. Otherwise it joins the end of the line, unless it is already in it, and keeps its
-place while it waits. A writer that cannot write keeps its place too, and the writers behind it may
-take slots before it until its write completes. A writer in line can still write an urgent entry,
-or owed offers on their own, without a slot (§7.2). Whenever a write does not complete at once, the
-writer calls `write_waits` as it starts to wait for its transport. If the writer is in line and a
-slot is free, `write_waits` wakes the first writer in line that can write (`wake_front`), which may
-then take the slot. A write that completes at once does not call `write_waits`.
+served. A writer can write when no write of its own is pending (`writing`, §7.3). A writer takes a
+free slot if it is the first writer in line that can write (`front`), or if no writer in line can
+write. Otherwise it joins the end of the line, unless it is already in it, and keeps its place
+while it waits. A writer that cannot write keeps its place too, and the writers behind it may take
+slots before it until its write completes. A writer in line can still write an urgent entry, or
+owed offers on their own, without a slot (§7.2). Whenever a write does not complete at once, the
+writer calls `write_waits` as it starts to wait for its transport; a write that completes at once
+does not. If the writer is in line and a slot is free, `write_waits` wakes the first writer in line
+that can write (`wake_front`), which may then take the slot. A client that cannot tell when a write
+starts to wait, such as one whose write call blocks (§7.3), may instead call `write_waits` before
+each control write of a writer in line. That is safe: `writing` holds for the writer from the moment
+`next_to_send` returns it the entry, so `front` already skips it.
 
 #### Rationale
 
@@ -1831,10 +1834,12 @@ this version drops a peer for not reading; the same gap lets an announcer hold t
 in line that can write. If that writer writes control instead, and the write does not complete at
 once, the writer can no longer write, and the slot could stay unused while the write waits, though
 another writer in line could use it. `write_waits` wakes that other writer. The wake comes when the
-write starts to wait, not before the write. A write that completes at once leaves the writer able
-to write, and a wake before it can queue a run that the window does not need.
-`toy/write_wait_known.py` checks that choosing the control queues no run for the next writer, and
-that the write's wait for the transport queues one.
+write starts to wait, not before the write: a write that completes at once leaves the writer able
+to write, and a wake before it would change the schedule of the node's writers where nothing else
+changes. A client that cannot tell when its write starts to wait may still wake before the write.
+Its cost is that change of schedule: the woken writer takes a slot only if no writer ahead of it
+in line can write (`front`). `toy/write_wait_known.py` checks that choosing the control queues no
+run for the next writer, and that the write's wait for the transport queues one.
 
 ### 7.2 Choosing what to send, at the moment of sending [c8, c9, c12, c14]
 

@@ -47,10 +47,11 @@ its smallest instances, exhaustively or to a depth, and random simulation sample
 four nodes; checking v0.4 and the fixes proposed for it this way found the ten gaps that v0.5 and
 v0.8 closed. The model stays at v0.5's rules, as the model that found those gaps, and is not
 ported to later versions: porting a model written by hand at v0.4 would cost much, and runtime
-monitors (`formal/toy/monitor.py`) check five of its safety properties on the code itself. They run
-on twelve of `toy/check.py`'s cells: W1 and W2 after each event, S1 and P4 (in a weaker form) at each
-transmission, and A1 on the run's count of penalties. W2 is asked of the line as `protocol.md` §7.1
-has it: with a slot free, the first writer in line that can write has a run queued.
+monitors (`formal/toy/monitor.py`) check five of its safety properties on `protocol.md`'s code. They
+run on twelve of `toy/check.py`'s cells: W1 and W2 after each event at a node, S1 and P4 (in a
+weaker form) at each transmission, and A1 on the run's count of penalties. W2 is asked of the line
+as `protocol.md` §7.1 has it: with a slot free, the first writer in line that can write has a run
+queued.
 At this commit they find no violation in those cells at seeds 7 to 9, and each of their four known
 answers, a rule taken out of the document, makes its monitor fire. Beside the model,
 `formal/wire/check_wire.py` checks §1–§2's arithmetic, restated in the script from v0.4's and v0.5's
