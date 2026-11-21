@@ -1,0 +1,4 @@
+fixcontrols pick: directed42.jsonl.gz --only fn=validate_chunk: 20000 records; 0 reached validate_chunk, 2887 more ask it on the tape; the replay took 2887 and ended with 0
+fixcontrols pick: directed41.jsonl.gz --only fn=on_iwant: 20000 records; 13610 reached on_iwant, 2988 more ask it on the tape; the replay took 16598 and ended with 0
+fixcontrols pick: directed46d.jsonl.gz --only fn=push_rebuilt: 20000 records; 13998 reached push_rebuilt, 3160 more ask it on the tape; the replay took 17158 and ended with 0
+fixcontrols draw: directed3v.jsonl.gz: the blocks answered, by form: design A, an id, a descriptor: 1800; design A, an id, no descriptor: 7101; design A, no id, no descriptor: 636; design B, an id, a descriptor: 4542; design B, no id, no descriptor: 350

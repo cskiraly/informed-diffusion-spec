@@ -1,0 +1,22 @@
+control, views that do not log 'k in t': 11 cases fail, as they must
+control, views that do not note at the assignment what a level brings: 3 cases fail, as they must
+control, views that store the row a read of a missing one hands out: 7 cases fail, as they must
+control, views that hand out a fresh entry of no table for a missing one: 10 cases fail, as they must
+control, views that keep no log apart for a call on the tape: 26 cases fail, as they must
+control, views that put no keys on the tape for another section's level: 1 cases fail, as they must
+control, views that answer the mesh question in rising order: 1 cases fail, as they must
+control, views that observe no row above an entry touched: 19 cases fail, as they must
+control, views that take no block's read after a callee's or an observation: 2 cases fail, as they must
+control, views that keep a callee's own order of touches: 4 cases fail, as they must
+control, views that do not take a PeerQueue's lane as a key: 10 cases fail, as they must
+control, views that put no order of an ordered level on the tape: 4 cases fail, as they must
+control, views that have an alias check that refuses nothing: 1 cases fail, as they must
+control, views that write only the touched entry of a row made in the call: 3 cases fail, as they must
+control, views that ask no order below a table's top level: 3 cases fail, as they must
+control, views that know no method's reads: 2 cases fail, as they must
+control, views that leave out of a call's writes a callee's write the block undid: 1 cases fail, as they must
+control, views that log nothing of a list of the namespace: 11 cases fail, as they must
+control, views that ask no order of a table's values: 1 cases fail, as they must
+control, views that log the count's += and -= as a write alone: 3 cases fail, as they must
+control, views that log the line's changes as a write alone: 4 cases fail, as they must
+control, views that take a pop that finds nothing as a write too: 5 cases fail, as they must

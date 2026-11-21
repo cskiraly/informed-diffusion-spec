@@ -1,0 +1,560 @@
+may_ask: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 may_ask[["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0],4]: post: the whole state: the twin has SpecTwin.Cell.askedAt (SpecTwin.Key.want "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" 0) = SpecTwin.Replay.Val.time 4614154418099539600; the record's reads and writes give some (SpecTwin.Replay.Val.time 4614154418099539601)
+add_offer: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 add_offer[["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0],4]: post: the whole state: the record's reads and writes give SpecTwin.Cell.offers (SpecTwin.Key.want "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" 0) = SpecTwin.Replay.Val.peers [4]; the twin has none
+outstanding: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 outstanding[4,["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0]]: return value: toy false
+parked: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 parked[4,["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0]]: return value: toy true
+retry_offer: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.301190 retry_offer[["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0]]: tape: expired(25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6) asked, the tape is over logged
+may_ask/write-removed: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 may_ask[["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0],4]: post: the whole state: the twin has SpecTwin.Cell.tried (SpecTwin.Key.want "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" 0) 4 = SpecTwin.Replay.Val.time 4614154418099539600; the record's reads and writes give none
+parked/write-added: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 parked[4,["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0]]: post: the whole state: the record's reads and writes give SpecTwin.Cell.park 4 "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" = SpecTwin.Replay.Val.time 4614154418099539600; the twin has none
+may_ask/read-value: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 may_ask[["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0],4]: tape: the toy asked more: [(SpecTwin.Replay.Entry.after     4596553923679423038     (SpecTwin.Timer.retryOffer       (SpecTwin.Key.want "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" 0)),   none)]
+promise_due/read-removed: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.496190 promise_due[["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0],4,4614154418099539600]: footprint, reads: the twin reads an entry the Python did not read: SpecTwin.Cell.promise (SpecTwin.Key.want "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" 0) 4
+outstanding/scan-removed: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 outstanding[4,["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0]]: footprint, reads: the twin scans a level the Python did not: SpecTwin.Level.promises
+parked/write-same: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 parked[4,["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0]]: footprint, writes: the twin does not write an entry the Python writes: SpecTwin.Cell.park 4 "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6"
+may_ask/write-to-rest: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.096190 may_ask[["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0],4]: footprint, writes: the twin writes an entry the Python neither read nor wrote: SpecTwin.Cell.tried (SpecTwin.Key.want "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" 0) 4
+may_ask/bits: replay: 6 records, 5 ok, 1 mismatched; malformed record: not a 64-bit word: 23060898491809091216
+add_offer/entry-twice: replay: 6 records, 5 ok, 1 mismatched; malformed record: reads: a key twice
+add_offer/write-twice: replay: 6 records, 5 ok, 1 mismatched; malformed record: writes: a key twice
+outstanding/scan-twice: replay: 6 records, 5 ok, 1 mismatched; malformed record: scans: a key twice
+promise_due/group: replay: 6 records, 5 ok, 1 mismatched; node 2 at 3.496190 promise_due[["25B4C9BCAD7D922788DB669A4E2733044EDAD3D9ABBBC23D894D20F8428CD1A6",0],4,4614154418099539600]: not a group key: 25B4C9BCAD7D922788DB669A4E2733044EDAD3D9ABBBC23D894D20F8428CD1A6
+add_offer/state-group: replay: 6 records, 5 ok, 1 mismatched; malformed record: not a group key: 25B4C9BCAD7D922788DB669A4E2733044EDAD3D9ABBBC23D894D20F8428CD1A6
+parked/table: replay: 6 records, 5 ok, 1 mismatched; malformed record: not an entry of §6.1's tables: parks[4,"25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6"]
+outstanding/foreign-table: replay: 6 records, 5 ok, 1 mismatched; malformed record: not a table §6.1 reads of another section: queues[4]
+outstanding/queue-on-tape: replay: 6 records, 5 ok, 1 mismatched; malformed record: not a table §6.1 reads of another section: queue[4]
+may_ask/reads-not-a-list: replay: 6 records, 5 ok, 1 mismatched; malformed record: array expected
+retry_offer/record-field: replay: 6 records, 5 ok, 1 mismatched; malformed record: not a field of a record: raised
+promise_due/no-ret: replay: 6 records, 5 ok, 1 mismatched; malformed record: a record has ret or raises, one of them
+parked/ret-and-raises: replay: 6 records, 5 ok, 1 mismatched; malformed record: a record has ret or raises, one of them
+add_offer/empty-value: replay: 6 records, 5 ok, 1 mismatched; malformed record: an empty offer list as a value
+may_ask/value-kind: replay: 6 records, 5 ok, 1 mismatched; malformed record: Natural number expected
+outstanding/level: replay: 6 records, 5 ok, 1 mismatched; malformed record: not a level of §6.1's tables: ["promises",[1]]
+retry_offer/no-rest: replay: 6 records, 5 ok, 1 mismatched; malformed record: no rest
+may_ask/after-result: replay: 6 records, 5 ok, 1 mismatched; malformed record: after returns nothing: ["after",[4596553923679423038,"retry_offer",[["25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",0]]],{}]
+may_ask/no-reached: replay: 6 records, 5 ok, 1 mismatched; malformed record: no reached
+may_ask/reached-without-own: replay: 6 records, 5 ok, 1 mismatched; malformed record: reached: the call's own function is not in it: []
+may_ask/reached-unsorted: replay: 6 records, 5 ok, 1 mismatched; malformed record: reached: not sorted, or a name twice: ["outstanding","may_ask"]
+may_ask/reached-twice: replay: 6 records, 5 ok, 1 mismatched; malformed record: reached: not sorted, or a name twice: ["may_ask","may_ask"]
+may_ask/reached-not-a-name: replay: 6 records, 5 ok, 1 mismatched; malformed record: reached: not a name: 4
+may_ask/reached-untraced: replay: 6 records, 5 ok, 1 mismatched; malformed record: reached: a function the header does not list as traced: on_ihave
+may_ask/no-tables: replay: 6 records, 5 ok, 1 mismatched; malformed record: no tables
+may_ask/tables-more: replay: 6 records, 5 ok, 1 mismatched; malformed record: tables: not the tables the reads, scans and writes name: ["asked_at","promises","tried"]
+may_ask/tables-fewer: replay: 6 records, 5 ok, 1 mismatched; malformed record: tables: not the tables the reads, scans and writes name: ["asked_at"]
+may_ask/tables-unsorted: replay: 6 records, 5 ok, 1 mismatched; malformed record: tables: not sorted, or a name twice: ["tried","asked_at"]
+may_ask/reached-last: replay: 6 records, 5 ok, 1 mismatched; malformed record: its line does not end with reached and tables, as the record has them
+may_ask/member-after: replay: 6 records, 5 ok, 1 mismatched; malformed record: its line does not end with reached and tables, as the record has them
+on_frame/ihave-asks-not-sent: replay: 361 records, 360 ok, 1 mismatched; node 2 at 3.096190 on_frame[4,[[],[["bits","25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",1]],[],[]]]: tape: enqueue(4, SpecTwin.Msg.entry   { chunk := none,     control := some [SpecTwin.Ctl.iwant                   [SpecTwin.Key.want "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" 0],                 SpecTwin.Ctl.prune],     solicited := false }, false) aske
+on_frame/ihave-write-removed: replay: 361 records, 360 ok, 1 mismatched; node 2 at 3.096190 on_frame[4,[[],[["bits","25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",1]],[],[]]]: post: the whole state: the twin has SpecTwin.Cell.ihaveAsked 4 = SpecTwin.Replay.Val.count 1; the record's reads and writes give none
+on_frame/ihave-authenticable: replay: 361 records, 360 ok, 1 mismatched; node 2 at 3.096190 on_frame[4,[[],[["bits","25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",1]],[],[]]]: tape: shuffled([]) asked, SpecTwin.Replay.Entry.shuffled   [SpecTwin.Key.want "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" 0]   [SpecTwin.Key.want "25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6" 0] logged
+on_frame/ihave-read-removed: replay: 361 records, 360 ok, 1 mismatched; node 2 at 3.096190 on_frame[4,[[],[["bits","25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",1]],[],[]]]: footprint, reads: the twin reads an entry the Python did not read: SpecTwin.Cell.ihaveFrames 4
+add_offer/read-added (must pass, with one read counted): replay: 6 records, 6 ok, 0 mismatched; reads the twin did not make: 1
+on_frame/reached-fewer (must fail: reached is not what the twin entered): replay: 361 records, 360 ok, 1 mismatched; node 2 at 3.096190 on_frame[4,[[],[["bits","25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",1]],[],[]]]: reached: the twin entered [add_offer, expand, gated, held, may_ask, on_frame, on_ihave, on_iwant, outstanding, over_ihave_limits, parked, respond, tied_to_root], the record has 
+on_frame/reached-more (must fail: reached is not what the twin entered): replay: 361 records, 360 ok, 1 mismatched; node 2 at 3.096190 on_frame[4,[[],[["bits","25b4c9bcad7d922788db669a4e2733044edad3d9abbbc23d894d20f8428cd1a6",1]],[],[]]]: reached: the twin entered [add_offer, expand, gated, held, may_ask, on_frame, on_ihave, on_iwant, outstanding, over_ihave_limits, parked, respond, tied_to_root], the record has 
+ok: every alteration as it must be
+envelope, the trace, the right --content: replay rc=0, must be 0
+envelope, another content than --content's: replay rc=1, must be 1; says: content: NOT --content's: toy/node.py: another hash
+envelope, no content line: replay rc=1, must be 1; says: content: NOT --content's: the trace's first line is no content line
+envelope, the trace, with no --content given: replay rc=1, must be 1; says: content: not compared (no --content given): the trace does not pass
+envelope, the content line twice: replay rc=1, must be 1; says: content: a content line that is not the trace's first line
+envelope, the content line once more, after the nodes line: replay rc=1, must be 1; says: content: a content line that is not the trace's first line
+envelope, the content line after the header: replay rc=1, must be 1; says: content: NOT --content's: the trace's first line is no content line
+envelope, a content line with a member more: replay rc=1, must be 1; says: content: NOT --content's: the trace's first line is no content line
+envelope, a content line with a space in it: replay rc=1, must be 1; says: content: NOT --content's: 
+envelope, a header of format 6, with its commit, and no content line: replay rc=1, must be 1; says: content: NOT --content's: the trace's first line is no content line
+envelope, a header twice: replay rc=1, must be 1; says: header: not the trace's second line, or not its only header
+envelope, a failed header, then the right one: replay rc=1, must be 1; says: header: not the trace's second line, or not its only header
+envelope, no header: replay rc=1, must be 1; says: nodes: not the trace's third line, or a second nodes line
+envelope, no header, and nothing after the content line: replay rc=1, must be 1; says: header: none
+envelope, format 6: replay rc=1, must be 1; says: header: format (some 6), this replay reads format 7
+envelope, a header that names a commit: replay rc=1, must be 1; says: header: not a member of it: spec_head
+envelope, another table among its own: replay rc=1, must be 1; says: header: the tables are not this twin's
+envelope, a header with a member it should not have: replay rc=1, must be 1; says: header: not a member of it: note
+envelope, a header that does not say whether the state is whole: replay rc=1, must be 1; says: header: no whole
+envelope, a header that does not say what was traced: replay rc=1, must be 1; says: header: no traced
+envelope, a header whose traced is not sorted: replay rc=1, must be 1; says: header: traced is not a sorted list of names
+envelope, a header whose traced leaves out a function a record reached: replay rc=1, must be 1; says: malformed record: reached: a function the header does not list as traced: may_ask
+envelope, a second nodes line: replay rc=1, must be 1; says: nodes: not the trace's third line, or a second nodes line
+envelope, no nodes line, and no record: replay rc=1, must be 1; says: nodes: none
+envelope, the nodes line after the first record: replay rc=1, must be 1; says: a record before the nodes line
+envelope, a nodes line that leaves out a record's node: replay rc=1, must be 1; says: malformed record: n: a node the nodes line does not name: 2
+envelope, a nodes line with a node twice: replay rc=1, must be 1; says: nodes: a node twice: 1
+envelope, a nodes line with an entry of no node: replay rc=1, must be 1; says: nodes: an entry of no node
+envelope, a nodes line whose entry has a member it should not have: replay rc=1, must be 1; says: nodes: not a member of it: note
+envelope, a nodes line whose entry has no replaced: replay rc=1, must be 1; says: nodes: no replaced
+envelope, a nodes line with a replaced name the twin has no question for: replay rc=1, must be 1; says: nodes: a replaced function the twin has no question for: on_chunk
+envelope, a cell's nodes line with validate_chunk replaced at its nodes: replay rc=1, must be 1; says: which only a trace of the whole state may
+envelope, a nodes line whose constants lack one: replay rc=1, must be 1; says: nodes: consts: no PROMISE
+envelope, a wrong trailer, then the right one: replay rc=1, must be 1; says: trailer: 7 records written, 6 read
+envelope, a record after the trailer: replay rc=1, must be 1; says: trailer: a line after the trailer
+envelope, no trailer: replay rc=1, must be 1; says: trailer: none (the trace is cut off)
+envelope, a trailer with another count of the rest: replay rc=1, must be 1; says: entries of rest written, 0 read
+envelope, a record with a member twice: replay rc=1, must be 1; says: a member twice in one object: ret
+envelope, a record with a member twice, and a number with an exponent that hides its length: replay rc=1, must be 1; says: a number that is not a plain integer
+envelope, a record with a number with a sign: replay rc=1, must be 1; says: a number with a sign
+envelope, a record with a number with an exponent: replay rc=1, must be 1; says: a number that is not a plain integer
+envelope, a record with an escape in a member's name: replay rc=1, must be 1; says: an escape in a string
+envelope, a record with a space after it: replay rc=1, must be 1; says: something after the line's value
+envelope, a record with a space inside it: replay rc=1, must be 1; says: white space outside a string
+envelope, a trailer whose by_fn is not a map: replay rc=1, must be 1; says: trailer: by_fn is not an object
+envelope, a trailer with one function's count wrong: replay rc=1, must be 1; says: trailer: by_fn is not the records read
+envelope, a trailer without by_fn: replay rc=1, must be 1; says: trailer: no by_fn
+envelope, the constants with a member twice: replay rc=1, must be 1; says: a member twice in one object: PROMISE
+ok: every control of the envelope as it must be
+reader, a member twice: rc=1, line 7 refused: a member twice in one object: ret; must be rc=1, line 7 refused: a member twice in one object: ret
+reader, a member twice, and an exponent that hides its length: rc=1, line 7 refused: a number that is not a plain integer, at 5; must be rc=1, line 7 refused: a number that is not a plain integer
+reader, a number with a huge exponent: rc=1, line 7 refused: a number that is not a plain integer, at 5; must be rc=1, line 7 refused: a number that is not a plain integer
+reader, an escape in a member's name: rc=1, line 7 refused: an escape in a string, at 607; must be rc=1, line 7 refused: an escape in a string
+reader, an escape in a value: rc=1, line 7 refused: an escape in a string, at 40; must be rc=1, line 7 refused: an escape in a string
+reader, a minus zero: rc=1, line 7 refused: a number with a sign, at 5; must be rc=1, line 7 refused: a number with a sign
+reader, a plus sign: rc=1, line 7 refused: a number with a sign, at 5; must be rc=1, line 7 refused: a number with a sign
+reader, a leading zero: rc=1, line 7 refused: a number with a leading zero, at 5; must be rc=1, line 7 refused: a number with a leading zero
+reader, a space after the line's value: rc=1, line 7 refused: something after the line's value, at 668; must be rc=1, line 7 refused: something after the line's value
+reader, a space inside it: rc=1, line 7 refused: white space outside a string, at 611; must be rc=1, line 7 refused: white space outside a string
+reader, an empty line: rc=1, line 7 refused: a value expected at the line's end; must be rc=1, line 7 refused: a value expected at the line's end
+ok: every control of the reader as it must be
+subset, fn=may_ask, §6.1 alone: rc=0; replay: 1 records, 1 ok, 0 mismatched; subset: --only fn=may_ask: 5 records skipped unread; must be rc=0, 1 read, 0 mismatched, 5 skipped
+subset, table=promises, §6.1 alone: rc=0; replay: 2 records, 2 ok, 0 mismatched; subset: --only table=promises: 4 records skipped unread; must be rc=0, 2 read, 0 mismatched, 4 skipped
+subset, fn=may_ask, with parked's line not ending as it must: rc=1; replay: 2 records, 1 ok, 1 mismatched; subset: --only fn=may_ask: 4 records skipped unread; must be rc=1, 2 read, 1 mismatched, 4 skipped
+subset, fn=may_ask, the whole cell: rc=0; replay: 1 records, 1 ok, 0 mismatched; subset: --only fn=may_ask: 360 records skipped unread; must be rc=0, 1 read, 0 mismatched, 360 skipped
+subset, table=pace_queue, the whole cell, where no record touches it: rc=0; replay: 0 records, 0 ok, 0 mismatched; subset: --only table=pace_queue: 361 records skipped unread; must be rc=0, 0 read, 0 mismatched, 361 skipped
+subset, fn=on_ihave, §6.1 alone, where it is not traced: rc=1; replay: 0 records, 0 ok, 0 mismatched; subset: --only fn=on_ihave: 6 records skipped unread; refused as naming nothing; must be rc=1, 0 read, 0 mismatched, 6 skipped, refused as naming nothing
+subset, fn=no_such: rc=1; replay: 0 records, 0 ok, 0 mismatched; subset: --only fn=no_such: 361 records skipped unread; refused as naming nothing; must be rc=1, 0 read, 0 mismatched, 361 skipped, refused as naming nothing
+subset, table=no_such: rc=1; replay: 0 records, 0 ok, 0 mismatched; subset: --only table=no_such: 361 records skipped unread; refused as naming nothing; must be rc=1, 0 read, 0 mismatched, 361 skipped, refused as naming nothing
+ok: every control of a subset as it must be
+header3, the hand cell's header, §6.1 alone: passes, must pass
+header3, the hand cell's header, the whole block: passes, must pass
+header3, a cell that says it holds the whole state: refused: whole: True, must be False for this kind of trace, must be refused
+header3, another trace3.py: refused: content: not this tree's: formal/twin/tools/trace3.py: other bytes, must be refused
+header3, another footprint.py: refused: content: not this tree's: formal/twin/tools/footprint.py: other bytes, must be refused
+header3, another gen/schema.py: refused: content: not this tree's: formal/twin/tools/gen/schema.py: other bytes, must be refused
+header3, another directed41.py: refused: content: not this tree's: formal/twin/tools/directed41.py: other bytes, must be refused
+header3, another protocol.md: refused: content: not this tree's: protocol.md: other code, must be refused
+header3, another toy/node.py: refused: content: not this tree's: toy/node.py: other bytes, must be refused
+header3, a module more in the toy: refused: content: not this tree's: toy/zz.py: only in the second, must be refused
+header3, no content line: refused: content: the first line is no content line, must be refused
+header3, the content line ending CRLF: refused: content: this tree's names and hashes, written otherwise, must be refused
+header3, format 6: refused: format: 6, must be 7, must be refused
+header3, another table among the foreign: refused: foreign: ['queue'], must be ['known_id', 'chunks'], must be refused
+header3, traced, neither the block nor §6.1 alone: refused: traced: ['may_ask'], must be the block's functions, §6.1's alone, or under --doc v2 v2's kept, sorted, must be refused
+header3, §6.1's directed trace's header: passes, must pass
+header3, §6.1's directed trace, not holding the whole state: refused: whole: False, must be True for this kind of trace, must be refused
+header3, §4.4's directed trace's header: passes, must pass
+header3, §4.4's directed trace, not holding the whole state: refused: whole: False, must be True for this kind of trace, must be refused
+ok: every header3 control as it must be
+a KeyError's record, the record as it is: replay rc=0, must be 0
+a KeyError's record, without its raises_key: replay rc=1, must be 1; says: malformed record: raises_key goes with a KeyError
+a KeyError's record, with another key: replay rc=1, must be 1; says: the Python raises KeyError on 
+a KeyError's record, raises_key on another exception: replay rc=1, must be 1; says: malformed record: raises_key goes with a KeyError
+ok: every control of a KeyError's record as it must be
+own_order on a tape, the record as it is: replay rc=0, must be 0
+own_order on a tape, an answer that is not a permutation: replay rc=1, must be 1; says: malformed record: own_order's answer is not a permutation of its question
+own_order on a tape, another question than the twin asks: replay rc=1, must be 1; says: tape: own_order(
+ok: every control of own_order on a tape as it must be
+the rest of a record, the record as it is: replay rc=0, must be 0
+the rest of a record, one entry left out, and the trailer's count with it: replay rc=0, must be 0
+the rest of a record, one entry left out, the trailer's count kept: replay rc=1, must be 1; says: trailer: entries of rest written
+the rest of a record, an entry both read and in the rest: replay rc=1, must be 1; says: malformed record: an entry both read and in the rest
+the rest of a record, an entry of the rest without a value: replay rc=1, must be 1; says: malformed record: an entry of the rest without a value
+the rest of a record, an entry of the rest twice: replay rc=1, must be 1; says: malformed record: rest: a key twice
+the rest of a record, a record that scans the promises, as it is: replay rc=0, must be 0
+the rest of a record, that record with its promises moved from the reads to the rest: replay rc=1, must be 1; says: footprint, reads: the twin's scan holds an entry the Python did not read
+ok: every control of the rest of a record as it must be
+shuffled on a tape, the record as it is: replay rc=0, must be 0
+shuffled on a tape, an answer that is not a permutation: replay rc=1, must be 1; says: malformed record: shuffled's answer is not a permutation of its question
+shuffled on a tape, another question than the twin asks: replay rc=1, must be 1; says: tape: shuffled(
+ok: every control of shuffled on a tape as it must be
+v0.10's §4.4 on a tape, valid_id, the count known, as it is: replay rc=0, must be 0
+v0.10's §4.4 on a tape, valid_id, the count read is the id's index: replay rc=1, must be 1; says: return value
+v0.10's §4.4 on a tape, valid_id, the count not known, as it is: replay rc=0, must be 0
+v0.10's §4.4 on a tape, valid_id, the read says the count is known, and is the id's index: replay rc=1, must be 1; says: return value
+v0.10's §4.4 on a tape, valid_id, an id of an odd number of hex digits: replay rc=1, must be 1; says: not an IHAVE's entry
+v0.10's §4.4 on a tape, on_ihave, a bitmap beyond a HAVE's limits, as it is: replay rc=0, must be 0
+v0.10's §4.4 on a tape, on_ihave, its penalty not on the tape: replay rc=1, must be 1; says: tape: penalise(
+v0.10's §4.4 on a tape, on_ihave, valid_have said to hold: replay rc=1, must be 1; says: tape: known_id[
+v0.10's §4.4 on a tape, valid_id, its read of desc is of another group: replay rc=1, must be 1; says: reached: the twin entered
+v0.10's §4.4 on a tape, on_ihave, valid_have asked of another bitmap: replay rc=1, must be 1; says: tape: valid_have(
+v0.10's §4.4 on a tape, on_ihave, penalise of another peer: replay rc=1, must be 1; says: tape: penalise(
+ok: every control of v0.10's §4.4 on a tape as it must be
+a call's log, the queue's keys, mesh_and and the chunk on a tape, on_validated: open_group writes state, the block reads it, as it is: replay rc=0, must be 0
+a call's log, the queue's keys, mesh_and and the chunk on a tape, on_validated: open_group's cw says INVALID: replay rc=1, must be 1; says: tape: the toy asked more
+a call's log, the queue's keys, mesh_and and the chunk on a tape, the queue's keys with a peer twice: replay rc=1, must be 1; says: keys of queue: a key twice
+a call's log, the queue's keys, mesh_and and the chunk on a tape, the queue's keys in another order: it passes since drop_offer is the twin's own: replay rc=0, must be 0
+a call's log, the queue's keys, mesh_and and the chunk on a tape, the queue's keys without one of the twin's rows: replay rc=1, must be 1; says: tape: list(queue): the node's order
+a call's log, the queue's keys, mesh_and and the chunk on a tape, the queue's keys with a peer that has no row: replay rc=1, must be 1; says: tape: list(queue): the node's order
+a call's log, the queue's keys, mesh_and and the chunk on a tape, mesh_and without its peer: replay rc=1, must be 1; says: mesh_and's answer does not have its peer
+a call's log, the queue's keys, mesh_and and the chunk on a tape, mesh_and with a peer twice: replay rc=1, must be 1; says: mesh_and: a key twice
+a call's log, the queue's keys, mesh_and and the chunk on a tape, mesh_and in another order: replay rc=1, must be 1; says: tape: enqueue(
+a call's log, the queue's keys, mesh_and and the chunk on a tape, on_chunk: the chunk's id of another index: replay rc=1, must be 1; says: a chunk's id is not of its group and index
+a call's log, the queue's keys, mesh_and and the chunk on a tape, on_chunk: open_group asked of another group: replay rc=1, must be 1; says: tape: open_group(
+a call's log, the queue's keys, mesh_and and the chunk on a tape, on_chunk: store asked of another index: replay rc=1, must be 1; says: tape: store(
+a call's log, the queue's keys, mesh_and and the chunk on a tape, on_chunk: validate_chunk said REJECT: replay rc=1, must be 1; says: tape: penalise(
+ok: every control of a call's log, the queue's keys, mesh_and and the chunk on a tape as it must be
+v2, header3, a v2 cell's header, v2's kept: passes, must pass
+v2, header3, with on_ihave among its traced: refused: traced: ['K', 'N', 'add_offer', 'announcers', 'ask_parked', 'build_group', 'choose_push', 'close_promises', 'committed_descriptor', 'drop_beyond', 'drop_group',, must be refused
+v2, header3, with gated among its traced: refused: traced: ['K', 'N', 'add_offer', 'announcers', 'ask_parked', 'build_group', 'choose_push', 'close_promises', 'committed_descriptor', 'drop_beyond', 'drop_group',, must be refused
+v2, header3, with the whole block as its traced: refused: traced: ['K', 'N', 'acquire_slot', 'add_offer', 'announce', 'announcers', 'ask_parked', 'build_group', 'candidates_for_source', 'choose_push', 'claim_group', 'c, must be refused
+v2, header3, with §6.1's twelve alone as its traced: refused: traced: ['add_offer', 'announcers', 'ask_parked', 'last_resort', 'least_recently_tried', 'ledger', 'may_ask', 'outstanding', 'parked', 'promise_due', 'retry_off, must be refused
+v2, header3, v2's kept, from a trace not run with --doc v2: refused: traced: ['K', 'N', 'add_offer', 'announcers', 'ask_parked', 'build_group', 'choose_push', 'close_promises', 'committed_descriptor', 'drop_beyond', 'drop_group',, must be refused
+v2, a may_ask record of a v2 cell, alone: replay rc=0, must be 0
+v2, the same, its read of asked_at as now: replay rc=1, must be 1; says: ]: tape
+ok: every control of v2 as it must be
+§4.2's deferred chunks on a tape, drop_stale_waits: list(pending) with a root twice: replay rc=1, must be 1; says: keys of pending: a key twice
+§4.2's deferred chunks on a tape, drop_stale_waits: list(pending) without one of the twin's roots: replay rc=1, must be 1; says: tape: list(pending): the node's order
+§4.2's deferred chunks on a tape, drop_stale_waits: list(tie_slot.items()) with a pair the twin has not: replay rc=1, must be 1; says: tape: list(tie_slot.items()): the node's order
+§4.2's deferred chunks on a tape, drop_beyond: list(tied.items())'s roots in another order: replay rc=1, must be 1; says: tape: tied[
+§4.2's deferred chunks on a tape, on_block_installed: a root's peers with a peer twice: replay rc=1, must be 1; says: keys of a root of tied: a key twice
+§4.2's deferred chunks on a tape, on_block_installed: a peer's groups with a group the twin has not: replay rc=1, must be 1; says: 's groups: the node's order
+§4.2's deferred chunks on a tape, defer: installed_block said a block is there, where it said none: replay rc=1, must be 1; says: tape: validate_chunk(
+ok: every control of §4.2's deferred chunks on a tape as it must be
+§7.2's writer on a tape, next_to_send: in line, as it is: replay rc=0, must be 0
+§7.2's writer on a tape, next_to_send: in line, written as nothing to send: replay rc=1, must be 1; says: return value
+§7.2's writer on a tape, with_owed: owed's groups with one twice: replay rc=1, must be 1; says: keys of a row of owed: a key twice
+§7.2's writer on a tape, with_owed: owed's groups with one the twin has not: replay rc=1, must be 1; says: 's groups: the node's order
+ok: every control of §7.2's writer on a tape as it must be
+the nodes line, filter_entry: a chunk cancelled, as it is: replay rc=0, must be 0
+the nodes line, its node's constants with CANCEL off: replay rc=1, must be 1; says: return value
+the nodes line, another node's entry with CANCEL off, its own as it is: replay rc=0, must be 0
+the nodes line, the two entries' nodes exchanged: replay rc=1, must be 1; says: return value
+ok: every control of the nodes line as it must be
+§1, message_id, as it is: replay rc=0, must be 0
+§1, message_id: content_id's answer not the chunk's: replay rc=1, must be 1; says: tape: content_id: its answer: not the last 20 bytes of the id its chunk carries
+§1, message_id: its return value of another index: replay rc=1, must be 1; says: return value
+§1, message_id: content_id not on its tape: replay rc=1, must be 1; says: tape: content_id
+§1, group_id, as it is: replay rc=0, must be 0
+§1, group_id: sha256 asked of 0x03 and the rest: replay rc=1, must be 1; says: tape: sha256
+§1, group_id: serialize's answer another: replay rc=1, must be 1; says: tape: sha256
+§1, group_id: serialize asked of another count: replay rc=1, must be 1; says: tape: serialize
+§1, group_key: the slot's eight bytes in the other order: replay rc=1, must be 1; says: tape: sha256
+§1, K, as it is: replay rc=0, must be 0
+§1, K: one more: replay rc=1, must be 1; says: return value
+§1, segment_length: a negative length, as it is: replay rc=0, must be 0
+§1, segment_length: that length without its sign: replay rc=1, must be 1; says: return value
+§1, segment_length: minus zero: replay rc=1, must be 1; says: not an integer of a record: minus zero
+§1, group_id: serialize raises, as it is: replay rc=0, must be 0
+§1, group_id: the question that raised, answered: replay rc=1, must be 1; says: the Python raises OverflowError
+§1, build_group, as it is: replay rc=0, must be 0
+§1, build_group: its last question not on the tape: replay rc=1, must be 1; says: tape: merkle_proof
+ok: every control of §1 as it must be
+§6.1's drop_offer, an ask of the chunk filtered out of p's normal lane, as it is: replay rc=0, must be 0
+§6.1's drop_offer, the lane written as it was read: replay rc=1, must be 1; says: post
+§6.1's drop_offer, no queue of p's, as it is: replay rc=0, must be 0
+§6.1's drop_offer, no queue of p's: the lane written there and empty: replay rc=1, must be 1; says: post
+§6.1's drop_offer, a promise of p's closed, as it is: replay rc=0, must be 0
+§6.1's drop_offer, that promise not closed: replay rc=1, must be 1; says: post
+§6.1's drop_offer, an offer list of p alone gone, as it is: replay rc=0, must be 0
+§6.1's drop_offer, that list left with p in it: replay rc=1, must be 1; says: post
+ok: every control of §6.1's drop_offer as it must be
+§6.4's paced gossip, a stale job dropped and the next one's gossip sent, as it is: replay rc=0, must be 0
+§6.4's paced gossip, the first job's time written as now: replay rc=1, must be 1; says: tape
+§6.4's paced gossip, its node's HEARTBEAT written as 100 s: replay rc=1, must be 1; says: tape
+§6.4's paced gossip, the next job's peer said to have left: replay rc=1, must be 1; says: tape
+§6.4's paced gossip, group_bits' answer with a group twice: replay rc=1, must be 1; says: group_bits: a key twice
+§6.4's paced gossip, group_bits' answer with another index: replay rc=1, must be 1; says: tape
+§6.4's paced gossip, group_bits' answer with a group of no index: replay rc=1, must be 1; says: a group with no index
+§6.4's paced gossip, a tick that leaves jobs, as it is: replay rc=0, must be 0
+§6.4's paced gossip, the queue written with one more job popped: replay rc=1, must be 1; says: post
+§6.4's paced gossip, the queue written as it was read: replay rc=1, must be 1; says: post
+§6.4's paced gossip, send_gossip with an offer enqueued, as it is: replay rc=0, must be 0
+§6.4's paced gossip, its offer enqueued to another peer: replay rc=1, must be 1; says: tape
+§6.4's paced gossip, its enqueue without its log: replay rc=1, must be 1; says: post
+§6.4's paced gossip, the queue said to refuse its offer: replay rc=1, must be 1; says: tape
+§6.4's paced gossip, a tick on an empty queue, as it is: replay rc=0, must be 0
+§6.4's paced gossip, the empty queue read as one job: replay rc=1, must be 1; says: tape
+§6.4's paced gossip, the empty queue read as an empty list: replay rc=1, must be 1; says: an empty pace queue as a value
+ok: every control of §6.4's paced gossip as it must be
+§6.4's heartbeat, two asks held back, each retry asking, as it is: replay rc=0, must be 0
+§6.4's heartbeat, their order on the tape reversed: replay rc=1, must be 1; says: tape
+§6.4's heartbeat, two asks held back of chunks held meanwhile, their order reversed: replay rc=0, must be 0
+§6.4's heartbeat, their order with one left out: replay rc=1, must be 1; says: the node's order
+§6.4's heartbeat, one of them written as still held back: replay rc=1, must be 1; says: post
+§6.4's heartbeat, paced gossip to some of the eligible peers, as it is: replay rc=0, must be 0
+§6.4's heartbeat, gossip_ids' answer one id shorter: replay rc=1, must be 1; says: post
+§6.4's heartbeat, topic_peers' answer reversed: replay rc=1, must be 1; says: tape
+§6.4's heartbeat, the first topic peer said to be in the mesh: replay rc=1, must be 1; says: tape
+§6.4's heartbeat, the first topic peer said not to be eligible: replay rc=1, must be 1; says: tape
+§6.4's heartbeat, the draw's answer with a peer twice: replay rc=1, must be 1; says: sample_without_replacement: a key twice
+§6.4's heartbeat, the draw's answer with a peer not of the question's: replay rc=1, must be 1; says: a peer that is not of the question's
+§6.4's heartbeat, the draw's answer one peer short: replay rc=1, must be 1; says: peers: [
+§6.4's heartbeat, the draw's answer with another of the eligible peers: replay rc=1, must be 1; says: post
+§6.4's heartbeat, the last job's time one ulp later: replay rc=1, must be 1; says: post
+§6.4's heartbeat, its node's D_LAZY written as 1000: replay rc=1, must be 1; says: tape
+§6.4's heartbeat, its node's GOSSIP_FACTOR written as 1.0: replay rc=1, must be 1; says: tape
+§6.4's heartbeat, its node's PACED written as off: replay rc=1, must be 1; says: tape
+§6.4's heartbeat, a count of the limits cleared, as it is: replay rc=0, must be 0
+§6.4's heartbeat, that count's clearing left out of the writes: replay rc=1, must be 1; says: post
+§6.4's heartbeat, gossip sent at once, as it is: replay rc=0, must be 0
+§6.4's heartbeat, its node's PACED written as on: replay rc=1, must be 1; says: tape
+ok: every control of §6.4's heartbeat as it must be
+§4.6's claim and drop, a claim to the mesh, as it is: replay rc=0, must be 0
+§4.6's claim and drop, the mesh's order reversed: replay rc=1, must be 1; says: tape
+§4.6's claim and drop, the mesh's answer with a peer twice: replay rc=1, must be 1; says: mesh: a key twice
+§4.6's claim and drop, stop_pull's write left out: replay rc=1, must be 1; says: post
+§4.6's claim and drop, a claim of a group stopped already, as it is: replay rc=0, must be 0
+§4.6's claim and drop, its write of stop_pull left out: replay rc=1, must be 1; says: the twin writes an entry the Python neither read nor wrote
+§4.6's claim and drop, mine written one bit short of all: replay rc=1, must be 1; says: post
+§4.6's claim and drop, close_promises_of_group without its log: replay rc=1, must be 1; says: post
+§4.6's claim and drop, the descriptor read with a count one less: replay rc=1, must be 1; says: tape
+§4.6's claim and drop, a group dropped, as it is: replay rc=0, must be 0
+§4.6's claim and drop, its state written COMPLETE: replay rc=1, must be 1; says: post
+§4.6's claim and drop, discard_queued's lane written as it was read: replay rc=1, must be 1; says: post
+§4.6's claim and drop, the gossip history told to remove another group: replay rc=1, must be 1; says: tape
+§4.6's claim and drop, discard_paced not on the tape: replay rc=1, must be 1; says: tape
+§4.6's claim and drop, discard_paced written with an answer: replay rc=1, must be 1; says: a call that returns nothing
+§4.6's claim and drop, discard_paced's jobs written as they were read: replay rc=1, must be 1; says: post
+§4.6's claim and drop, gated of a stopped group, as it is: replay rc=0, must be 0
+§4.6's claim and drop, that group's stop_pull read as not set: replay rc=1, must be 1; says: return value
+§4.6's claim and drop, that read written on the tape instead: replay rc=1, must be 1; says: stop_pull
+ok: every control of §4.6's claim and drop as it must be
+§4.3's HAVE, a HAVE with new indices, as it is: replay rc=0, must be 0
+§4.3's HAVE, the peer's entry read with the first new bit there: replay rc=1, must be 1; says: post
+§4.3's HAVE, the entry written with a ttl one less: replay rc=1, must be 1; says: post
+§4.3's HAVE, the entry written without the first new bit: replay rc=1, must be 1; says: post
+§4.3's HAVE, the first new index's holders written without the peer: replay rc=1, must be 1; says: post
+§4.3's HAVE, the send's entry read under another index: replay rc=1, must be 1; says: footprint, reads
+§4.3's HAVE, the group said to be planned: replay rc=1, must be 1; says: KeyError
+§4.3's HAVE, the group said to have expired: replay rc=1, must be 1; says: tape
+§4.3's HAVE, the HAVE said not to be valid: replay rc=1, must be 1; says: tape
+§4.3's HAVE, its node's HAVE_TTL written as 7: replay rc=1, must be 1; says: post
+§4.3's HAVE, an invalid HAVE, as it is: replay rc=0, must be 0
+§4.3's HAVE, its sender not penalised: replay rc=1, must be 1; says: tape
+§4.3's HAVE, an empty HAVE that makes the peer's entry, as it is: replay rc=0, must be 0
+§4.3's HAVE, that entry's write left out: replay rc=1, must be 1; says: post
+§4.3's HAVE, a HAVE of nothing new that refreshes the ttl, as it is: replay rc=0, must be 0
+§4.3's HAVE, that refresh left out of the writes: replay rc=1, must be 1; says: post
+§4.3's HAVE, a HAVE for a group the node publishes, as it is: replay rc=0, must be 0
+§4.3's HAVE, origin's write left out: replay rc=1, must be 1; says: post
+§4.3's HAVE, origin written without the last chunk acknowledged: replay rc=1, must be 1; says: post
+§4.3's HAVE, that group said not to be planned: replay rc=1, must be 1; says: tape
+ok: every control of §4.3's HAVE as it must be
+§4.1's frame and §4.5's IWANT, on_iwant: one ask answered, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, resolve's answer written as none: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, the id read as one the peer does not want: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, serve_count's write left out: replay rc=1, must be 1; says: post
+§4.1's frame and §4.5's IWANT, chunk_of's answer the next index's chunk: replay rc=1, must be 1; says: not the chunk of the id asked
+§4.1's frame and §4.5's IWANT, chunk_of's answer with another index under the same id: replay rc=1, must be 1; says: a chunk's id is not of its group and index
+§4.1's frame and §4.5's IWANT, its node's GOSSIP_RETRANSMISSION written as 0: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, its node said to run its own on_iwant: replay rc=1, must be 1; says: a record of on_iwant at a node that has replaced it
+§4.1's frame and §4.5's IWANT, on_iwant: two answers, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, the two answers returned in the other order: replay rc=1, must be 1; says: return value
+§4.1's frame and §4.5's IWANT, on_iwant: a chunk asked twice, answered once, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, that chunk returned twice: replay rc=1, must be 1; says: return value
+§4.1's frame and §4.5's IWANT, respond: the control on the first of several answers, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, the control on the second answer too: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, the first answer's entry not marked solicited: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, respond: an answer refused and owed, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, the owed answer's write left out: replay rc=1, must be 1; says: post
+§4.1's frame and §4.5's IWANT, respond: control alone, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, its entry without the empty PRUNE: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, on_frame: an ask answered, then the same chunk's HAVE, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, the frame written without its IDONTWANT: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, on_frame: a chunk stored, then its own HAVE, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, that frame written without its IDONTWANT: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, handle_graft_prune's answer with a prune: replay rc=1, must be 1; says: prunes, of which a record holds none
+§4.1's frame and §4.5's IWANT, the frame's node said to run its own on_iwant: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, on_frame at a node with its own on_iwant, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, that node said to run the document's: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, the node's answers one fewer: replay rc=1, must be 1; says: tape
+§4.1's frame and §4.5's IWANT, on_frame: an IDONTWANT's id kept, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, its write of unwanted left out: replay rc=1, must be 1; says: post
+§4.1's frame and §4.5's IWANT, unwanted written as it was read: replay rc=1, must be 1; says: post
+§4.1's frame and §4.5's IWANT, the frame's id written as another: replay rc=1, must be 1; says: post
+§4.1's frame and §4.5's IWANT, on_frame: an id the peer said already, as it is: replay rc=0, must be 0
+§4.1's frame and §4.5's IWANT, that id not in the set read: replay rc=1, must be 1; says: post
+ok: every control of §4.1's frame and §4.5's IWANT as it must be
+§4.6's decode and repair, decode_group: new chunks stored, one pushed, as it is: replay rc=0, must be 0
+§4.6's decode and repair, the decode said to give nothing (the root differs): replay rc=1, must be 1; says: tape
+§4.6's decode and repair, the group said to have expired meanwhile: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, the rebuilt chunks without the first new one: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, two new rebuilt chunks in the other order: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, a rebuilt index twice: replay rc=1, must be 1; says: decode_and_reencode: a key twice
+§4.6's decode and repair, a rebuilt chunk of another group: replay rc=1, must be 1; says: a rebuilt chunk of another group
+§4.6's decode and repair, the state's write left out: replay rc=1, must be 1; says: post
+§4.6's decode and repair, payload_of not on the tape: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, payload_of's answer a blob, deliver's still nothing: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, its node said to run its own push_rebuilt: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, decode_group: the root differs, the group dropped, as it is: replay rc=0, must be 0
+§4.6's decode and repair, that decode said to give no chunk, but to succeed: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, decode_group at a node with its own push_rebuilt, as it is: replay rc=0, must be 0
+§4.6's decode and repair, that node said to run the document's: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, the node's push_rebuilt asked of fewer new chunks: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, the node's push_rebuilt without its log: replay rc=1, must be 1; says: post
+§4.6's decode and repair, push_rebuilt: a draw of the mesh, a peer pushed to, as it is: replay rc=0, must be 0
+§4.6's decode and repair, the draw of the mesh written as the mesh's own order: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, the draw of what the peer lacks reversed: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, everything said to be pushed to the first peer already: replay rc=1, must be 1; says: tape
+§4.6's decode and repair, the chunk read from the store of the next index: replay rc=1, must be 1; says: a chunk's id is not of its group and index
+§4.6's decode and repair, the first peer's entry of pushed written without its first index: replay rc=1, must be 1; says: post
+§4.6's decode and repair, push_rebuilt: a push refused and owed, as it is: replay rc=0, must be 0
+§4.6's decode and repair, that push said to be admitted: replay rc=1, must be 1; says: tape
+ok: every control of §4.6's decode and repair as it must be
+§3's level 1, validate_chunk: a chunk accepted, as it is: replay rc=0, must be 0
+§3's level 1, the block said not to be there: replay rc=1, must be 1; says: tape: the toy asked more
+§3's level 1, the block of the next slot: replay rc=1, must be 1; says: tape: the toy asked more
+§3's level 1, the block's bid with no group id: replay rc=1, must be 1; says: tape
+§3's level 1, the block's bid with another group id: replay rc=1, must be 1; says: tape
+§3's level 1, the chunk written without what level 1 reads: replay rc=1, must be 1; says: AttributeError
+§3's level 1, the chunk's data one byte longer: replay rc=1, must be 1; says: tape
+§3's level 1, the chunk's index at the count: replay rc=1, must be 1; says: tape
+§3's level 1, the proof said to fail: replay rc=1, must be 1; says: return value
+§3's level 1, the result written REJECT: replay rc=1, must be 1; says: return value
+§3's level 1, the key's hash not on the tape: replay rc=1, must be 1; says: tape
+§3's level 1, its node said to run design B: replay rc=1, must be 1; says: tape
+§3's level 1, its node said to run its own validate_chunk: replay rc=1, must be 1; says: a record of validate_chunk at a node that has replaced it
+§3's level 1, validate_chunk: a proof the tree refuses, as it is: replay rc=0, must be 0
+§3's level 1, that proof said to hold: replay rc=1, must be 1; says: return value
+§3's level 1, validate_chunk: no block yet, as it is: replay rc=0, must be 0
+§3's level 1, a block said to be there, of no group: replay rc=1, must be 1; says: return value
+§3's level 1, validate_chunk under design B: accepted, as it is: replay rc=0, must be 0
+§3's level 1, the bid with no descriptor: replay rc=1, must be 1; says: tape: the toy asked more
+§3's level 1, the bid's descriptor with another root: replay rc=1, must be 1; says: tape
+§3's level 1, its node said to run design A: replay rc=1, must be 1; says: tape
+§3's level 1, committed_descriptor under design A: the chunk's, as it is: replay rc=0, must be 0
+§3's level 1, its answer written as none: replay rc=1, must be 1; says: return value
+§3's level 1, its block's bid with no group id: replay rc=1, must be 1; says: return value
+§3's level 1, on_chunk at a node with a scenario's level 1, as it is: replay rc=0, must be 0
+§3's level 1, that node said to run the document's: replay rc=1, must be 1; says: tape
+ok: every control of §3's level 1 as it must be
+§5.2, a later push, as it is: replay rc=0, must be 0
+§5.2, the entry written with a ttl one less: replay rc=1, must be 1; says: post
+§5.2, the entry written with its clock at now: replay rc=1, must be 1; says: post
+§5.2, the entry written without the index: replay rc=1, must be 1; says: post
+§5.2, its node's PUSH_TTL written as 7: replay rc=1, must be 1; says: post
+§5.2, a first push, as it is: replay rc=0, must be 0
+§5.2, that entry's write left out: replay rc=1, must be 1; says: post
+§5.2, an offer owed on top of others, as it is: replay rc=0, must be 0
+§5.2, its wake taken off the tape: replay rc=1, must be 1; says: tape
+§5.2, owed written as the call's bits alone: replay rc=1, must be 1; says: post
+§5.2, a push of several unpushed in the mesh, as it is: replay rc=0, must be 0
+§5.2, its peer said not to be in the mesh: replay rc=1, must be 1; says: tape
+§5.2, the entry written with the index still there: replay rc=1, must be 1; says: post
+§5.2, a push unpushed outside the mesh, as it is: replay rc=0, must be 0
+§5.2, its peer said to be in the mesh: replay rc=1, must be 1; says: tape
+§5.2, an unpush of nothing pushed, as it is: replay rc=0, must be 0
+§5.2, the entry read as there, with the index: replay rc=1, must be 1; says: post
+§5.2, an offer the queue takes, as it is: replay rc=0, must be 0
+§5.2, the offer on the tape with a bit more: replay rc=1, must be 1; says: tape
+§5.2, the queue said to refuse it: replay rc=1, must be 1; says: tape
+§5.2, an offer the queue refuses, as it is: replay rc=0, must be 0
+§5.2, the queue said to take it: replay rc=1, must be 1; says: tape
+§5.2, nothing to offer, as it is: replay rc=0, must be 0
+§5.2, the peer read as holding and pushed nothing: replay rc=1, must be 1; says: tape
+ok: every control of §5.2 as it must be
+§5.3, a peer demoted with exactly R_NODE pushed, as it is: replay rc=0, must be 0
+§5.3, pushed read with one bit fewer: replay rc=1, must be 1; says: return
+§5.3, the first push's time read as now: replay rc=1, must be 1; says: return
+§5.3, peer_has read as there, with no bit: replay rc=1, must be 1; says: return
+§5.3, its node's R_NODE written as 9: replay rc=1, must be 1; says: return
+§5.3, its node's GUARD_GRACE written as 100 s: replay rc=1, must be 1; says: return
+§5.3, a peer with fewer than R_NODE pushed, as it is: replay rc=0, must be 0
+§5.3, a draw of two or more, as it is: replay rc=0, must be 0
+§5.3, the draw's answer in the other order: replay rc=1, must be 1; says: return
+§5.3, the draw's question without a peer of its pool: replay rc=1, must be 1; says: tape
+§5.3, the first tiebreak taken off the tape: replay rc=1, must be 1; says: tape
+§5.3, at_source written as true: replay rc=1, must be 1; says: tape
+§5.3, a budget that covers the candidates, as it is: replay rc=0, must be 0
+§5.3, the budget written one less than the candidates: replay rc=1, must be 1; says: tape
+§5.3, choose_push at the source, as it is: replay rc=0, must be 0
+§5.3, choose_push with nobody proven, as it is: replay rc=0, must be 0
+ok: every control of §5.3 as it must be
+forward, candidates_for_source and on_mesh_join, forward with a draw, a push and an offer, as it is: replay rc=0, must be 0
+forward, candidates_for_source and on_mesh_join, its gossip_put taken off the tape: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, the mesh's second answer without a candidate that was offered: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, its first push said to be refused: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, the write of pushed for its first push left out: replay rc=1, must be 1; says: post
+forward, candidates_for_source and on_mesh_join, its sender written as the first peer pushed: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, forward with a push refused and owed, as it is: replay rc=0, must be 0
+forward, candidates_for_source and on_mesh_join, that push said to be taken: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, forward with no budget, as it is: replay rc=0, must be 0
+forward, candidates_for_source and on_mesh_join, its node's R_NODE written as 9: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, candidates_for_source in the mesh with a holder, as it is: replay rc=0, must be 0
+forward, candidates_for_source and on_mesh_join, the holder's peer_has read as missing: replay rc=1, must be 1; says: return
+forward, candidates_for_source and on_mesh_join, its node's UPLINK written as the stripe's: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, candidates_for_source among every connected peer, as it is: replay rc=0, must be 0
+forward, candidates_for_source and on_mesh_join, connected_topic_peers' answer without its last candidate: replay rc=1, must be 1; says: return
+forward, candidates_for_source and on_mesh_join, on_mesh_join with two groups offered, as it is: replay rc=0, must be 0
+forward, candidates_for_source and on_mesh_join, the store's groups in the other order: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, the first group offered said to have expired: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, that group's indices without one that was offered: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, on_mesh_join that passes over a dropped group and offers nothing, as it is: replay rc=0, must be 0
+forward, candidates_for_source and on_mesh_join, the dropped group's state read as COMPLETE: replay rc=1, must be 1; says: tape
+forward, candidates_for_source and on_mesh_join, on_mesh_join with nothing held, as it is: replay rc=0, must be 0
+ok: every control of forward, candidates_for_source and on_mesh_join as it must be
+next_to_send at PUBLISH and §5.1's origin_written, next_to_send at PUBLISH: a chunk leaves and the HAVE grows, as it is: replay rc=0, must be 0
+next_to_send at PUBLISH and §5.1's origin_written, its node's SOURCE_OFFERS written as ACK: replay rc=1, must be 1; says: tape
+next_to_send at PUBLISH and §5.1's origin_written, its write of origin left out: replay rc=1, must be 1; says: post
+next_to_send at PUBLISH and §5.1's origin_written, origin_written: the HAVE grows, as it is: replay rc=0, must be 0
+next_to_send at PUBLISH and §5.1's origin_written, the mesh's order reversed: replay rc=1, must be 1; says: tape
+next_to_send at PUBLISH and §5.1's origin_written, origin read with the chunk's bit there already: replay rc=1, must be 1; says: tape
+next_to_send at PUBLISH and §5.1's origin_written, origin_written: not a group the node publishes, as it is: replay rc=0, must be 0
+next_to_send at PUBLISH and §5.1's origin_written, that group read as one it publishes: replay rc=1, must be 1; says: tape
+next_to_send at PUBLISH and §5.1's origin_written, hand5-publish: a write that runs origin_written, as it is: replay rc=0, must be 0
+next_to_send at PUBLISH and §5.1's origin_written, its reached without origin_written: replay rc=1, must be 1; says: reached
+ok: every control of next_to_send at PUBLISH and §5.1's origin_written as it must be
+§7.1's window, acquire_slot: a slot, nobody in line, as it is: replay rc=0, must be 0
+§7.1's window, the count read at the window: replay rc=1, must be 1; says: return value
+§7.1's window, acquire_slot: first in line, the next woken, as it is: replay rc=0, must be 0
+§7.1's window, the line read with the peer alone in it: replay rc=1, must be 1; says: tape
+§7.1's window, its write of the count left out: replay rc=1, must be 1; says: post
+§7.1's window, acquire_slot: another first, the peer joins the line, as it is: replay rc=0, must be 0
+§7.1's window, the line written as it was read: replay rc=1, must be 1; says: post
+§7.1's window, acquire_slot at a node with no window, as it is: replay rc=0, must be 0
+§7.1's window, that node's W written as 2: replay rc=1, must be 1; says: return value
+§7.1's window, release_unused_slot: the peer leaves the line, as it is: replay rc=0, must be 0
+§7.1's window, the line read without the peer: replay rc=1, must be 1; says: reached
+§7.1's window, track_in_flight: a new send, as it is: replay rc=0, must be 0
+§7.1's window, its timer left off the tape: replay rc=1, must be 1; says: tape
+§7.1's window, the send read as in flight already: replay rc=1, must be 1; says: tape
+§7.1's window, window_release: a send in flight released, as it is: replay rc=0, must be 0
+§7.1's window, the send read as not in flight: replay rc=1, must be 1; says: reached
+§7.1's window, window_timeout: still in flight, a planned group, as it is: replay rc=0, must be 0
+§7.1's window, the group's row of planned read as not there: replay rc=1, must be 1; says: tape
+§7.1's window, window_timeout: a stale timer, as it is: replay rc=0, must be 0
+§7.1's window, the timer's time written as the send's: replay rc=1, must be 1; says: reached
+§7.1's window, origin_acked: the HAVE grows and a mesh peer is announced, as it is: replay rc=0, must be 0
+§7.1's window, origin read with the chunk acknowledged already: replay rc=1, must be 1; says: tape
+§7.1's window, its node's SOURCE_OFFERS written as PUBLISH: replay rc=1, must be 1; says: tape
+§7.1's window, origin_acked at PUBLISH: nothing, as it is: replay rc=0, must be 0
+§7.1's window, free_slot with somebody in line, as it is: replay rc=0, must be 0
+§7.1's window, the line read as empty: replay rc=1, must be 1; says: tape
+§7.1's window, acquire_slot: the first in line mid-write, the peer behind it takes a slot, as it is: replay rc=0, must be 0
+§7.1's window, the first in line's writing answered false: replay rc=1, must be 1; says: tape
+§7.1's window, wake_front past the first in line, another woken, as it is: replay rc=0, must be 0
+§7.1's window, its `past` written as none: replay rc=1, must be 1; says: tape
+ok: every control of §7.1's window as it must be
+§5.1's publish, a publish with a chunk pushed twice, as it is: replay rc=0, must be 0
+§5.1's publish, a stored chunk's data one byte longer: replay rc=1, must be 1; says: tape
+§5.1's publish, a digest of its proof another: replay rc=1, must be 1; says: tape
+§5.1's publish, it stored without its descriptor: replay rc=1, must be 1; says: tape
+§5.1's publish, it stored with its id on it: replay rc=1, must be 1; says: tape
+§5.1's publish, it stored under the next index: replay rc=1, must be 1; says: tape
+§5.1's publish, the block's root answered as another: replay rc=1, must be 1; says: tape
+§5.1's publish, its content_id answered as another: replay rc=1, must be 1; says: tape
+§5.1's publish, its content_id asked of the narrow chunk with its id: replay rc=1, must be 1; says: tape
+§5.1's publish, the first shard's index another in the arguments: replay rc=1, must be 1; says: tape
+§5.1's publish, its node's R written as 1: replay rc=1, must be 1; says: tape
+§5.1's publish, its node said to be at PUBLISH: replay rc=1, must be 1; says: tape
+§5.1's publish, its descriptor written with no chunk: replay rc=1, must be 1; says: limit: publish of a descriptor of no chunk
+§5.1's publish, an expired group's publish, as it is: replay rc=0, must be 0
+§5.1's publish, that group said not to be expired: replay rc=1, must be 1; says: tape
+§5.1's publish, a publish past its live window, as it is: replay rc=0, must be 0
+§5.1's publish, that slot said to be live: replay rc=1, must be 1; says: tape
+ok: every control of §5.1's publish as it must be
+the stripe's threshold where card 13 is off, candidates_for_source under the stripe's uplink, as it is: replay rc=0, must be 0
+the stripe's threshold where card 13 is off, its node's STRIPE_UPLINK written infinite: replay rc=0, must be 0
+the stripe's threshold where card 13 is off, a node at the stripe's uplink, its STRIPE_UPLINK written infinite: replay rc=1, must be 1; says: tape
+the stripe's threshold where card 13 is off, a node's UPLINK written infinite: replay rc=1, must be 1; says: nodes: not a finite float
+ok: every control of the stripe's threshold where card 13 is off as it must be
+a chunk without a descriptor field, an index past a uint32, an untraced name replaced, design B: a chunk with no descriptor field, accepted, as it is: replay rc=0, must be 0
+a chunk without a descriptor field, an index past a uint32, an untraced name replaced, its data one byte longer: replay rc=1, must be 1; says: tape
+a chunk without a descriptor field, an index past a uint32, an untraced name replaced, its node said to run design A: replay rc=1, must be 1; says: AttributeError
+a chunk without a descriptor field, an index past a uint32, an untraced name replaced, design A: a chunk with no descriptor field raises, as it is: replay rc=0, must be 0
+a chunk without a descriptor field, an index past a uint32, an untraced name replaced, that chunk given a descriptor: replay rc=1, must be 1; says: the Python raises AttributeError
+a chunk without a descriptor field, an index past a uint32, an untraced name replaced, message_id of an index beyond a uint32 raises, as it is: replay rc=0, must be 0
+a chunk without a descriptor field, an index past a uint32, an untraced name replaced, its index written as the last a uint32 holds: replay rc=1, must be 1; says: the Python raises OverflowError
+a chunk without a descriptor field, an index past a uint32, an untraced name replaced, a v2 cell's record with its node's line, as it is: replay rc=0, must be 0
+a chunk without a descriptor field, an index past a uint32, an untraced name replaced, that node said to have replaced push_rebuilt, which the header does not trace: replay rc=1, must be 1; says: nodes: has replaced [push_rebuilt], which the header does not list as traced
+ok: every control of a chunk without a descriptor field, an index past a uint32, an untraced name replaced as it must be
+the queue, that call's cr with a value changed: replay rc=1, must be 1; says: its callee read
+the queue, that call's log without cw: replay rc=1, must be 1; says: a call's log without cw
+the queue, a record whose one call writes a lane, alone: replay rc=0, must be 0
+the queue, that call's cw on the other lane: replay rc=1, must be 1; says: ]: post
+the queue, that call's write of the lane dropped from its cw: replay rc=1, must be 1; says: ]: post
+the queue, the lane's value in that cw one entry shorter: replay rc=1, must be 1; says: ]: post
+ok: every control of the queue as it must be

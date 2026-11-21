@@ -1,0 +1,16 @@
+made-rows-off: the tracer stopped, as it must: trace3: the views' log does not account for the state before on_chunk[34, ['111111111111111111111111
+alias: the tracer stopped, as it must: trace3: node 2: one queue entry stands in two places, (25, 'urgent', 0) and (25, 'normal', 0), at th
+alias-control: the tracer stopped, as it must: trace3: node 2: one queue entry's control stands in two places, (25, 'urgent', 0) and (25, 'normal',
+installed-flip: the tracer stopped, as it must: trace3: installed_block(2, a1a1a1a1a1a1a1a1…) answered True, then False, in one record: the twin's
+pending-twice: the tracer stopped, as it must: trace3: node 2: peer 22's copy 1111111111111111… waits twice under one root
+alias-start: the tracer stopped, as it must: trace3: node 2: one queue entry's control stands in two places, (25, 'urgent', 0) and (25, 'normal',
+alias-message: the tracer stopped, as it must: trace3: node 2: one queue control message stands in two places, (25, 'urgent', 0, 0) and (25, 'norma
+defer-chain: the tracer stopped, as it must: trace3: node 2: a chain of 3 defers in one record, past the twin's 2 (deferDepth)
+replaced: the tracer stopped, as it must: trace3: node 2: may_ask is traced, and its function here is neither protocol.md's own code nor a lis
+false-wrapper: the tracer stopped, as it must: trace3: node 2: may_ask is traced, and its function here is neither protocol.md's own code nor a lis
+stale-id: the tracer stopped, as it must: trace3: node 2: message_id returned 1111111111111111111111111111111111111111111111111111111111111111
+level1-in-cell: the tracer stopped, as it must: trace3: node 1: validate_chunk is something else than the document's here (level1_in_cell.<locals>.w
+late-rebind: the tracer stopped, as it must: trace3: node 2: may_ask was bound again after the tracer was installed, to what is neither the trace
+stale-id-callee: the tracer stopped, as it must: trace3: node 2: message_id returned 1111111111111111111111111111111111111111111111111111111111111111
+rebind-after-records: the tracer stopped, as it must: trace3: node 2: may_ask was bound again after the tracer was installed, to what is neither the trace
+limit-fraction: the tracer stopped, as it must: trace3: node 2: MAX_IHAVE_LENGTH is no count: 2.5

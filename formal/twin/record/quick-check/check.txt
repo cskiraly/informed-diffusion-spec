@@ -1,0 +1,54 @@
+start 2026-11-20 15:54:12 CET
+the toy: RUN/tree/toy
+the content line: 9961 bytes, sha256 8ba02de1f0d97100df60829d40b48569499c46c65651689a8c5d3471e70f0a3b
+== build: 15:54:12
+  Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release)
+  the twin's sources: 32 files, the list's sha256 792ee78f6fcc8412ba9d9d1a692739ee66b4b8720f72ec1d8a2730d684df49e5 (twin-sources.txt)
+  the replay: sha256 f03d7a3f8b301d7f8d569acddc160a10544a4047aa266775fa8b1516653cc7f0
+== selftests: 15:54:51
+  8 of 8 tools' own cases as they must be (selftests.txt)
+== tables: 15:54:52
+    ok: the replay's one instance, by Tables.ofState, and nothing else
+  ok: every case as the contract says
+== scope: 15:54:58
+  by section: §1 7, §2 1, §3 2, §4.1 2, §4.2 12, §4.3 1, §4.4 4, §4.5 1, §4.6 4, §5.1 4, §5.2 5, §5.3 2, §5.4 1, §6.1 14, §6.2 1, §6.4 3, §7.1 8, §7.2 5
+  the twin's functions with no def in the code blocks: held
+  control, the twin without group_id: refused, as it must be
+  77 of 77 functions of protocol.md's code blocks have their twin, by name
+== mutants: 15:54:58
+  562 of 562 mutants' texts stand in the twin once, each in the place its description names
+  control, a change that does not type-check: rc=1: it fails, as it must
+  562 of 562 mutants type-check alone against the twin's built imports
+== screen: 15:55:43
+  v03: 15 cells' header and nodes line read; control, a nodes line without PROMISE: refused, and seen
+  v2: 15 cells' header and nodes line read; control, a nodes line without PROMISE: refused, and seen
+== cells: 15:55:45
+  none: trace rc=0, digest as golden.txt, replay 671455/671455/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+== small: 16:00:14
+  traces/hand5-publish: digest traced d49283d6734a2d42, untraced d49283d6734a2d42: the same
+  traces/hand5-sec61: digest traced 484bb9a09a8c557e, untraced 484bb9a09a8c557e: the same
+  traces/hand5: digest traced 484bb9a09a8c557e, untraced 484bb9a09a8c557e: the same
+  traces/late16: digest traced bf3aa10491aba732, untraced bf3aa10491aba732: the same
+  v2/hand5-own: digest traced 5b4d8fb84b978a7d, untraced 5b4d8fb84b978a7d: the same
+  v2/hand5: digest traced 484bb9a09a8c557e, untraced 484bb9a09a8c557e: the same
+== directed: 16:00:57
+  22 of 22 directed sets traced
+== replays: 16:01:33
+  29 of 29 replays: every record of a trace that is not empty, none mismatched, no read left unmade (replays.txt)
+== headers: 16:01:34
+  29 headers read (headers.txt)
+  hashes.txt: 29 traces, the file's sha256 8a6b69d82ef56741ebdd5fb3838b2314a149f615c6bf4adaf030b086b928bfb5
+== picks: 16:01:43
+  fixcontrols pick: directed42.jsonl.gz --only fn=validate_chunk: 20000 records; 0 reached validate_chunk, 2887 more ask it on the tape; the replay took 2887 and ended with 0
+  fixcontrols pick: directed41.jsonl.gz --only fn=on_iwant: 20000 records; 13610 reached on_iwant, 2988 more ask it on the tape; the replay took 16598 and ended with 0
+  fixcontrols pick: directed46d.jsonl.gz --only fn=push_rebuilt: 20000 records; 13998 reached push_rebuilt, 3160 more ask it on the tape; the replay took 17158 and ended with 0
+  fixcontrols draw: directed3v.jsonl.gz: the blocks answered, by form: design A, an id, a descriptor: 1800; design A, an id, no descriptor: 7101; design A, no id, no descriptor: 636; design B, an id, 
+== controls: 16:02:13
+  control, a mutant that compiles (window-le): told, as it must be: window-le: may_ask: an ask is in flight while now - t <= IWANT_WINDOW (for <): 187 mismatched records in 1 of 1 traces, by {'tape': 187}; 0 reads not 
+  control, altered records, headers and nodes lines: 31 groups, each refused as it must be (c-altered.txt)
+  control, a trace cut short: refused, as it must be: trailer: none (the trace is cut off)
+  control, the content line: 38 cases, each as it must be (c-content.txt)
+== perturbed: 16:03:27
+  control, a tracer that perturbs: push's digest is 933921d8dca3a9c3, golden.txt's c59362bcb57be09d: another, as it must be
+end 2026-11-20 16:05:50 CET
+check.sh: PASS

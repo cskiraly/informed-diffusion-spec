@@ -1,0 +1,15 @@
+content: as --content's, 104 names
+header: {"args":["--nodes","5","--degree","4","--msgs","1","--payload","16384","--seed","7","--digest"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["add_offer","announcers","ask_parked","last_resort","least_recently_tried","ledger","may_ask","outstanding","parked","promise_due","retry_offer","untried"],"tracer":"trace3.py","whole":false}
+replay: 6 records, 6 ok, 0 mismatched
+fn add_offer: 1 records, 1 ok
+fn may_ask: 1 records, 1 ok
+fn outstanding: 1 records, 1 ok
+fn parked: 1 records, 1 ok
+fn promise_due: 1 records, 1 ok
+fn retry_offer: 1 records, 1 ok
+branch add_offer: listed: 1
+branch may_ask: asks: 1
+branch outstanding: no: 1
+branch promise_due: gone: 1
+branch retry_offer: held: 1
+reads of the Python's that the twin did not make: 0

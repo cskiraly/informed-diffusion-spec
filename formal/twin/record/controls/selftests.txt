@@ -1,0 +1,8 @@
+content.py --self-test: content self-test: every case as it must be
+mutants3.py --self-test: ok: every case of the table check as it must be
+altered3.py --self-test: altered3 self-test, the expected report with exit code 1, and an uncaught exception's line on stderr: not taken
+commentsonly.py --self-test: self-test: 49 of 49 known answers (32 that must be rejected, 17 that must be accepted)
+fullid.py --self-test: ok: every case as it must be
+against.py --self-test: ok: every case as it must be
+matrixdiff.py --self-test: ok: every case as it must be
+trace3.py --self-test-v2: ok: every case as it must be

@@ -1,0 +1,39 @@
+content: as --content's, 104 names
+header: {"args":["directed44","--n=20000","--seed=1","--no-limits"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","acquire_slot","add_offer","announce","announcers","ask_parked","build_group","candidates_for_source","choose_push","claim_group","close_promises","committed_descriptor","decode_group","defer","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","filter_entry","forward","free_slot","front","gated","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","next_to_send","note_push","on_block_installed","on_chunk","on_frame","on_have","on_heartbeat","on_ihave","on_iwant","on_mesh_join","on_pace_tick","on_validated","origin_acked","origin_written","outstanding","over_ihave_limits","owe","parked","projected","promise_due","publish","push_rebuilt","rarest","release_unused_slot","respond","retry_offer","segment_length","send_gossip","send_have","tie","tie_room","tied_to_root","track_in_flight","unpush","untried","valid_descriptor","valid_id","validate_chunk","wake_front","window_release","window_timeout","with_owed"],"tracer":"trace3.py","whole":true}
+replay: 20000 records, 20000 ok, 0 mismatched
+fn expand: 2294 records, 2294 ok
+fn gated: 1157 records, 1157 ok
+fn on_ihave: 11852 records, 11852 ok
+fn over_ihave_limits: 2387 records, 2387 ok
+fn valid_id: 2310 records, 2310 ok
+branch add_offer: kept in offered only: 7429
+branch add_offer: listed: 6279
+branch expand: a bitmap: 9518
+branch expand: an id: 4517
+branch expand: an id ignored: 3523
+branch last_resort: an announcer not parked: 517
+branch last_resort: armed already: 284
+branch last_resort: arms: 568
+branch last_resort: each asked once more: 107
+branch may_ask: asks: 5884
+branch may_ask: in flight: 1233
+branch on_ihave: a bitmap beyond a HAVE's limits: 2574
+branch on_ihave: asks: 5884
+branch on_ihave: expired: 1179
+branch on_ihave: gated: 1612
+branch on_ihave: held: 566
+branch on_ihave: no block: 1372
+branch on_ihave: outstanding: 1474
+branch on_ihave: parked: 1476
+branch on_ihave: tied: 657
+branch outstanding: no: 7117
+branch outstanding: promised: 1280
+branch outstanding: queued: 194
+branch over_ihave_limits: no: 9504
+branch raises: TypeError: 112
+branch valid_id: beyond the count: 1512
+branch valid_id: no group has the index: 992
+branch valid_id: not 56 bytes: 1987
+branch valid_id: the count not known: 3692
+branch valid_id: within the count: 2055
+reads of the Python's that the twin did not make: 0

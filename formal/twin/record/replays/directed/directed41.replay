@@ -1,0 +1,37 @@
+content: as --content's, 104 names
+header: {"args":["directed41","--n=20000","--seed=1"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","acquire_slot","add_offer","announce","announcers","ask_parked","build_group","candidates_for_source","choose_push","claim_group","close_promises","committed_descriptor","decode_group","defer","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","filter_entry","forward","free_slot","front","gated","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","next_to_send","note_push","on_block_installed","on_chunk","on_frame","on_have","on_heartbeat","on_ihave","on_iwant","on_mesh_join","on_pace_tick","on_validated","origin_acked","origin_written","outstanding","over_ihave_limits","owe","parked","projected","promise_due","publish","push_rebuilt","rarest","release_unused_slot","respond","retry_offer","segment_length","send_gossip","send_have","tie","tie_room","tied_to_root","track_in_flight","unpush","untried","valid_descriptor","valid_id","validate_chunk","wake_front","window_release","window_timeout","with_owed"],"tracer":"trace3.py","whole":true}
+replay: 20000 records, 20000 ok, 0 mismatched
+fn on_frame: 9998 records, 9998 ok
+fn on_iwant: 6600 records, 6600 ok
+fn respond: 3402 records, 3402 ok
+branch add_offer: listed: 6787
+branch close_promises: every key: 1620
+branch expand: a bitmap: 3975
+branch have_bits: mine: 5778
+branch may_ask: asks: 5843
+branch on_chunk: a duplicate, acknowledged: 1564
+branch on_chunk: a duplicate, ignored: 453
+branch on_chunk: expired: 343
+branch on_have: expired: 737
+branch on_have: new indices: 4720
+branch on_have: nothing new: 583
+branch on_ihave: asks: 5843
+branch on_ihave: expired: 837
+branch on_ihave: no block: 944
+branch on_iwant: an ask of a chunk the asker claimed: 4321
+branch on_iwant: answered: 8744
+branch on_iwant: expired: 3785
+branch on_iwant: nothing to answer with: 10353
+branch on_iwant: served too often: 3120
+branch on_iwant: unwanted: 2085
+branch on_validated: invalid: 519
+branch on_validated: rejected: 614
+branch on_validated: stored and claimed: 1115
+branch on_validated: stored, and K reached: 505
+branch outstanding: no: 5843
+branch over_ihave_limits: no: 5843
+branch respond: an answer refused, owed: 1100
+branch respond: answers: 4022
+branch respond: control alone: 2965
+branch respond: nothing to ask, answer or prune: 6413
+reads of the Python's that the twin did not make: 0

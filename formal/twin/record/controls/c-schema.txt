@@ -1,0 +1,53 @@
+control, the schema with one constructor of Cell renamed: the check finds SpecTwin/State.lean, SpecTwin/Tables.lean, SpecTwin/ReplayTables.lean
+control, the schema with one operation renamed: the check finds SpecTwin/Tables.lean
+control, the schema with one field of State renamed: the check finds SpecTwin/State.lean, SpecTwin/Tables.lean, SpecTwin/ReplayTables.lean
+control, the schema with one level renamed: the check finds SpecTwin/State.lean, SpecTwin/Tables.lean, SpecTwin/ReplayTables.lean
+control, the schema with one table's name in a record changed: the check finds SpecTwin/State.lean, SpecTwin/ReplayTables.lean
+control, the schema with one doc line of an operation changed: the check finds SpecTwin/Tables.lean
+control, the schema with a table of three keys that keeps its rows, added: the check finds SpecTwin/State.lean, SpecTwin/Tables.lean, SpecTwin/ReplayTables.lean
+control, the schema with a table that keeps its rows, one row cell short: refused: gen.py: the schema's tied: a table that keeps its rows names one row cell per key but the last: 2, not 1
+control, the schema with a set of two keys: refused: gen.py: the schema's last_resort_armed: a set has one key, its members, and no rows
+control, the schema with a bitmap with presence in a table that keeps no rows: refused: gen.py: the schema's offered: a value with presence (pbits, lane) is the value of a table that keeps its rows, and only of one
+control, the schema with a lane, a value with presence, in a table that keeps no rows: refused: gen.py: the schema's offered: a value with presence (pbits, lane) is the value of a table that keeps its rows, and only of one
+control, the schema with the queue, which keeps its rows, with a lane's value of no presence (a bitmap): refused: gen.py: the schema's queue: a table that keeps its rows has a value with presence
+control, the schema with a level given as many keys as its table has: refused: gen.py: the schema's tied: a level given as many outer keys as the table has, or more, or a row of a table that has none
+control, the schema with a key of a type no parser reads: refused: gen.py: the schema's asked_at: a key of a type with no parser (PARSE)
+control, a copy of the twin with a field added to State after a blank line: the check finds SpecTwin/State.lean
+control, a copy of the twin with a comment at column 0 and a field after it, in State: the check finds SpecTwin/State.lean
+control, a copy of the twin with an arm added to valueAt after a comment: the check finds SpecTwin/ReplayTables.lean
+control, a copy of the twin with the catch-all of put changed: the check finds SpecTwin/ReplayTables.lean
+control, a copy of the twin with code put on the first line of valueAt: the check finds SpecTwin/ReplayTables.lean
+control, a copy of the twin with a line after put's body that goes on with it: the check finds SpecTwin/ReplayTables.lean
+control, a copy of the twin with drop's whole declaration left inside a comment, its first line at column 0, and another drop after it: the check finds SpecTwin/ReplayTables.lean
+control, a copy of the twin with one operation of ofState without its note: the check finds SpecTwin/Tables.lean
+control, a copy of the twin with a table more in ownTables, with a digit in its name: the check finds SpecTwin/State.lean
+control, a copy of the twin with a trailing space on one line of Tables.lean: the check finds SpecTwin/Tables.lean
+control, a copy of the twin with State.lean missing: the check finds SpecTwin/State.lean
+control, a copy of the twin with a second drop declared by hand in Replay.lean, in a namespace of its own: the check finds SpecTwin/Replay.lean declares drop
+control, a copy of the twin with a second State declared by hand in a new file: the check finds SpecTwin/Other.lean declares State
+control, a copy of the twin with drop declared by hand with a doc comment on its line, in a namespace of its own: the check finds SpecTwin/Replay.lean declares drop
+control, a copy of the twin with a nonrec drop declared by hand, in a namespace of its own: the check finds SpecTwin/Replay.lean declares drop
+control, a copy of the twin with a second instance of Tables, by hand, in Sec61.lean: the check finds SpecTwin/Sec61.lean: an instance of Tables by hand: instance (priority := high) {ρ : Type} : Tables (ReaderT ρ Id) := sorry
+control, a copy of the twin with the replay's instance of Tables with its note of each access left out: the check finds SpecTwin/Replay.lean: its instance of Tables is not the fixed text
+control, a copy of the twin with the replay's instance of Tables kept whole in a comment, and a live one without the note after it: the check finds SpecTwin/Replay.lean: more than one instance : Tables R, SpecTwin/Replay.lean: its instance of Tables is not the fixed text
+control, a copy of the twin with a line after the replay's instance of Tables that goes on with it: the check finds SpecTwin/Replay.lean: its instance of Tables is not the fixed text
+control, a copy of the twin with a def of type Tables, made an instance by an attribute, in Sec61.lean: the check finds SpecTwin/Sec61.lean: a declaration of type Tables by hand: @[instance] def mine {ρ : Type} : Tables (ReaderT ρ Id) := sorry
+control, a copy of the twin with (a limit) drop in guillemets, declared by hand in a namespace of its own: the check finds nothing
+control, a copy of the twin with (a limit) drop declared by hand as an axiom, in a namespace of its own: the check finds nothing
+control, gen.py --chek with 2 arguments: rc=2, must be 2 (nothing compared, nothing said to be the schema's)
+control, gen.py (no argument) with 0 arguments: rc=2, must be 2 (nothing compared, nothing said to be the schema's)
+control, gen.py --check with 1 argument: rc=2, must be 2 (nothing compared, nothing said to be the schema's)
+control, gen.py --check with 3 arguments: rc=2, must be 2 (nothing compared, nothing said to be the schema's)
+control, gen.py --control with 2 arguments: rc=2, must be 2 (nothing compared, nothing said to be the schema's)
+ok: every control of the check as it must be
+control, an instance by `def`, its type written with the namespace (at the end of SpecTwin/Sec61.lean): the check rc=1, lists 2: SpecTwin.mineQ (SpecTwin.Sec61): a Tables value; mentions [SpecTwin.Tables.ofState]; gen.py's text check finds nothing
+control, an instance of an abbreviation of Tables (at the end of SpecTwin/Sec61.lean): the check rc=1, lists 2: SpecTwin.viaAbbrev (SpecTwin.Sec61): a Tables value; mentions [SpecTwin.Tables.ofState]; gen.py's text check finds nothing
+control, a definition with no type written (at the end of SpecTwin/Sec61.lean): the check rc=1, lists 2: SpecTwin.untyped (SpecTwin.Sec61): a Tables value; mentions [SpecTwin.Tables.ofState]; gen.py's text check finds nothing
+control, a `let` of one inside a function (at the end of SpecTwin/Replay.lean): the check rc=1, lists 2: SpecTwin.Replay.shadowed (SpecTwin.Replay): not a Tables value; mentions [SpecTwin.Tables.lift]; gen.py's text check finds nothing
+control, the replay's instance with one operation changed, by a structure update (at the end of SpecTwin/Replay.lean): the check rc=1, lists 2: SpecTwin.Replay.weaker (SpecTwin.Replay): a Tables value; mentions [SpecTwin.Tables.mk]; gen.py's text check finds nothing
+control, an axiom of one (at the end of SpecTwin/Sec44.lean): the check rc=1, lists 2: SpecTwin.given (SpecTwin.Sec44): a Tables value; mentions []; gen.py's text check finds nothing
+control, an `opaque` constant with a `let` of one inside it (at the end of SpecTwin/Replay.lean): the check rc=1, lists 2: SpecTwin.Replay.hidden (SpecTwin.Replay): not a Tables value; mentions [SpecTwin.Tables.lift]; gen.py's text check finds nothing
+control, a module of the twin's named Lake.ExtraTables, which makes one (at the end of SpecTwin/Replay.lean): the check rc=1, lists 2: Lake.ExtraTables.made (Lake.ExtraTables): a Tables value; mentions [SpecTwin.Tables.ofState]; gen.py's text check finds nothing
+control, a library of the package whose source lies outside the twin's directory, named Lake.OutsideTables, which makes one: the check rc=1; says: the replay imports a module that is neither a file of the twin nor the toolchain's: [Lake.OutsideTables
+control, a maker more in the generated SpecTwin/Tables.lean: the check rc=1; says: the generated SpecTwin.Tables gives a Tables by other constants than the five known
+ok: every planted maker of a Tables value is listed, and the check fails on each

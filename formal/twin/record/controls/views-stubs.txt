@@ -1,0 +1,8 @@
+control, views that fail otherwise (line-after): rc=1, 2 cases fail (it must be 2 and the test's own verdict)  <-- NOT
+a stub that fails otherwise (line-after): refused, as it must be
+control, views that fail otherwise (stderr): rc=1, 2 cases fail (it must be 2 and the test's own verdict)  <-- NOT
+a stub that fails otherwise (stderr): refused, as it must be
+control, views that fail otherwise (exit2): rc=2, 2 cases fail (it must be 2 and the test's own verdict)  <-- NOT
+a stub that fails otherwise (exit2): refused, as it must be
+control, views that fail as the test does: 2 cases fail, as they must
+the stub that fails as the test does: taken, as it must be

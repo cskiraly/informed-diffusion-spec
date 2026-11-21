@@ -1,0 +1,60 @@
+content: as --content's, 104 names
+header: {"args":["--nodes","60","--degree","30","--msgs","3","--seed","7","--rebuilt","announce","--doc","v2","--digest"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","add_offer","announcers","ask_parked","build_group","choose_push","close_promises","committed_descriptor","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","on_iwant","outstanding","over_ihave_limits","owe","parked","promise_due","rarest","respond","retry_offer","segment_length","tie","tie_room","tied_to_root","untried","valid_descriptor","valid_id","validate_chunk","with_owed"],"tracer":"trace3.py","whole":false}
+replay: 1307595 records, 1307595 ok, 0 mismatched
+fn K: 23098 records, 23098 ok
+fn N: 245481 records, 245481 ok
+fn add_offer: 39985 records, 39985 ok
+fn build_group: 3 records, 3 ok
+fn choose_push: 16291 records, 16291 ok
+fn close_promises: 11570 records, 11570 ok
+fn drop_beyond: 177 records, 177 ok
+fn drop_stale_waits: 3360 records, 3360 ok
+fn group_id: 6 records, 6 ok
+fn group_key: 183 records, 183 ok
+fn have_bits: 119948 records, 119948 ok
+fn held: 15908 records, 15908 ok
+fn may_ask: 39955 records, 39955 ok
+fn message_id: 58347 records, 58347 ok
+fn outstanding: 39985 records, 39985 ok
+fn over_ihave_limits: 39955 records, 39955 ok
+fn owe: 77 records, 77 ok
+fn parked: 39985 records, 39985 ok
+fn promise_due: 15589 records, 15589 ok
+fn rarest: 20817 records, 20817 ok
+fn respond: 244743 records, 244743 ok
+fn retry_offer: 15908 records, 15908 ok
+fn tied_to_root: 55574 records, 55574 ok
+fn validate_chunk: 15907 records, 15907 ok
+fn with_owed: 244743 records, 244743 ok
+branch add_offer: kept in offered only: 117
+branch add_offer: listed: 39868
+branch choose_push: at the source: 384
+branch choose_push: drawn from the lower half: 14516
+branch choose_push: everyone: 1391
+branch close_promises: every key: 11570
+branch drop_beyond: nothing beyond: 177
+branch drop_stale_waits: done: 3360
+branch guard_fails: a HAVE seen: 18301
+branch guard_fails: demoted: 1
+branch guard_fails: fewer than R_NODE pushed: 43457
+branch guard_fails: within the grace: 32138
+branch have_bits: mine: 116093
+branch have_bits: origin: 3855
+branch may_ask: asks: 15908
+branch may_ask: in flight: 24172
+branch outstanding: no: 40727
+branch outstanding: promised: 147
+branch outstanding: queued: 8
+branch over_ihave_limits: no: 39955
+branch promise_due: gone: 15589
+branch respond: answers: 13442
+branch respond: control alone: 13636
+branch respond: nothing to ask, answer or prune: 217665
+branch retry_offer: held: 15773
+branch retry_offer: in flight: 10
+branch retry_offer: untried: 125
+branch segment_length: data and parity: 15793
+branch segment_length: the last data chunk: 114
+branch valid_descriptor: coded: 15907
+branch validate_chunk: accepted: 15907
+reads of the Python's that the twin did not make: 0

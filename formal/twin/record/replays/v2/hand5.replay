@@ -1,0 +1,50 @@
+content: as --content's, 104 names
+header: {"args":["--nodes","5","--degree","4","--msgs","1","--payload","16384","--seed","7","--doc","v2","--digest"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","add_offer","announcers","ask_parked","build_group","choose_push","close_promises","committed_descriptor","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","on_iwant","outstanding","over_ihave_limits","owe","parked","promise_due","rarest","respond","retry_offer","segment_length","tie","tie_room","tied_to_root","untried","valid_descriptor","valid_id","validate_chunk","with_owed"],"tracer":"trace3.py","whole":false}
+replay: 603 records, 603 ok, 0 mismatched
+fn K: 42 records, 42 ok
+fn N: 129 records, 129 ok
+fn add_offer: 1 records, 1 ok
+fn build_group: 1 records, 1 ok
+fn choose_push: 10 records, 10 ok
+fn close_promises: 4 records, 4 ok
+fn drop_beyond: 4 records, 4 ok
+fn drop_stale_waits: 110 records, 110 ok
+fn group_id: 2 records, 2 ok
+fn group_key: 3 records, 3 ok
+fn have_bits: 52 records, 52 ok
+fn held: 1 records, 1 ok
+fn may_ask: 1 records, 1 ok
+fn message_id: 36 records, 36 ok
+fn outstanding: 1 records, 1 ok
+fn over_ihave_limits: 1 records, 1 ok
+fn owe: 2 records, 2 ok
+fn parked: 1 records, 1 ok
+fn promise_due: 1 records, 1 ok
+fn rarest: 14 records, 14 ok
+fn respond: 88 records, 88 ok
+fn retry_offer: 1 records, 1 ok
+fn tied_to_root: 2 records, 2 ok
+fn validate_chunk: 8 records, 8 ok
+fn with_owed: 88 records, 88 ok
+branch add_offer: listed: 1
+branch choose_push: at the source: 2
+branch choose_push: drawn from the lower half: 8
+branch close_promises: every key: 4
+branch drop_beyond: nothing beyond: 4
+branch drop_stale_waits: done: 110
+branch guard_fails: fewer than R_NODE pushed: 28
+branch have_bits: mine: 44
+branch have_bits: origin: 8
+branch may_ask: asks: 1
+branch outstanding: no: 1
+branch over_ihave_limits: no: 1
+branch promise_due: gone: 1
+branch respond: answers: 1
+branch respond: control alone: 1
+branch respond: nothing to ask, answer or prune: 86
+branch retry_offer: held: 1
+branch segment_length: data and parity: 4
+branch segment_length: the last data chunk: 4
+branch valid_descriptor: coded: 8
+branch validate_chunk: accepted: 8
+reads of the Python's that the twin did not make: 0

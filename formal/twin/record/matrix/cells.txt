@@ -1,0 +1,16 @@
+push: trace rc=0, digest as golden.txt, replay 681808/681808/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+hold: trace rc=0, digest as golden.txt, replay 671455/671455/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+announce: trace rc=0, digest as golden.txt, replay 678935/678935/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+none: trace rc=0, digest as golden.txt, replay 671455/671455/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+withholders: trace rc=0, digest as golden.txt, replay 707468/707468/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+silent: trace rc=0, digest as golden.txt, replay 601677/601677/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+cap-wait: trace rc=0, digest as golden.txt, replay 595010/595010/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+dcb20: trace rc=0, digest as golden.txt, replay 698865/698865/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+rr-stripe: trace rc=0, digest as golden.txt, replay 791176/791176/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+without-a: trace rc=0, digest as golden.txt, replay 779449/779449/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+without-b: trace rc=0, digest as golden.txt, replay 657318/657318/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+loss-thin: trace rc=0, digest as golden.txt, replay 642013/642013/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+ihave-limits: trace rc=0, digest as golden.txt, replay 682634/682634/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+late-block: trace rc=0, digest as golden.txt, replay 657960/657960/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+push-deep: trace rc=0, digest as golden.txt, replay 787463/787463/0 (records/ok/mismatched), rc=0, reads the twin did not make 0, header as these tools and these documents
+ok

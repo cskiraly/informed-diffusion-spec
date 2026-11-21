@@ -1,0 +1,103 @@
+content: as --content's, 104 names
+header: {"args":["--nodes","60","--degree","30","--msgs","3","--seed","7","--loss-data","10","--up","20","--digest"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","acquire_slot","add_offer","announce","announcers","ask_parked","build_group","candidates_for_source","choose_push","claim_group","close_promises","committed_descriptor","decode_group","defer","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","filter_entry","forward","free_slot","front","gated","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","next_to_send","note_push","on_block_installed","on_chunk","on_frame","on_have","on_heartbeat","on_ihave","on_iwant","on_mesh_join","on_pace_tick","on_validated","origin_acked","origin_written","outstanding","over_ihave_limits","owe","parked","projected","promise_due","publish","push_rebuilt","rarest","release_unused_slot","respond","retry_offer","segment_length","send_gossip","send_have","tie","tie_room","tied_to_root","track_in_flight","unpush","untried","valid_descriptor","valid_id","validate_chunk","wake_front","window_release","window_timeout","with_owed"],"tracer":"trace3.py","whole":false}
+replay: 642013 records, 642013 ok, 0 mismatched
+fn ask_parked: 238 records, 238 ok
+fn build_group: 3 records, 3 ok
+fn decode_group: 177 records, 177 ok
+fn group_id: 3 records, 3 ok
+fn group_key: 3 records, 3 ok
+fn next_to_send: 338478 records, 338478 ok
+fn on_frame: 231133 records, 231133 ok
+fn on_heartbeat: 3360 records, 3360 ok
+fn on_pace_tick: 20160 records, 20160 ok
+fn promise_due: 15040 records, 15040 ok
+fn publish: 3 records, 3 ok
+fn retry_offer: 15823 records, 15823 ok
+fn window_timeout: 17592 records, 17592 ok
+branch acquire_slot: a slot: 37412
+branch acquire_slot: in line: 3785
+branch add_offer: kept in offered only: 5
+branch add_offer: listed: 42278
+branch announce: nothing to offer: 914
+branch announce: offered: 80620
+branch ask_parked: held: 237
+branch ask_parked: in flight: 1
+branch candidates_for_source: the mesh: 384
+branch choose_push: at the source: 384
+branch choose_push: drawn from the lower half: 13348
+branch choose_push: everyone: 1625
+branch close_promises: every key: 14973
+branch decode_group: complete: 177
+branch drop_beyond: nothing beyond: 177
+branch drop_stale_waits: done: 3360
+branch expand: a bitmap: 82704
+branch filter_entry: cancelled: 3854
+branch filter_entry: projected away: 6352
+branch filter_entry: sent: 17592
+branch forward: a budget: 3855
+branch forward: a push refused, owed: 383
+branch forward: no budget: 11118
+branch front: a writer mid-write passed: 501
+branch guard_fails: a HAVE seen: 26273
+branch guard_fails: fewer than R_NODE pushed: 46778
+branch guard_fails: within the grace: 10229
+branch have_bits: mine: 114808
+branch have_bits: origin: 3843
+branch last_resort: an announcer not parked: 307
+branch last_resort: armed already: 4
+branch last_resort: arms: 238
+branch may_ask: asks: 15457
+branch may_ask: in flight: 27931
+branch next_to_send: a chunk: 17592
+branch next_to_send: control: 94676
+branch next_to_send: in line: 3785
+branch next_to_send: nothing: 103560
+branch next_to_send: nothing left of the entry, again: 10623
+branch next_to_send: owed offers alone: 184
+branch note_push: a later push: 13041
+branch note_push: the first push: 1555
+branch on_chunk: a duplicate, acknowledged: 2619
+branch on_have: new indices: 112497
+branch on_have: nothing new: 6184
+branch on_heartbeat: gossip paced: 3360
+branch on_ihave: asks: 13884
+branch on_ihave: parked: 468
+branch on_iwant: answered: 15040
+branch on_pace_tick: one job's gossip sent: 20160
+branch on_validated: stored and claimed: 11151
+branch on_validated: stored, and K reached: 177
+branch on_validated: stored, claimed before: 3645
+branch origin_acked: acknowledged before: 5120
+branch origin_acked: the HAVE grows: 384
+branch outstanding: no: 49196
+branch outstanding: promised: 1904
+branch outstanding: queued: 5
+branch over_ihave_limits: no: 41815
+branch projected: K reached without us: 6352
+branch projected: not yet: 5733
+branch promise_due: gone: 14846
+branch promise_due: parks: 194
+branch publish: a push refused, unpushed: 91
+branch publish: published: 3
+branch push_rebuilt: a peer not short: 261
+branch push_rebuilt: a peer short: 1407
+branch push_rebuilt: a push refused, owed: 1126
+branch respond: an answer refused, owed: 1747
+branch respond: answers: 14056
+branch respond: control alone: 12900
+branch respond: nothing to ask, answer or prune: 204177
+branch retry_offer: all outstanding, again: 366
+branch retry_offer: held: 13597
+branch retry_offer: in flight: 206
+branch retry_offer: none to ask, last resort: 81
+branch retry_offer: untried: 1573
+branch segment_length: data and parity: 14811
+branch segment_length: the last data chunk: 162
+branch unpush: in the mesh, owed: 6443
+branch valid_descriptor: coded: 14973
+branch validate_chunk: accepted: 14973
+branch wake_front: a writer mid-write passed: 6920
+branch wake_front: no slot free: 1624
+branch window_release: a send released: 17592
+branch window_timeout: stale: 17592
+reads of the Python's that the twin did not make: 0

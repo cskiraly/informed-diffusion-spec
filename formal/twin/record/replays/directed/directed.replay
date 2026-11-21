@@ -1,0 +1,54 @@
+content: as --content's, 104 names
+header: {"args":["directed3","--n=20000","--seed=1"],"foreign":["known_id","chunks"],"format":7,"own":["asked_at","tried","offers","promises","offered","park","asked_parked","last_resort_armed","ihave_frames","ihave_asked","held_back","received","mine","state","tied","queue","pending","pending_ids","tie_slot","owed","owed_answers","sent_to","slot_held","pace_queue","stop_pull","peer_has","holders","serve_count","origin","planned","pushed","desc","in_flight","waiters","sent","unwanted"],"traced":["K","N","acquire_slot","add_offer","announce","announcers","ask_parked","build_group","candidates_for_source","choose_push","claim_group","close_promises","committed_descriptor","decode_group","defer","drop_beyond","drop_group","drop_offer","drop_stale_waits","drop_tie","expand","filter_entry","forward","free_slot","front","gated","group_id","group_key","guard_fails","have_bits","held","last_resort","least_recently_tried","ledger","may_ask","message_id","next_to_send","note_push","on_block_installed","on_chunk","on_frame","on_have","on_heartbeat","on_ihave","on_iwant","on_mesh_join","on_pace_tick","on_validated","origin_acked","origin_written","outstanding","over_ihave_limits","owe","parked","projected","promise_due","publish","push_rebuilt","rarest","release_unused_slot","respond","retry_offer","segment_length","send_gossip","send_have","tie","tie_room","tied_to_root","track_in_flight","unpush","untried","valid_descriptor","valid_id","validate_chunk","wake_front","window_release","window_timeout","with_owed"],"tracer":"trace3.py","whole":true}
+replay: 19699 records, 19699 ok, 0 mismatched
+fn add_offer: 936 records, 936 ok
+fn announcers: 696 records, 696 ok
+fn ask_parked: 4177 records, 4177 ok
+fn last_resort: 2297 records, 2297 ok
+fn least_recently_tried: 374 records, 374 ok
+fn ledger: 714 records, 714 ok
+fn may_ask: 2112 records, 2112 ok
+fn outstanding: 628 records, 628 ok
+fn parked: 642 records, 642 ok
+fn promise_due: 2008 records, 2008 ok
+fn retry_offer: 4420 records, 4420 ok
+fn untried: 695 records, 695 ok
+branch add_offer: kept in offered only: 597
+branch add_offer: listed: 339
+branch ask_parked: a parked announcer: 145
+branch ask_parked: all outstanding, again: 438
+branch ask_parked: an announcer unparked: 1569
+branch ask_parked: counted: 82
+branch ask_parked: each asked once more: 354
+branch ask_parked: expired: 235
+branch ask_parked: held: 498
+branch ask_parked: in flight: 825
+branch ask_parked: least recently tried: 365
+branch ask_parked: stop-pull: 551
+branch ask_parked: untried: 911
+branch last_resort: an announcer not parked: 1180
+branch last_resort: armed already: 600
+branch last_resort: arms: 512
+branch last_resort: each asked once more: 500
+branch ledger: asks: 589
+branch ledger: empty: 125
+branch may_ask: asks: 3966
+branch may_ask: in flight: 599
+branch outstanding: no: 4529
+branch outstanding: promised: 2759
+branch outstanding: queued: 510
+branch promise_due: another ask's: 52
+branch promise_due: gone: 1661
+branch promise_due: parks: 295
+branch raises: KeyError: 41
+branch raises: OverflowError: 296
+branch raises: ValueError: 35
+branch retry_offer: all outstanding, again: 396
+branch retry_offer: expired: 255
+branch retry_offer: held: 455
+branch retry_offer: in flight: 795
+branch retry_offer: least recently tried: 345
+branch retry_offer: none to ask, last resort: 791
+branch retry_offer: stop-pull: 551
+branch retry_offer: untried: 832
+reads of the Python's that the twin did not make: 0

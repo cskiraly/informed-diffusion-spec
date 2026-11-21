@@ -1,0 +1,7 @@
+start 2026-11-20 15:54:11 CET on HOST: width 24; the watchdog's limit 3600 s, its floor 55 GiB available; what: twin
+pid 429499, group 429499, nice 10, CPUs 36-47,84-95
+Python 3.13.5; git version 2.47.3; Lean (version 4.35.0, x86_64-unknown-linux-gnu, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc, Release); Lake version 5.0.0-src+eb6cafb (Lean version 4.35.0)
+the clone: commit c6e95ad9920a4f9bd4afde76622e805baed1d48e, 299 files, its tree its commit's
+step twin-check: rc=0, 698 s, peak 1604512 KiB; last line: check.sh: PASS
+the clone after the run: its commit's
+end 2026-11-20 16:05:50 CET: 699 s; rc=0

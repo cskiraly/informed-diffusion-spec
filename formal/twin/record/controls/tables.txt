@@ -1,0 +1,12 @@
+SpecTwin/State.lean: 160 lines in the twin, 160 generated: the same, byte for byte
+SpecTwin/Tables.lean: 807 lines in the twin, 807 generated: the same, byte for byte
+SpecTwin/ReplayTables.lean: 452 lines in the twin, 452 generated: the same, byte for byte
+the tripwire, in the twin's other files (Main.lean, SpecTwin.lean, SpecTwin/Basic.lean, SpecTwin/Readers.lean, SpecTwin/Replay.lean, SpecTwin/ReplayBase.lean, SpecTwin/Sec1.lean, SpecTwin/Sec2.lean, SpecTwin/Sec3.lean, SpecTwin/Sec41.lean, SpecTwin/Sec42.lean, SpecTwin/Sec43.lean, SpecTwin/Sec44.lean, SpecTwin/Sec46.lean, SpecTwin/Sec51.lean, SpecTwin/Sec52.lean, SpecTwin/Sec53.lean, SpecTwin/Sec54.lean, SpecTwin/Sec61.lean, SpecTwin/Sec64.lean, SpecTwin/Sec71.lean, SpecTwin/Sec72.lean, SpecTwin/Strict.lean, lakefile.lean): no matching declaration found (16 names the generated files declare, by a pattern over each line's start: a heuristic)
+the instances of Tables written by hand: one, Replay.lean's, its text as fixed (6 lines)
+3 of 3 generated files are the schema's, whole, 1419 lines; 36 tables
+the makers of a Tables value, by Lean's own account of the replay as built (gen/TablesMakers.lean):
+  the replay's modules that are the twin's own, by its files: [Main, SpecTwin.Basic, SpecTwin.Readers, SpecTwin.Replay, SpecTwin.ReplayBase, SpecTwin.ReplayTables, SpecTwin.Sec1, SpecTwin.Sec2, SpecTwin.Sec3, SpecTwin.Sec41, SpecTwin.Sec42, SpecTwin.Sec43, SpecTwin.Sec44, SpecTwin.Sec46, SpecTwin.Sec51, SpecTwin.Sec52, SpecTwin.Sec53, SpecTwin.Sec54, SpecTwin.Sec61, SpecTwin.Sec64, SpecTwin.Sec71, SpecTwin.Sec72, SpecTwin.State, SpecTwin.Strict, SpecTwin.Tables]
+  the other modules it imports: 2374, each compiled under the toolchain's own library directory
+  their constants, the generated SpecTwin.Tables apart: 2562
+  SpecTwin.Replay.instTablesR (SpecTwin.Replay): a Tables value; mentions [SpecTwin.Tables.ofState]
+  ok: the replay's one instance, by Tables.ofState, and nothing else

@@ -1,0 +1,159 @@
+case, t[k]: as the contract says
+case, t.get(k) of a missing entry: as the contract says
+case, k in t: as the contract says
+case, t[k][p]: as the contract says
+case, p in t[k]: as the contract says
+case, a level read as a whole: iteration: as the contract says
+case, a level read as a whole: items() of a row: as the contract says
+case, a level read as a whole: len, of the table: as the contract says
+case, t.get(k) of a missing row: the row read as a whole, and empty: as the contract says
+case, a member of a set: as the contract says
+case, t[k] = v, of an entry that was there: its value before is in the rest: as the contract says
+case, t[k] = v, of an entry that was not: as the contract says
+case, t[k] = v, to the value it had: a write all the same: as the contract says
+case, del t[k]: as the contract says
+case, t.pop(k): a read and a write: as the contract says
+case, M1 t.pop(k, None) of a missing entry: a read alone: as the contract says
+case, M2 an entry there and empty, popped: a read alone (a record holds it as missing, before and after): as the contract says
+case, M3 a level popped that is not there: read as a whole, nothing written: as the contract says
+case, M4 a root's row popped that is not there (tied.pop(root, {})): its row read, the level read as a whole, nothing written: as the contract says
+case, M5 a row that is there with nothing under it, popped (tied[root].pop(p, None)): its presence written: as the contract says
+case, M6 a callee's pop that finds nothing: in its cr, and no write of the callee's or the call's: as the contract says
+case, M7 a callee's pop that finds its entry: its write, the callee's and the call's: as the contract says
+case, read, then written: as the contract says
+case, a set's discard of a member: as the contract says
+case, a set's discard of what is not a member: a write all the same: as the contract says
+case, a set's add: as the contract says
+case, a value changed in place: a write of its entry: as the contract says
+case, a row deleted whole: every entry under it written: as the contract says
+case, a level read as a whole: a truth test: as the contract says
+case, a level read as a whole: keys(): as the contract says
+case, a level read as a whole: values(): as the contract says
+case, t == u, two tables: both read as a whole: as the contract says
+case, a set's remove of a member: a read and a write: as the contract says
+case, a table cleared: every entry under it written: as the contract says
+case, a row popped whole: read as a whole, and every entry under it written: as the contract says
+case, a row assigned whole: what was under it written, and what is under it now, which was missing before: as the contract says
+case, a row assigned whole, then an entry it brought read: no read of it, it was missing before the call: as the contract says
+case, a row assigned whole twice: what the first brought has no value before the call: as the contract says
+case, a read of another section's table: on the tape: as the contract says
+case, a write of another section's table through a view: refused: as the contract says
+case, an operation the views do not know, on a table: refused: as the contract says
+case, an operation the views do not know, on a row: refused: as the contract says
+case, a callee's read: in its cr, not among the call's reads, and in the rest: as the contract says
+case, a callee's write: in its cw and the call's writes, its value before in the rest: as the contract says
+case, a callee that writes an entry and then reads it: not in its cr: as the contract says
+case, a callee that reads an entry and then writes it: in its cr, with the value then, and its cw: as the contract says
+case, a value changed in place in a callee: in its cw: as the contract says
+case, the block's read of an entry a callee wrote: no read of the Python's: as the contract says
+case, two callees: the second's cr holds the first's write: as the contract says
+case, another section's table in a callee: nothing on the tape, its write not refused: as the contract says
+case, another section's table iterated in a callee: nothing on the tape: as the contract says
+case, `offers.listed` read in a callee: passes, and logs nothing: as the contract says
+case, an operation the views do not know, on an own table, in a callee: refused: as the contract says
+case, another section's table iterated by the block: its keys on the tape: as the contract says
+case, another section's table's length in the block: refused, as before: as the contract says
+case, mesh | {p}, iterated by the block: asked on the tape, answered in the order the untraced code makes: as the contract says
+case, M2 mesh iterated by the block: asked on the tape, answered in the set's own order: as the contract says
+case, M3 a membership test of mesh by the block: asked on the tape, each with its answer: as the contract says
+case, M4 any other use of mesh by the block: refused (its length): as the contract says
+case, M5 any other use of mesh by the block: refused (a difference): as the contract says
+limit, a value changed in place to what it was: no write: as the contract says
+limit, a container kept from outside the call: its accesses are not logged: as the contract says
+limit, another section's value changed in place: not refused, not logged: as the contract says
+limit, whether a row that is there is there: t.get(k) is None logs nothing: as the contract says
+case, lazy: t[k][p] of a missing row, which raises as a dict: read, and nothing stored: as the contract says
+case, lazy: t[k][p] = v through a missing row: written, and the row joins its table: as the contract says
+case, lazy: a bitmap of a missing peer and group read: nothing stored at either level: as the contract says
+case, lazy: a bitmap of a missing peer and group set: written, and both levels join: as the contract says
+case, lazy: a missing offer list read: nothing stored: as the contract says
+case, lazy: a missing offer list appended to: written, it joins `offers`, and `listed` counts it: as the contract says
+case, lazy: a member of a missing set asked: read, and nothing stored: as the contract says
+case, lazy: a member added to a missing set: written, and the set joins its table: as the contract says
+case, lazy: a member added to a missing set of one level (asked_parked's shape): read, written, and it joins: as the contract says
+case, lazy: a count of a DefaultMap read where missing: 0, and nothing stored: as the contract says
+case, lazy: a count incremented where missing (`x[p] += 1`): read, then written: as the contract says
+case, lazy: a lazy table of another section read where missing: on the tape, and nothing stored: as the contract says
+case, lazy: an entry emptied and left (a row's last key popped): written, the row stays, empty: as the contract says
+case, P1 presence: a bitmap read (tied[r][p][g]): read; the rows above it observed, in the rest: as the contract says
+case, P2 presence: a bitmap set under missing rows: read, and written with the rows it makes: as the contract says
+case, P-in 1 presence_in: `g in planned`, the row there: a read of the row's entry alone; nothing under it read, no scan: as the contract says
+case, P-in 2 presence_in: `g in planned`, the row not there: a read of the row's entry, missing; no row made: as the contract says
+case, P-in 3 presence_in: an index's peers read after the test: the entry, and its row observed in the reads: as the contract says
+case, P3 presence: a bitmap emptied in place: written as 0, not missing: as the contract says
+case, P4 presence: a bitmap popped from its row (drop_beyond's pop): written missing; the peer row stays: as the contract says
+case, P5 presence: a row asked (`k in tied`): the row read, with what is under it, a row there and empty: as the contract says
+case, P6 presence: a missing row asked: read as missing: as the contract says
+case, P7 presence: the whole table read (tied.values(), tied_to_root's): every row and bitmap: as the contract says
+case, P8 presence: a callee sets a bitmap under missing rows: its cw has the rows it made, in one order: as the contract says
+case, P9 presence: rows observed, then read by the block: the block's reads, with their values before: as the contract says
+case, P10 the block's read of an entry a callee read first: a read of the block's, with the value before: as the contract says
+case, P11 a callee that touches entries in an order of its own: its cr and cw, and the call's log, sorted: as the contract says
+case, Q1 queue[p].normal: the lane read, its row observed (in the rest): as the contract says
+case, Q2 a missing peer's lane: read as missing, and nothing stored: as the contract says
+case, Q3 an append to a detached queue, in a callee (enqueue's): the lane, the other lane and the row written (a row made in the call brings both lanes), in one order: as the contract says
+case, Q4 a lane assigned whole (drop_offer's filter), in a callee: read, then written: as the contract says
+case, Q5 an entry changed in place (drop_offer's removal of an ask), in a callee: a write by its value: as the contract says
+case, Q6 an entry changed in place by the block (add_ihave's kind): a write of its lane: as the contract says
+case, Q7 a lane emptied and left in its row: written as [], the row stays: as the contract says
+case, Q8 list(queue) by the block: every row and lane read, and the rows' order on the tape: as the contract says
+case, Q9 list(queue) in a callee: read whole into its log, and no order on the tape: as the contract says
+case, Q10 another attribute of a PeerQueue by the block (one the views do not know): refused: as the contract says
+case, Q13 q.has_chunks() of a lane with an IWANT and no chunk: a read of the normal lane, and false: as the contract says
+case, Q14 q.has_chunks() of a row there with both lanes empty: the empty lane read: as the contract says
+case, Q15 a callee appends to a lane and the block pops it back off (an owed answer, enqueued and sent): the lane in the call's writes, at its value at the end, its value before in the rest: as the contract says
+case, Q11 one entry in two lanes: trace3.py's alias check refuses the run: as the contract says
+case, O1 a root's row of tied iterated (an ordered level): read whole, and its peers' order on the tape: as the contract says
+case, O2 a root's row popped (tied.pop(root)): read whole and erased, and the order of every ordered level under it on the tape, outer first: as the contract says
+case, O3 a peer's groups iterated by items() (an ordered level, the last): read, and their order on the tape: as the contract says
+case, O4 items() of a pair-keyed table's ordered top level (tie_slot's): read whole, and its keys' order on the tape: as the contract says
+case, O5 setdefault of an entry there (tie_slot's): read, and no write: as the contract says
+case, O6 setdefault of an entry missing: read as missing, and written: as the contract says
+case, Q12 a row made by a callee through one lane, the other lane read by a later callee: the reads and rest give the state before, the writes the state after, and the second callee read the lane as [], made in the call: as the contract says
+case, Q16 a row made by a callee through one lane, and its other lane read by the same callee: the reads and rest give the state before, the writes the state after, and the lane was missing before, in the callee's log and in the rest: as the contract says
+case, V1 values() of a table whose values' order is asked: read whole, and its keys on the tape: as the contract says
+case, V2 values() of another table: read whole, nothing on the tape: as the contract says
+case, V3 values() in a callee: its read, no keys on the tape: as the contract says
+case, L1 a truth test of the list: a read of its entry: as the contract says
+case, L2 a truth test of an empty list: a read, of no value: as the contract says
+case, L3 len of the list: a read: as the contract says
+case, L4 the list iterated: a read: as the contract says
+case, L5 an append: a read and a write: as the contract says
+case, L6 an append to an empty list: as the contract says
+case, L7 pop(0): a read and a write: as the contract says
+case, L8 the list popped until empty: one read, of the value before; written as no value: as the contract says
+case, L9 a pop not of the first job raises: as the contract says
+case, L10 a job by its place raises: as the contract says
+case, L11 the block's clear raises: as the contract says
+case, L12 a callee's clear and extend: its log apart, the entry before the call in the rest: as the contract says
+case, L15 a callee's assignment of the whole list (discard_paced): its log apart, the list the same object: as the contract says
+case, L16 the block's assignment of the whole list raises: as the contract says
+case, L17 a callee's assignment to a part of the list raises: as the contract says
+case, L18 repr of the list in a call: no job in its text, and no read: as the contract says
+case, L19 a method taken while the recorder was off, called by the block in a call: refused: as the contract says
+case, L20 the same, called by a callee: logged as its write: as the contract says
+case, L13 the recorder off: the list's own operations, nothing logged, and the snapshot has its entry: as the contract says
+case, L14 a list under a table of two keys is refused: as the contract says
+case, W1 a comparison of the count: one read: as the contract says
+case, W2 `in_flight += 1`: a read and a write, and the name still holds the cell: as the contract says
+case, W3 after three updates the name holds the cell, and the count is 2: as the contract says
+case, W4 `in_flight -= 1` at 0: the entry goes to -1: as the contract says
+case, W5 a failed acquisition (the window full, the peer in line): reads, no write: as the contract says
+case, W6 the count in a sum (v2's `in_flight + need <= W`): one read: as the contract says
+case, W7 the line: `if waiters`, `waiters[0]`, `p in waiters`: one read: as the contract says
+case, W8 `waiters.popleft()`: a read and a write: as the contract says
+case, W9 `waiters.append(p)`: a read and a write: as the contract says
+case, W10 `waiters.appendleft(p)` (the toy's writer for an answer): a read and a write: as the contract says
+case, W11 `waiters.remove(p)`, the last one left: a read and a write to nothing: as the contract says
+case, W12 `len(waiters)` is refused: as the contract says
+case, W13 iterating the line (front's `next((q for q in waiters if not writing(q)), None)`): one read: as the contract says
+case, W14 `waiters[1]` is refused: as the contract says
+case, W15 `sent.pop(key, None)` that finds nothing: a read alone: as the contract says
+case, W16 `sent.pop(key, None)` that finds the send: a read and a write: as the contract says
+case, W17 `key in sent`, `sent[key] = now`, `sent.get(key)`, `del sent[key]`: as the contract says
+case, W18 a call on the tape that takes a slot: its log has the read and the write; the call's rest the value before: as the contract says
+case, W19 the recorder off: the count's and the line's own operations, nothing logged, and the snapshot has the three: as the contract says
+case, the recorder off: nothing logged, every operation the container's own: as the contract says
+case, a write that went round the views: reads and rest no longer give the state before: as the contract says
+case, a row assigned whole, read, and assigned again: reads and rest give the state before, and the writes the state after: as the contract says
+ok: every case as the contract says
