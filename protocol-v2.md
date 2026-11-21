@@ -514,7 +514,7 @@ the paths that act on a projected group (`forward`, `push_rebuilt`, the repair
 sample's `ask_custodian`) skip an expired axis; `check_completion` finds no state to act on.
 A dropped group's later chunks are not stored, forwarded, offered or kept for heartbeat gossip on
 that axis (`fill`, `forward`, `push_rebuilt`), as `protocol.md`'s `on_validated` returns for one.
-Offered, such a chunk would draw asks that the node does not answer, and an asker's promise would
+Offered, such a chunk would draw asks that the node does not answer, and an asker's promise could
 break against an honest node.
 The sampler's `sample`, `resample` and `ask_sample` check it (§4.10), so a draw or a retry after
 the expiry makes no park, interest or WANT again.
@@ -2837,17 +2837,19 @@ and the window wake lets the first writer in line that can write try again, if r
 that completes at once does not call `write_waits`. A client that cannot tell when a write starts
 to wait, as with a blocking write call, may call `write_waits` before a control write from the line,
 once it has marked the write pending (`writing(p)` true, as from `next_to_send`'s return). That is
-safe: `front` then skips the writer, and admission still takes only the first writer in line that
-can write, and only while room is free. Its cost is a change of schedule: the early call can queue
-an extra run for the next writer even when the write then completes at once.
+safe: `front` then skips the writer, and admission is unchanged: a writer takes room only while
+room is free, and never ahead of a writer in line that can write. Its cost is a change of
+schedule: the early call can queue an extra run for the next writer even when the write then
+completes at once.
 
 **Open: room left unused after a queue edit.** A writer takes room only if its chosen entry
 fits: `in_flight + need <= W_BYTES`, or the window is empty (`acquire_room`). The first writer in
 line that can write may wait with a chunk that does not fit, say 12 KB with about 3 KB free. If a
 later discard (a dropped or expired group) leaves it a smaller entry that would fit, say a 2 KB
 cell, the discard itself queues no run for that writer. The cell waits until another event wakes
-it: an urgent entry for its peer, or a holding or a window timeout that frees room. Waking the front
-writer when a discard changes its entry is a rule change, for a later release.
+the writer, for example an urgent entry for its peer, another writer leaving the line, or room that
+a holding or a window timeout frees. Waking the front writer when a discard changes its entry is a
+rule change, for a later release.
 
 **Below the writer** (v0.9 §7.3, as written). A writer should hand a chunk to the transport only
 while the connection has less than one chunk unsent. The backlog then waits in the queue, where
@@ -2920,13 +2922,15 @@ column cells by at most 36 ms at the median (seed 7).
   are discarded (a dropped or expired group). The wake acts at the write, whatever the entry, so it
   covers that path with the other two. A client whose write call blocks may call `write_waits`
   before a control write from the line instead, once it has marked the write pending. The early call
-  can queue an extra run even for a write that completes at once, and admission still takes only the
-  first writer in line that can write, while room is free.
-  `toy/write_wait_known.py --doc v2` checks all three paths: no wake before the write, a wake once
-  the write waits, and none for a writer not in line. `protocol.md`
-  has no such third path: its control-only entry goes through `release_unused_slot`, which gives
-  back the writer's slot and also takes the writer out of the line when it holds none, so there a
-  control-only entry is never written from the line.
+  can queue an extra run even for a write that completes at once. Admission is unchanged: a writer
+  takes room only while room is free, and never ahead of a writer in line that can write.
+  `toy/write_wait_known.py --doc v2` checks four cases on each of the three paths, with p the writer
+  that writes control and q the other writer in line: q is not woken before p's write, q is woken
+  once the write waits, and q is not woken when p is not in line or when the window is full. Where p
+  is in line, it keeps its place at the head. `protocol.md` has no such third path: its
+  control-only entry goes through `release_unused_slot`, which gives back the writer's slot and
+  also takes the writer out of the line when it holds none, so there a control-only entry is never
+  written from the line.
   `wake_front` is this document's own, since its room is counted in bytes (`W_BYTES`), where
   `protocol.md`'s counts slots.
 - *Replaced: the wake before the write* (v0.10.7's). It woke the next writer in line before every
