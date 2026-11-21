@@ -13,7 +13,7 @@ are in the documents, most of them in their Rationales, and the full story is in
 messages. The detailed notes of every release up to v0.10.8 are in
 [the changelog at the v0.10.8 tag](https://github.com/cskiraly/seacast-spec/blob/v0.10.8/CHANGELOG.md).
 
-## After v0.10.9 — not yet released
+## v0.10.10 — 2026-11-21
 
 The proofs in `formal/veil/` take in four rules that `protocol.md` added after v0.8, and no rule
 changes.
@@ -39,8 +39,9 @@ changes.
 - `formal/veil/README.md`: the list of `protocol.md`'s changes since v0.8 runs to v0.10.9 and says
   which of them the models have; the results and times are those of a rebuild of the changed
   models.
+- `protocol-v2.md` §5: the versions carried gain v0.10.10.
 
-## v0.10.9 — 2026-11-21
+## v0.10.9 — 2026-11-21 (`74b4961`)
 
 The wake in the window's line moves to the moment a write starts to wait, and the index of an ask
 by index (`WantIndex`) is little-endian.

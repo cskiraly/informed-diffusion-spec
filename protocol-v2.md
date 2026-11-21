@@ -10,7 +10,7 @@ name since 2026-10-19; v0.4 was published as Informed Diffusion, which now names
 part (§0, "The parts").*
 
 *Draft 1, 2026-10-07. A sibling of [`protocol.md`](protocol.md), which it contains as one
-setting (§6.1). That was draft v0.3 when this was written and is v0.10.9 since 2026-11-21, with
+setting (§6.1). That was draft v0.3 when this was written and is v0.10.10 since 2026-11-21, with
 the same section numbers; "v0.3" below means that document.*
 
 *Each later version of `protocol.md` is carried into this document in the same way; §5 lists what
@@ -3192,6 +3192,8 @@ carried into them, with the date each was carried where it came later than the v
   in line that can write if the waiting writer is in line and the window has room (§4.11). It
   replaces the wake before the write on the three control paths, and `wake_front` loses `past`;
   `write_wait_known.py --doc v2` checks it on all three.
+- v0.10.10 (2026-11-21): `protocol.md` is the same but for its version line, and the proofs in
+  `formal/veil/` take in four of its rules added after v0.8; nothing to carry.
 
 ## 6. Settings
 
