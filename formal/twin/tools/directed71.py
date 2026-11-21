@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Directed records for §7.1's window (protocol.md, v0.10.7): front, wake_front, acquire_slot,
+"""Directed records for §7.1's window (protocol.md, v0.10.9): front, wake_front, write_waits, acquire_slot,
 release_unused_slot, track_in_flight, window_release, window_timeout and free_slot. The toy's own functions are
 called in a toy node's namespace on generated states, and trace3.py's tracer logs each call with the node's whole
 state.
@@ -15,9 +15,13 @@ What the records reach that the cells do not, or that few do:
 - acquire_slot: the window full; a slot free and nobody in line; the peer first in line, with others behind and a
   slot left for the next or none; another peer first (it joins the line, or keeps its place);
 - the line's front (v0.10.7): writers mid-write (`writing`, from the node's writer_blocked, drawn) passed over, by
-  front and wake_front called by themselves (wake_front with `past` in half, next_to_send's form, and with no
-  slot free) and through acquire_slot, release_unused_slot and free_slot: the peer behind a writer mid-write takes
-  a slot; nobody in line can write; the first can;
+  front and wake_front called by themselves (wake_front with no slot free too) and through acquire_slot,
+  release_unused_slot and free_slot: the peer behind a writer mid-write takes a slot; nobody in line can write;
+  the first can;
+- write_waits (v0.10.9; in the cells, the node's writer calls it as a write starts to wait): the peer not in line,
+  or in line with no slot free, with nobody else able to write, or with the next that can write woken; the peer
+  mid-write as the writer calls it, and in a fifth of the draws able to write (a state the writer does not make,
+  where the line's front may be the peer itself);
 - free_slot at 0 (the count goes below zero: no state of the toy's, and the signed entry's reason), and with
   somebody in line;
 - a node with no window (W infinite: card 14 off): every count is under it.
@@ -43,7 +47,8 @@ sys.path.insert(0, str(HERE))
 import trace3                           # noqa: E402
 
 FNS = (["acquire_slot"] * 4 + ["release_unused_slot"] * 4 + ["track_in_flight"] * 2 + ["window_release"] * 2
-       + ["window_timeout"] * 3 + ["free_slot"] * 2 + ["origin_acked"] * 2 + ["front"] * 2 + ["wake_front"] * 2)
+       + ["window_timeout"] * 3 + ["free_slot"] * 2 + ["origin_acked"] * 2 + ["front"] * 2 + ["wake_front"] * 2
+       + ["write_waits"] * 3)
 
 
 def main(argv):
@@ -181,17 +186,22 @@ def main(argv):
                 kinds["front: " + ("nobody in line" if not line else "nobody in line can write" if first is None else
                                    "the first can write" if first == line[0] else "a writer mid-write passed")] += 1
                 ns["front"]()
-            elif what == "wake_front":          # with `past` (next_to_send's, for a writer in line) or without
-                past = p if rng.random() < 0.5 else None
-                woke = next((q for q in line if q != past and q not in blocked), None)
+            elif what == "wake_front":
                 kinds["wake_front: " + ("no slot free" if not under else "nobody in line" if not line else
-                                        "nobody in line can write" if woke is None else
-                                        "the first woken" if woke == line[0] else "the first passed")
-                      + ("" if past is None else ", past the peer" + ("" if p in line else " (not in line)"))] += 1
-                if past is None:
-                    ns["wake_front"]()
-                else:
-                    ns["wake_front"](past=p)
+                                        "nobody in line can write" if first is None else
+                                        "the first woken" if first == line[0] else "the first passed")] += 1
+                ns["wake_front"]()
+            elif what == "write_waits":         # the writer's call as a write starts to wait: the peer mid-write
+                if rng.random() < 0.8:
+                    nd.writer_blocked.add(p)
+                can = [q for q in line if q not in nd.writer_blocked]
+                woke = can[0] if can else None
+                kinds["write_waits: " + ("the peer not in line" if p not in line else "no slot free" if not under else
+                                         "nobody in line can write" if woke is None else
+                                         "the peer itself the front" if woke == p else
+                                         "the first woken" if woke == line[0] else "the first passed")
+                      + ("" if p in nd.writer_blocked else ", the peer able to write")] += 1
+                ns["write_waits"](p)
             else:
                 kinds["free_slot: " + ("at 0" if count == 0 else "a slot back")
                       + ("" if not line else ", nobody in line can write" if first is None else

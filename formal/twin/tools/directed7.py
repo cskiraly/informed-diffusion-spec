@@ -20,8 +20,9 @@ on (directed7) and off (directed7u). What the records reach that the cells may n
   - a slot taken, and the writer in line (WAIT): by §7.1's own code on a drawn window (W is 2; the count at 0 to
     3; the line empty, with the peer first, with another first; a send of a queued chunk still in flight, so that
     its second copy gives the slot back at once);
-  - a writer in line that writes an urgent entry or owed offers alone wakes the next in line that can write, other
-    writers mid-write drawn (`writing`, v0.10.7: wake_front(past=p));
+  - a writer in line that writes an urgent entry or owed offers alone keeps its place and wakes no one (v0.10.9:
+    `write_waits` wakes the next if the write then waits, outside next_to_send); other writers mid-write drawn
+    (`writing`), which the window's own wake_front passes over;
   - an entry left empty, so that the loop turns again;
   - rarest over chunks behind a control-only entry, and holders drawn to tie;
 - filter_entry:
@@ -217,7 +218,7 @@ def main(argv):
                 else rng.sample(peers, rng.randrange(1, len(peers) + 1)))
         ns["waiters"].extend(line)
         nd.writer_blocked.clear()                       # other writers mid-write: `writing` says so (§7.1's
-        nd.writer_blocked.update(x for x in peers if x != p and rng.random() < 0.3)    #   wake_front, v0.10.7)
+        nd.writer_blocked.update(x for x in peers if x != p and rng.random() < 0.3)    #   front, v0.10.7)
         for e in q.normal:                              # a send of a queued chunk still in flight (a second copy)
             if e.chunk is not None and rng.random() < 0.15:
                 ns["sent"][(p, e.chunk.group, e.chunk.index)] = ns["now"] - 0.2

@@ -52,10 +52,10 @@ Every function that the code blocks of `protocol.md` define has a twin of the sa
 | 2 | 1 | 4.5 | 1 | 6.1 | 14 |
 | 3 | 2 | 4.6 | 4 | 6.2 | 1 |
 | 4.1 | 2 | 5.1 | 4 | 6.4 | 3 |
-| 4.2 | 12 | 5.2 | 5 | 7.1 | 8 |
+| 4.2 | 12 | 5.2 | 5 | 7.1 | 9 |
 | 4.3 | 1 | 5.3 | 2 | 7.2 | 5 |
 
-That makes 77 functions. The other sections (§0, §6.3, §7.3, §8, §9) define none. The twin also replays `held`, a
+That makes 78 functions. The other sections (§0, §6.3, §7.3, §8, §9) define none. The twin also replays `held`, a
 function of the toy that says what a node holds: whether a chunk is in `mine` (§4.2). The code of §4.4, §6.1 and
 §7.2 calls `held`. The files of `SpecTwin/` are named for parts of the document; they do not follow its sections
 one to one.

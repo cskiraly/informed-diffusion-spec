@@ -1,18 +1,18 @@
 import SpecTwin.Readers
 import SpecTwin.Sec51
 
-/-! # The twin of protocol.md §7.1, the window [c14] (v0.10.7): `front`, `wake_front`, `acquire_slot`,
-`release_unused_slot`, `track_in_flight`, `window_release`, `window_timeout` and `free_slot`
+/-! # The twin of protocol.md §7.1, the window [c14] (v0.10.9): `front`, `wake_front`, `write_waits`,
+`acquire_slot`, `release_unused_slot`, `track_in_flight`, `window_release`, `window_timeout` and `free_slot`
 
 - **The window's three tables are the twin's own:** `in_flight`, a signed count in one entry (free_slot at 0
   leaves −1 on a drawn state); `waiters`, the line, one entry, the peers in order; `sent`, the send's time under
   its key (peer, group, index).
-- **The block's code calls them:** next_to_send (§7.2: acquire_slot, release_unused_slot, track_in_flight, and
-  wake_front for a writer in line that writes control) and on_have (§4.3: window_release); front and wake_front
-  are called by the window's own too.
+- **The block's code calls them:** next_to_send (§7.2: acquire_slot, release_unused_slot, track_in_flight) and
+  on_have (§4.3: window_release); the node's writer calls write_waits when a write does not complete at once (§7.3);
+  front and wake_front are called by the window's own.
 - **The line's front** is its first writer that can write: `writing` is asked of each writer in line in turn, up
-  to the first that is not mid-write, as the Python's generators ask it; acquire_slot asks it under W alone;
-  wake_front reads the count first and returns where no slot is free, and passes over `past` without asking it.
+  to the first that is not mid-write, as the Python's generator asks it; acquire_slot asks it under W alone;
+  wake_front reads the count first and returns where no slot is free, and then asks `front`.
 - **Reads as the Python's.** A count or a line read twice in the Python is read once here: a record's reads are a
   set. Where the Python does not read at all, the twin does not either: release_unused_slot looks at the count
   where the peer was in line (wake_front's) and where it gives back a held slot (free_slot's), and nowhere else.
@@ -41,25 +41,29 @@ def front : M m (Option Peer) := do
     else return some q                                      --   (§7.3) keeps its place
   return none
 
-/-- `wake_front(past=None)` (§7.1): a slot is free: the first in line that can write, other than
-`past`, tries again (§7.2). `writing` is asked of each in turn but `past`, up to that one -/
-def wakeFront (past : Option Peer) : M m Unit := do
+/-- `wake_front()` (§7.1): a slot is free: the first in line that can write tries again (§7.2) -/
+def wakeFront : M m Unit := do
   enter "wake_front"
   if !(← underW (← inFlight .count)) then                   -- `if in_flight >= W: return`
     branch "wake_front: no slot free"
     return
-  for q in (← waitersLine .line) do                         -- `q = next((q for q in waiters if q != past and
-    if some q == past then continue                         --   not writing(q)), None)`: `past` is not asked
-    if ← writing q then branch "wake_front: a writer mid-write passed"
-    else
-      wake q                                                -- `if q is not None: wake(q)`
-      return
+  match ← front with                                        -- `q = front()`
+  | some q => wake q                                        -- `if q is not None: wake(q)`
+  | none => branch "wake_front: nobody in line can write"
+
+/-- `write_waits(p)` (§7.1): p's write has not completed (§7.3): the line now skips p, so the first writer in line
+that can write tries again, if a slot is free -/
+def writeWaits (p : Peer) : M m Unit := do
+  enter "write_waits"
+  if (← waitersLine .line).contains p then                  -- `if p in waiters: wake_front()`
+    wakeFront
+  else branch "write_waits: not in line"
 
 /-- `free_slot()` (§7.1) -/
 def freeSlot : M m Unit := do
   enter "free_slot"
   setInFlight .count ((← inFlight .count) - 1)              -- `in_flight -= 1`
-  wakeFront none                                            -- the first writer in line that can write tries again
+  wakeFront                                                 -- the first writer in line that can write tries again
 
 /-- `acquire_slot(p)` (§7.1): true, p's writer holds a slot; false, it waits in line -/
 def acquireSlot (p : Peer) : M m Bool := do
@@ -73,7 +77,7 @@ def acquireSlot (p : Peer) : M m Bool := do
     let line ← waitersLine .line
     if line.contains p then setWaitersLine .line (line.erase p)    -- `if p in waiters: waiters.remove(p)`
     setInFlight .count (n + 1)                              -- `in_flight += 1`
-    wakeFront none                                          -- slots remain: the next in line takes one too
+    wakeFront                                               -- slots remain: the next in line takes one too
     branch "acquire_slot: a slot"
     return true
   let line ← waitersLine .line
@@ -87,7 +91,7 @@ def releaseUnusedSlot (p : Peer) : M m Unit := do
   let line ← waitersLine .line
   if line.contains p then                                   -- `if p in waiters:`
     setWaitersLine .line (line.erase p)                     -- `waiters.remove(p)`: it leaves the line, and the next
-    wakeFront none                                          --   may take a free slot
+    wakeFront                                               --   may take a free slot
     branch "release_unused_slot: left the line"
   if ← slotHeld? p then                                     -- `if slot_held[p]:`
     setSlotHeld p false

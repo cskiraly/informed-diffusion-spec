@@ -983,11 +983,10 @@ def run (c : Consts) (replaced traced : List String) (r : Record) : Except Strin
     | "announce", #[p, .str g', b] => do
       exec (announce (← nat p) (← group g') (← nat b)) fun _ => return r.ret == .null
     -- §5.3's two
-    -- §7.1's eight
+    -- §7.1's nine
     | "front", #[] => do exec front fun v => return r.ret == (match v with | some q => Json.num q | none => Json.null)
-    | "wake_front", #[past] => do       -- `past`: none, or the writer in line that writes control
-      let past ← if past == .null then pure none else some <$> nat past
-      exec (wakeFront past) fun _ => return r.ret == .null
+    | "wake_front", #[] => do exec wakeFront fun _ => return r.ret == .null
+    | "write_waits", #[p] => do exec (writeWaits (← nat p)) fun _ => return r.ret == .null
     | "free_slot", #[] => do exec freeSlot fun _ => return r.ret == .null
     | "acquire_slot", #[p] => do exec (acquireSlot (← nat p)) fun v => return v == (← r.ret.getBool?)
     | "release_unused_slot", #[p] => do exec (releaseUnusedSlot (← nat p)) fun _ => return r.ret == .null

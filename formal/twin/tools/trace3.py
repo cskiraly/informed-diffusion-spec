@@ -114,10 +114,11 @@ SEC52 = ("owe", "note_push", "unpush", "announce")
 SEC53 = ("guard_fails", "choose_push")
 # forward (replaceable), candidates_for_source and on_mesh_join (no caller in the toy: a directed set's)
 SEC54 = ("forward", "candidates_for_source", "on_mesh_join")
-# §7.1's eight (the window's three tables the twin's own). window_timeout is a timer's record; front and
-# wake_front are called by the window's own alone
-SEC71 = ("front", "wake_front", "acquire_slot", "release_unused_slot", "track_in_flight", "window_release",
-         "window_timeout", "free_slot")
+# §7.1's nine (the window's three tables the twin's own). window_timeout is a timer's record; write_waits is
+# called by the node's writer when a write does not complete at once (v0.10.9); front and wake_front are called
+# by the window's own alone
+SEC71 = ("front", "wake_front", "write_waits", "acquire_slot", "release_unused_slot", "track_in_flight",
+         "window_release", "window_timeout", "free_slot")
 # §5.1's origin_written, which next_to_send calls at SOURCE_OFFERS = PUBLISH (no cell of check.py runs there:
 # hand5-publish and directed7p do), origin_acked, and publish
 SEC51 = ("origin_written", "origin_acked",
@@ -692,7 +693,7 @@ class Tracer3(Tracer):
             if not isinstance(v["at_source"], bool):
                 raise TypeError(f"trace3: choose_push's at_source is no bool: {v['at_source']!r}")
             return [self.chunk(v["f"]), [int(p) for p in v["cands"]], self.nat(v["budget"]), v["at_source"]]
-        if kw and not (fn == "close_promises" and set(kw) == {"of"}) and not (fn == "wake_front" and set(kw) == {"past"}):
+        if kw and not (fn == "close_promises" and set(kw) == {"of"}):
             raise TypeError(f"trace3: {fn} called with keywords {sorted(kw)}")
         if fn in ("on_chunk",):         # a chunk is wide where it arrives or waits
             p, f = args
@@ -833,16 +834,12 @@ class Tracer3(Tracer):
         if fn == "on_mesh_join":
             (p,) = args
             return [int(p)]
-        if fn in ("acquire_slot", "release_unused_slot"):           # §7.1's
+        if fn in ("acquire_slot", "release_unused_slot", "write_waits"):    # §7.1's
             (p,) = args
             return [int(p)]
-        if fn == "front":
+        if fn in ("front", "wake_front"):
             assert not args and not kw, (args, kw)
             return []
-        if fn == "wake_front":                                      # `past`, by name or by place, or none
-            v = list(args) + ([kw["past"]] if "past" in kw else [])
-            assert len(v) <= 1, (args, kw)
-            return [None if not v or v[0] is None else int(v[0])]
         if fn == "track_in_flight":
             p, f = args
             return [int(p), self.chunk(f)]
