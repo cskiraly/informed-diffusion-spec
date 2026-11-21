@@ -19,7 +19,9 @@ in plain Lean, without Veil:
   complete.
 
 The hypotheses are the per-link step, the two counting facts, and the decode's outcome; the theorem
-is about any node type, any mesh and any N and K. The mesh is the one of the quiet state: the
+is about any node type, any mesh and any N and K. Where the source announces at the chunk's
+acknowledgement (§5.1, `SOURCE_OFFERS = ACK`), the transport gives the step on the source's links
+once the chunk is acknowledged; the theorems hold wherever their hypotheses do. The mesh is the one of the quiet state: the
 transport's mesh changes (peers join and leave it, connections close), and its per-link step holds
 for every link the quiet state has, so the induction runs along those. Under equivocation
 (`NoStallEquiv.lean`) the step holds for the links into nodes that installed the builder's block,

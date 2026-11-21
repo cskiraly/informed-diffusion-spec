@@ -105,7 +105,8 @@ offers once the other block opened its gate.
 
 Not modelled here: what is asked and answered (the asking part), traffic outside the mesh (heartbeat
 gossip, §6.4, and the source's stripes, §5.1), lifetimes, adversaries; the send window, assumed to
-let every queue drain (W2, W3). -/
+let every queue drain (W2 in `../README.md`; since v0.10.7, §7.1, a peer that stops reading holds up
+only its own connection). -/
 
 veil module NoStallTransport
 
