@@ -13,7 +13,7 @@ are in the documents, most of them in their Rationales, and the full story is in
 messages. The detailed notes of every release up to v0.10.8 are in
 [the changelog at the v0.10.8 tag](https://github.com/cskiraly/seacast-spec/blob/v0.10.8/CHANGELOG.md).
 
-## After v0.10.8 — not yet released
+## v0.10.9 — 2026-11-21
 
 The wake in the window's line moves to the moment a write starts to wait, and the index of an ask
 by index (`WantIndex`) is little-endian.

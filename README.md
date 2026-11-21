@@ -81,16 +81,17 @@ names how SEACAST diffuses.
 
 ## Where SEACAST stands
 
-- **The latest release is [v0.10.8](https://github.com/cskiraly/seacast-spec/tree/v0.10.8)**, 2026-11-21:
-  `protocol.md` at version 0.10.8, v0.10's rules with the text rewritten for readers, its constants
+- **The latest release is [v0.10.9](https://github.com/cskiraly/seacast-spec/tree/v0.10.9)**, 2026-11-21:
+  `protocol.md` at version 0.10.9, v0.10's rules with the text rewritten for readers, its constants
   in three kinds, reference values for gossipsub's two IHAVE limits, the source's choice of when it
   announces (`SOURCE_OFFERS`), an IDONTWANT's stock ids kept as stock gossipsub keeps them, an open
   question on a coded group's compressed bytes, and a window whose line a writer that cannot write
-  no longer holds; the toy and its recorded cells, the next version's draft, rewritten for readers,
-  with its decisions taken and its bindings in a document of their own, the proofs in `formal/veil/`
-  on Veil's release, with malicious peers, runs that go quiet (Q3) and agreement, which are of
-  v0.8's rules, the Lean twin of `protocol.md`'s Python with its record, a first piece of a
-  refinement from the twin to a Veil model, and a map of how the checks fit together.
+  no longer holds, and whose next writer is woken when a write starts to wait; the toy and its
+  recorded cells, the next version's draft, rewritten for readers, with its decisions taken and its
+  bindings in a document of their own, the proofs in `formal/veil/` on Veil's release, with
+  malicious peers, runs that go quiet (Q3) and agreement, which are of v0.8's rules, the Lean twin
+  of `protocol.md`'s Python with its record, a first piece of a refinement from the twin to a Veil
+  model, and a map of how the checks fit together.
   [`CHANGELOG.md`](CHANGELOG.md) says what each release changed; changes after the latest tag are on
   `main`, and the changelog's first entry names them.
 - **Each measurement says which code it ran.** The SEACAST post's figures ran on a research

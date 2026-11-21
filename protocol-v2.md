@@ -10,7 +10,7 @@ name since 2026-10-19; v0.4 was published as Informed Diffusion, which now names
 part (§0, "The parts").*
 
 *Draft 1, 2026-10-07. A sibling of [`protocol.md`](protocol.md), which it contains as one
-setting (§6.1). That was draft v0.3 when this was written and is v0.10.8 since 2026-11-21, with
+setting (§6.1). That was draft v0.3 when this was written and is v0.10.9 since 2026-11-21, with
 the same section numbers; "v0.3" below means that document.*
 
 *Each later version of `protocol.md` is carried into this document in the same way; §5 lists what
