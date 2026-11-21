@@ -129,11 +129,14 @@ where one has a control that must come out the other way, it is named:
   one at its first write and at a write again. It runs `protocol-v2.md`; the document's
   `filter_entry` started a promise for every ask until the rule was in its code, which the toy had
   kept in a wrapper.
-- `control_wake_known.py`: `protocol-v2.md` §4.11, a writer in the window's line that writes a
-  control-only entry of the normal lane first wakes the first other writer in line that can write,
-  as for an urgent entry: with two writers in line and the window empty, the second gets a run. The
-  control: the first not in line, and nothing is woken. It runs `protocol-v2.md`; it fails on the
-  document before that path woke anyone.
+- `write_wait_known.py [--doc v2]`: §7.1 and §7.2 (`protocol-v2.md` §4.11), a writer in the
+  window's line that writes control wakes the first writer in line that can write when its write
+  starts to wait for the transport (`write_waits`), and not before. With two writers in line and the
+  window empty, for each way the first writes control (an urgent entry, owed offers on their own,
+  and under `protocol-v2.md` a control-only entry of the normal lane): `next_to_send` returns the
+  control and the second gets no run; the write then waits, and the second gets a run. The control:
+  the first not in line, and nothing is woken. It fails on the documents before v0.10.9, which woke
+  the second before the write.
 - `second_id_known.py`: §4.2, in both documents, a copy under an id the node has not seen, at an
   index it has already received, is acknowledged and neither forwarded nor put in the gossip
   history; a copy of an index held only as rebuilt is still forwarded, and the publisher's first

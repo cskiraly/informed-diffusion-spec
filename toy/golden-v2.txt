@@ -7,10 +7,10 @@ withholders 33a6321ea6fa7596 p50 501ms p99 582ms copies 2.04
 silent 1cf953f0c525c4c5 p50 547ms p99 696ms copies 1.72
 cap-wait eaead0fe45890e74 p50 552ms p99 726ms copies 1.58
 dcb20 91c820b446bcffa7 p50 244ms p99 339ms copies 2.60
-rr-stripe 7834a6f66e71894d p50 406ms p99 498ms copies 2.45
+rr-stripe 44e091fbfcfc34dc p50 406ms p99 498ms copies 2.45
 without-a 4a4e9169244e1743 p50 432ms p99 517ms copies 3.99
 without-b 48a3ad20a457af6b p50 426ms p99 487ms copies 2.43
 loss-thin 2badc599150d0215 p50 814ms p99 894ms copies 1.65
 ihave-limits 5d67fcf8da9f5a8e p50 510ms p99 593ms copies 2.07
 late-block d0fe3d30417366e9 p50 641ms p99 718ms copies 1.89
-push-deep c311001dcf3d5755 p50 461ms p99 538ms copies 2.49
+push-deep 481e7171609b8eeb p50 461ms p99 538ms copies 2.49

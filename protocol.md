@@ -1726,10 +1726,13 @@ sent = {}                             # (peer, group, index) -> send time
 def front():                          # the first in line whose writer can write: a writer whose write has
     return next((q for q in waiters if not writing(q)), None)    #   not completed (§7.3) keeps its place
 
-def wake_front(past=None):            # a slot is free: the first in line that can write, other than `past`,
-    if in_flight >= W: return                     #   tries again (§7.2)
-    q = next((q for q in waiters if q != past and not writing(q)), None)
+def wake_front():                     # a slot is free: the first in line that can write tries again (§7.2)
+    if in_flight >= W: return
+    q = front()
     if q is not None: wake(q)
+
+def write_waits(p):                   # p's write has not completed (§7.3): the line now skips p, so the first
+    if p in waiters: wake_front()     #   writer in line that can write tries again, if a slot is free
 
 def acquire_slot(p):                  # True: p's writer holds a slot; False: it waits in line
     global in_flight
@@ -1777,10 +1780,12 @@ slot before it sends a chunk (`acquire_slot`, §7.2). It takes a free one if it 
 in line that can write (`front`), or if no writer in line can write; otherwise it waits in line,
 first come first served over the peers, and keeps its place while it waits. A writer whose write
 has not completed (`writing`, §7.3) keeps its place, and the writers behind it may take slots before
-it until its write completes. A writer in line that writes control instead of taking a slot first
-wakes the first other writer in line that can write, if a slot is free, since its own write may not
-complete (`wake_front`, §7.2). The slot then travels with the chunk until the peer is known to hold
-it, or until `WINDOW_TIMEOUT` or the queue's closing frees it (below).
+it until its write completes. A writer in line writes control without taking a slot. When such a
+write does not complete at once, the writer calls `write_waits` as it starts to wait (§7.2), which
+wakes the first writer in line that can write, if a slot is free: nothing else would wake it while
+the slot stays free. A write that completes at once wakes no one. The slot then travels with the
+chunk until the peer is known to hold it, or until `WINDOW_TIMEOUT` or the queue's closing frees it
+(below).
 
 - **What takes a slot:** a chunk sent on the normal lane, push or answer.
 - **What gives it back:** a HAVE from that peer that newly covers the chunk's index (§4.3), or
@@ -1810,8 +1815,10 @@ shared. A writer whose write has not completed cannot use a slot until its trans
 every writer behind it: with a peer that stops reading, once the chunks in flight were acknowledged
 or timed out, the node would send no chunk to any other peer, though control would still flow.
 Passing it over changes only who takes a free slot; among the writers that can write, the order is
-still first come, first served. For the same reason a writer in line that writes control first wakes
-another that can write: if its write then does not complete, a free slot does not go unused. Taking
+still first come, first served. For the same reason a writer in line whose control write does not
+complete at once wakes another that can write (`write_waits`), so a free slot does not go unused.
+The wake comes when the write starts to wait, not before it: a write that completes at once leaves
+the writer able to write, and waking another then would change only the order of the schedule. Taking
 it out of the line while it writes, and back in at the end, would free the line too, but a writer
 that writes control whenever an urgent entry wakes it would go to the back each time.
 `toy/line_stall_known.py` builds the case. Nothing in this version drops a peer for not reading; the
@@ -1825,7 +1832,8 @@ writes it as one frame (§2). A client may merge the control of several entries 
 §5.1 (HAVEs), §5.4 and §8.3 (announcements) and §6.4 (asks) allow. Each time the previous write to
 that peer has completed, and whenever the writer is woken (a slot is free for it, or an urgent entry
 arrived), it calls `next_to_send`: an entry to write, `None` when there is nothing to send, or
-`WAIT` when it waits in line for a slot.
+`WAIT` when it waits in line for a slot. When the transport does not complete a write at once
+(§7.3), the writer calls `write_waits` (§7.1) as it starts to wait.
 
 ```python
 def next_to_send(p):
@@ -1833,14 +1841,10 @@ def next_to_send(p):
     while True:
         if owed_answers[p] and has_room(p):                    # an answer a full queue refused (§4.1)
             enqueue(p, Entry(chunk=pop_owed_answer(p), solicited=True), urgent=False)
-        if q.urgent:                                           # HAVEs, acks, decode claims: first. A writer
-            if p in waiters: wake_front(past=p)                #   in line writes one, whose write may not
-            return with_owed(p, q.urgent.pop(0))               #   complete (§7.3): the next may take a slot
+        if q.urgent: return with_owed(p, q.urgent.pop(0))      # HAVEs, acks, decode claims: first
         if not q.normal:
             out = with_owed(p, Entry()) if owed[p] else None   # owed offers on their own
-            if out:
-                if p in waiters: wake_front(past=p)            # as for an urgent entry
-                return out
+            if out: return out
             release_unused_slot(p); return None                # nothing to send: a held slot goes back
         if q.has_chunks() and not slot_held[p]:
             if not acquire_slot(p): return WAIT                # [c14] in line, FIFO over peers; an urgent
@@ -1899,8 +1903,8 @@ def projected(p, g):                                           # [c12]
 **What the writer sends** (`next_to_send`). It first queues an answer it owes, if the queue has room
 (§4.1). Urgent entries go first: HAVEs, acknowledgements, decode claims. With nothing on the normal
 lane, it sends what it owes the peer on its own, or nothing, and gives back a slot it held. A writer
-waiting in line that writes an urgent entry, or owed offers on their own, first wakes the first
-other writer in line that can write, if a slot is free (`wake_front`, §7.1). When the normal lane
+waiting in line that writes an urgent entry, or owed offers on their own, keeps its place in line;
+if the write then waits for the transport, `write_waits` wakes the next (§7.1). When the normal lane
 holds a chunk, the writer takes a slot of the window first (§7.1), or waits in line for
 one. It then takes an entry, the rarest chunk first (card 9), and filters it (`filter_entry`):
 cancel and projection may drop its chunk, and the asks it carries lose those for chunks the node

@@ -40,6 +40,7 @@ BREAKS = {                      # known answers: one rule taken out of the extra
                   r"(?:[^\n]*\n)*?[^\n]*\]\s*(?:#[^\n]*)?\n",
                   "        pass\n", "S1"),
     "wake": (r"(?<=        in_flight \+= 1\n)        wake_front\(\)[^\n]*\n", "", "W2"),
+    "writewait": (r"^    if p in waiters: wake_front\(\)[^\n]*\n", "    pass\n", "W2"),     # write_waits wakes no one
     "p4": (r"^    return \(origin\[g\] if g in origin else mine\[g\]\)\.copy\(\)[^\n]*\n",
            "    return mine[g].copy()\n", "P4"),
 }

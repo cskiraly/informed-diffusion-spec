@@ -1957,8 +1957,10 @@ class Node:
         buf, ln = self.sim.send_buffer, self.sim.links[self.id]
         while True:
             if buf is not None and ln.backlog.get(p, 0) >= buf:
-                self.writer_blocked.add(p)      # the transport takes no more for now: the write
-                return                          #   has not completed (§7.2), the link wakes us
+                if p not in self.writer_blocked:    # the transport takes no more for now: the write
+                    self.writer_blocked.add(p)      #   has not completed (§7.3), the link wakes us;
+                    self.ns["write_waits"](p)       #   as it starts to wait, the line skips it (§7.1)
+                return
             e = nts(p)
             if e is None or e is WAIT:          # nothing to send, or in line for a slot (§7.2)
                 return

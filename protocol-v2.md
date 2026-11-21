@@ -2738,10 +2738,13 @@ in_flight = 0                         # bytes taken: held by a writer for the ch
 waiters = deque()                     # peer writers waiting for room, first come first served
 sent = {}                             # (peer, group, index) -> (send time, bytes)
 
-def wake_front(past=None):            # protocol.md §7.1's, over the window in bytes: room is free, so the first
-    if in_flight >= W_BYTES: return   #   in line that can write, other than `past`, tries again (§7.2 there)
-    q = next((q for q in waiters if q != past and not writing(q)), None)
+def wake_front():                     # protocol.md §7.1's, over the window in bytes: room is free, so the first
+    if in_flight >= W_BYTES: return   #   in line that can write tries again (§7.2 there)
+    q = front()
     if q is not None: wake(q)
+
+def write_waits(p):                   # protocol.md §7.1's: p's write has not completed, so the line skips p
+    if p in waiters: wake_front()     #   and the first writer in line that can write tries again, if room is free
 
 def acquire_room(p, need) -> bool:    # True: p's writer may send `need` bytes now; False: it waits in line
     global in_flight
@@ -2787,14 +2790,10 @@ def next_to_send(p):                  # v0.3 §7.2, with the chunk chosen before
         queue_owed_relations(p)                                # JOINs, GRAFTs and PRUNEs a full queue refused, in order (§4.1)
         if owed_answers[p] and has_room(p):                    # an answer a full queue refused (v0.5 §4.1)
             enqueue(p, Entry(chunk=pop_owed_answer(p), solicited=True), urgent=False)
-        if q.urgent:                                           # HAVEs, acks, decode claims: first. A writer
-            if p in waiters: wake_front(past=p)                #   in line writes one, whose write may not
-            return with_owed(p, q.urgent.pop(0))               #   complete: another may take room (v0.3 §7.2)
+        if q.urgent: return with_owed(p, q.urgent.pop(0))      # HAVEs, acks, decode claims: first
         if not q.normal:
             out = with_owed(p, Entry()) if owed[p] else None   # owed offers on their own (v0.5 §7.2)
-            if out:
-                if p in waiters: wake_front(past=p)            # as for an urgent entry
-                return out
+            if out: return out
             leave_line(p); return None                         # nothing to send
         k = choose(q)                                          # §4.12; chosen first: its size is what the window counts
         entry = q.normal[k]
@@ -2807,7 +2806,6 @@ def next_to_send(p):                  # v0.3 §7.2, with the chunk chosen before
             if out.chunk:
                 track_in_flight(p, out.chunk, need)            # [c14] the room travels with the chunk
                 if SOURCE_OFFERS == PUBLISH: origin_written(out.chunk)   # §4.7: the holding at the first write
-            elif p in waiters: wake_front(past=p)              # control from a writer in line: as for an urgent entry
             return with_owed(p, out)                           # owed offers ride along
 ```
 
@@ -2827,9 +2825,11 @@ completed (`writing`, as `protocol.md` §7.3 and its helpers define it) keeps it
 front: `acquire_room` admits the first waiter whose writer can write (`front`), and every wake goes
 to that one (`wake_front`, here over the window in bytes: only while room is free). A writer in line
 that writes control instead (an urgent entry, owed offers on their own, or a control-only entry of
-the normal lane) first wakes the first other writer in line that can write, since its own write may
-not complete (`next_to_send`). Without this, a peer that stops reading while its writer heads the
-line holds all free room, and the node sends no chunk to any other peer.
+the normal lane) keeps its place. When that write does not complete at once, the writer calls
+`write_waits` as it starts to wait, which wakes the first writer in line that can write, as
+`protocol.md` §7.1's does; a write that completes at once wakes no one. Without this, a peer that
+stops reading while its writer heads the line holds all free room, and the node sends no chunk to
+any other peer.
 
 **Below the writer** (v0.9 §7.3, as written). A writer should hand a chunk to the transport only
 while the connection has less than one chunk unsent. The backlog then waits in the queue, where
