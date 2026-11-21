@@ -514,6 +514,8 @@ the paths that act on a projected group (`forward`, `push_rebuilt`, the repair
 sample's `ask_custodian`) skip an expired axis; `check_completion` finds no state to act on.
 A dropped group's later chunks are not stored, forwarded, offered or kept for heartbeat gossip on
 that axis (`fill`, `forward`, `push_rebuilt`), as `protocol.md`'s `on_validated` returns for one.
+Offered, such a chunk would draw asks that the node does not answer, and an asker's promise would
+break against an honest node.
 The sampler's `sample`, `resample` and `ask_sample` check it (§4.10), so a draw or a retry after
 the expiry makes no park, interest or WANT again.
 Reading a missing entry allocates nothing;
