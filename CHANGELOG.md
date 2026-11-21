@@ -9,8 +9,9 @@ ran (`protocol.md` §9 for the SEACAST post's figures).
 
 `protocol.md` moves one wake in the window's line: a writer in line now wakes the next when its
 write starts to wait for the transport, not before the write (§7.1, §7.2), and `protocol-v2.md`
-carries the change (§4.11). No printed figure of the toy's cells moves. The Quint model stays at
-v0.5's rules and is not ported further.
+carries the change (§4.11). No printed figure of the toy's cells moves. `protocol.md` also states
+the byte order of a `WantIndex`'s index (§2). The Quint model stays at v0.5's rules and is not
+ported further.
 
 `protocol.md`:
 - **A writer in line wakes the next when its write starts to wait** (§7.1, §7.2). In v0.10.7, a
@@ -23,6 +24,10 @@ v0.5's rules and is not ported further.
   `write_waits`. `wake_front` loses its argument: by the time `write_waits` runs, the waiting
   writer cannot write, so `front` skips it. §7.1 gives the line a paragraph of its own, and its
   Rationale a paragraph on when the wake comes.
+- **A `WantIndex`'s index is little-endian** (§2). The document did not say in which byte order
+  the uint32 index of a `WantIndex` goes into its message-id string. It is little-endian, as SSZ
+  writes it and as `message_id` writes a chunk's index. §9 adds that the research harness writes it
+  big-endian, in versions 1 and 4 of its strings.
 
 `protocol-v2.md`:
 - **A writer in line whose write waits wakes the next** (§4.11), as `protocol.md` §7.1's does. The
