@@ -1,7 +1,7 @@
 # Changelog
 
-Each release is a tag, whose commit its heading below names, and `protocol.md` names its version at
-the top. Changes after the latest tag are on `main`; when there are any, this file's first entry
+Each release is a tag; its heading below names the tag's commit, and `protocol.md` names its version
+at the top. Changes after the latest tag are on `main`; when there are any, this file's first entry
 names them. A release changes the text and its checks, not earlier measurements: each measurement
 says which code it ran (`protocol.md` §9 for the SEACAST post's figures).
 
@@ -29,17 +29,22 @@ by index (`WantIndex`) is little-endian.
   uint32.
 
 ### Added
-- `toy/write_wait_known.py [--doc v2]`: a known answer for the wake at the wait.
+- `toy/write_wait_known.py [--doc v2]`: a known answer for the wake at the wait, which also checks
+  that the next writer is not woken while the window is full and that the writer keeps its place in
+  line.
 - `formal/toy/monitor.py`: a fourth known answer, `--break writewait`, which W2 catches.
+- `protocol-v2.md` §4.11: "Open: room left unused after a queue edit".
 - `protocol.md` §9: the research harness writes the index of a WANT string big-endian, in versions
   1 and 4 of its strings.
 
 ### Changed
 - `protocol.md` §7.1: the window's line has a paragraph of its own, and the Rationale a paragraph
   on when the next writer is woken.
+- `protocol-v2.md` §4.11: the wake at the wait has a paragraph of its own, and the Rationale gives
+  it in place of the wake before the write.
 - `toy/node.py`: the toy calls `write_waits` where a writer's transport first takes no more.
 - `formal/twin/`: the twin follows the wake at the wait (`write_waits`, `wake_front` without its
-  argument, no wake in `next_to_send`).
+  argument, `next_to_send` without its wake before a control write).
 - `toy/golden.txt`, `toy/golden-v2.txt`: `rr-stripe` and `push-deep` move in their digests only;
   every other cell keeps its digest.
 - `formal/toy/monitor.py`: one break a run.
@@ -67,8 +72,12 @@ changes.
   `RECORD.md` says what it shows and what it does not show.
 - `formal/refine/`: the first piece of a refinement, from the twin's side of §6.1's asking path to
   the Veil model `NoStallEquiv`.
-- `formal/twin/tools/`: a draft part of the matrix (`--sample drafts`), which a merge refuses,
-  `against.py`'s report of a document's SHA-256, and `matrixdiff.py --common`.
+- `formal/twin/tools/`: a draft part of the matrix (`--sample drafts`), which the merge of a matrix
+  refuses.
+- `formal/twin/tools/against.py`: it reports a difference in a document's SHA-256, and the
+  difference decides nothing.
+- `formal/twin/tools/matrixdiff.py`: `--common`, which compares two matrices over the mutants they
+  share.
 
 ### Changed
 - `formal/twin/tools/content.py` (version 2): a trace's first line names each document by the code
@@ -86,7 +95,7 @@ draft.
 
 ### Rules
 - `protocol.md` §7.1, §7.2: a free slot goes to the first writer in line that can write, and the
-  writer passed over keeps its place; a writer in line that writes control first wakes the first
+  writer passed over keeps its place; before a writer in line writes control, it wakes the first
   other writer in line that can write, if a slot is free.
 - `protocol-v2.md` §4.11: the same, in its window in bytes and on its three control paths.
 
@@ -118,7 +127,8 @@ draft is rewritten for readers.
 - `protocol-v2.md` §4.6: `filter_entry` starts a promise only for an ask made on an offer, and none
   for one sent as a `Want`; a claim's probe keeps its own promise at its first write.
 - `protocol-v2.md` §4.2, §4.4: a copy under an id the node has not seen, at an index it has already
-  received on an axis, is acknowledged there and not forwarded on that axis, as in `protocol.md`.
+  received on an axis, is acknowledged there and not forwarded on that axis, as in `protocol.md`;
+  it is kept for heartbeat gossip only if some axis forwards it.
 - `protocol-v2-bindings.md` §3: v0.3's wire reads an IDONTWANT's entries as `protocol.md` §4.1
   does, and reads as a holding an entry with `HaveBitmap`'s MAGIC at either version it writes.
 - `protocol-v2-bindings.md` §3: v0.3's wire ignores an IHAVE entry that is not a bitmap.
@@ -131,8 +141,9 @@ draft is rewritten for readers.
 - `toy/want_promise_known.py`, `toy/second_id_known.py`: known answers.
 
 ### Changed
-- `protocol-v2.md`: rewritten for readers in `protocol.md`'s form, the code the same but one
-  comment; the record of each `protocol.md` version carried moves to §5.
+- `protocol-v2.md`: rewritten for readers in `protocol.md`'s form, and the record of each
+  `protocol.md` version carried moves to §5; the rewrite leaves the code and all its comments but
+  one as they were, and changes no rule.
 - `protocol-v2.md` §1.1, §2: where the descriptor travels is left open, as in `protocol.md` §1.
 - `protocol-v2.md` §1.1: the `decode` row points to `protocol.md`'s open item on the compressed
   bytes.
@@ -156,7 +167,9 @@ toy's `accepted` follows `protocol.md`.
 ### Added
 - `formal/veil/`: malicious peers (`NoStallAskAdv.lean`, `NoStallTransportAdv.lean`,
   `NoStallEquivAdv.lean`): no stall (Q1) for the honest nodes that the source reaches through
-  honest nodes, with the findings F13 and F14, and a switch, `byGroup`, for level 1 by group.
+  honest nodes that installed the block, relabelled copies excluded, and Q3 once the environment
+  stops, the adversaries' actions included; with the findings F13 and F14, and a switch, `byGroup`,
+  for level 1 by group.
 - `formal/veil/`: a run goes quiet (Q3), with finitely many nodes and weak fairness, once the
   environment stops (`QuietRanking.lean`).
 - `formal/veil/NoStallCount.lean`: the counting through honest nodes, and three corollaries.
@@ -194,6 +207,17 @@ keeps them, and the next version's draft gains a bindings document.
 - `protocol-v2.md` §4.6: a settled probe's ask is no longer exempt from stop-pull.
 - `protocol-v2.md` §4.6: while a claimant keeps an asker's probe, that asker's marked ask of another
   index of the group is a plain ask.
+- `protocol-v2-bindings.md` §1.3: on the standalone binding, a cell's header goes with the first
+  eager push of a group on a link and with no answer, and a node that receives no eager push of a
+  group, such as a sampler, takes it from the block; a carried header is validated apart from the
+  cell, before the cell is handled, and does not mark the cell's id.
+- `protocol-v2-bindings.md` §1.3: on the standalone binding, a link carries an object type only
+  where both ends' JOINs for it name the same fork digest, and a cell has one id whichever group
+  carries it.
+- `protocol-v2-bindings.md` §1.2, §1.6: on the standalone binding, each message kind has a bound on
+  its body, and on the stream a receiver refuses a frame that cannot fit it before reading the body;
+  a message of an unknown kind is skipped without penalty, and its frame is held to the largest
+  frame that a known kind allows.
 - `protocol-v2-bindings.md` §1.3: a carried header that fails its checks is rejected and counts
   against its sender; one that cannot be judged yet waits and counts against no one.
 
@@ -243,6 +267,10 @@ keeps them, and the next version's draft gains a bindings document.
 - `protocol-v2.md` §4.6: the probe's wait starts at its write; a probe that a full queue refuses,
   or that is still unwritten when the duty next fires, gets no verdict unless the claimant's copy
   comes first, and a probe settled while queued is not written later.
+- `protocol-v2.md` §4.6: when a full queue refuses a probe, or the claimant's connection closes
+  before the verdict, the member's own repair is reconsidered at the duty's own time (`duty_at`), at
+  once if that time has passed; for a probe still unwritten when the duty next fires, the repair is
+  reconsidered then.
 - `protocol-v2.md` §4.6: a settled probe holds no promise open, and a claimant still decoding keeps
   the first marked ask and answers it when the cell is stored.
 
