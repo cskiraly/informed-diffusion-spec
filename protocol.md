@@ -1808,8 +1808,10 @@ writer calls `write_waits` as it starts to wait for its transport; a write that 
 does not. If the writer is in line and a slot is free, `write_waits` wakes the first writer in line
 that can write (`wake_front`), which may then take the slot. A client that cannot tell when a write
 starts to wait, such as one whose write call blocks (§7.3), may instead call `write_waits` before
-each control write of a writer in line. That is safe: `writing` holds for the writer from the moment
-`next_to_send` returns it the entry, so `front` already skips it.
+each control write of a writer in line, once that write is pending: `writing` holds from the moment
+`next_to_send` returns the entry. That is safe. `front` then skips the writer, and the woken writer
+takes a slot only if it is the first writer in line that can write and a slot is free. The early
+call can queue a run of the next writer even when the write then completes at once.
 
 #### Rationale
 
@@ -1838,8 +1840,8 @@ write starts to wait, not before the write: a write that completes at once leave
 to write, and a wake before it would change the schedule of the node's writers where nothing else
 changes. A client that cannot tell when its write starts to wait may still wake before the write.
 Its cost is that change of schedule: the woken writer takes a slot only if no writer ahead of it
-in line can write (`front`). `toy/write_wait_known.py` checks that choosing the control queues no
-run for the next writer, and that the write's wait for the transport queues one.
+in line can write (`front`) and a slot is free. `toy/write_wait_known.py` checks that choosing the
+control queues no run for the next writer, and that the write's wait for the transport queues one.
 
 ### 7.2 Choosing what to send, at the moment of sending [c8, c9, c12, c14]
 
