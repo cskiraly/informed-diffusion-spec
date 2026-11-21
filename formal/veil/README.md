@@ -13,12 +13,13 @@ solver; the plain-Lean files are theorems.
 - `NoStallTransport.lean`, `NoStallAsk.lean` and `NoStallCount.lean`: no stall (Q1). For any one
   chunk, when the transport has nothing left to do, a node with its block holds every chunk a mesh
   neighbour received, has stopped pulling, or holds that neighbour's offer, or, where the source
-  announces at the chunk's acknowledgement (§5.1's default), the neighbour is the source and the
-  chunk is not acknowledged yet; when the asking machinery has nothing left to do, every such offer
-  is resolved; and, counting in plain Lean, every honest node reachable from the source along mesh
-  links stops at K and completes. Where the source announces at a chunk's acknowledgement, this
-  needs each chunk the counting uses on the source's links acknowledged, received or offered
-  (below); where it announces at publish, nothing more. The mesh may change on the
+  announces at the chunk's acknowledgement (§5.1's default), the neighbour is the source, the
+  receiver is outside the push plan, and the chunk is not acknowledged yet; when the asking
+  machinery has nothing left to do, every such offer is resolved; and, counting in plain Lean, every
+  honest node reachable from the source along mesh links stops at K and completes. Where the source
+  announces at a chunk's acknowledgement, this needs each chunk the counting uses on the source's
+  links acknowledged, or received, stopped for or offered at the receiver (below); where it
+  announces at publish, it needs nothing more. The mesh may change on the
   way (peers join and leave it, connections close), with F9's rule, `protocol.md` §5.4 since v0.8: a
   peer that joins the mesh is announced what the node holds. How the pieces make Q1 is below. The
   counting also gives Q1 with a builder that releases only K of the N chunks, with a source that
@@ -35,9 +36,9 @@ solver; the plain-Lean files are theorems.
   source reaches along links between honest nodes, into nodes that installed the block, whatever the
   other peers do, relabelled copies excluded, and at `ACK` with the chunks acknowledged on the
   source's links (below). An adversary chosen as a push target can keep a chunk unacknowledged by
-  closing its connection, which is `ka_never_acknowledged`'s run. `NoStallEquivAdv.lean` is v0.8's
-  asking among them,
-  and shows two findings: F13, closed in v0.8, and F14, which `protocol.md` §6.1 leaves open.
+  closing its connection, as in `ka_never_acknowledged`'s run, where the push target's connection
+  closes. `NoStallEquivAdv.lean` is v0.8's asking among them, and shows two findings: F13, closed
+  in v0.8, and F14, which `protocol.md` §6.1 leaves open.
 - `Agreement.lean` (plain Lean): level 2 is all or none, a check that succeeds recovers the bytes the
   root commits, and two honest nodes never deliver different payloads for a group, under the codec's
   assumptions (below).
@@ -65,12 +66,14 @@ rule, by inspection:
   `SOURCE_OFFERS = ACK`, the default, and `PUBLISH` is the source's other choice. Both transport
   models have it as a setting (below): at `ACK`, mesh peers outside the push plan wait for the
   acknowledgement, which the models take as an environment event, a HAVE or a timeout, since the
-  window is not modelled. Their result then has one more case: the neighbour is the source, and
-  the chunk is not acknowledged yet. §5.1's open item, a chunk that is never acknowledged, is a
+  window is not modelled. Their result then has one more case: the neighbour is the source, the
+  receiver is outside the push plan, and the chunk is not acknowledged yet. §5.1's open item, a
+  chunk that is never acknowledged, is a
   known answer there. What the source's HAVE names, and when it sends it (§5.1's P4, and
   `origin_written` at `PUBLISH`), is outside these proofs: the source's HAVE is an environment event
-  that only keeps its peers from pushing or announcing the chunk to the source. A HAVE that the
-  source receives is its acknowledgement; the models take any such HAVE while the chunk is
+  that only keeps its peers from pushing or announcing the chunk to the source. A HAVE naming the
+  chunk that the source receives is the chunk's acknowledgement; the models take any such HAVE while
+  the chunk is
   unacknowledged, which covers the spec's first new one, a repeat included once its claim has
   lapsed (`HAVE_TTL`).
   v0.9's §7.3, on what the transport below the writer should hold, is not modelled: the models'
@@ -256,13 +259,16 @@ several), and is the source's chunk byte for byte where it names the same root.
 Q1: **when nothing is left to happen, every honest node reachable from the source along the mesh it
 then has is complete**, the links followed from each node to the peers in its mesh, to which it
 forwards. Where the source announces at a chunk's acknowledgement (§5.1's default), this needs, on
-the source's links, the chunks the counting uses acknowledged, received, or offered (below). In three pieces, each proved for any number of nodes; the first two are about any one
-chunk of the group, so they hold for each:
+the source's links, the chunks the counting uses acknowledged, or received, stopped for or offered
+at the receiver (below). Q1 is proved in three pieces, each for any number of nodes; the first two
+are about any one chunk of the group, so they hold for each:
 
 - **The transport** (`NoStallTransport`): when it has nothing left to do, a node that has its block
   holds every chunk a mesh neighbour received, has stopped pulling the group, or holds that
-  neighbour's offer of the chunk. It models the source's publish, forwarding (pushed or announced,
-  any targets, never to the sender or a peer known to hold it), queues that may refuse any entry
+  neighbour's offer of the chunk, or, at `ACK`, the neighbour is the source, the node is outside the
+  push plan, and the chunk is not acknowledged yet. It models the source's publish, forwarding
+  (pushed or announced, any targets, never to the sender or a peer known to hold it), queues that
+  may refuse any entry
   (owed and offered, A′), the writer's cancel and projection (A′), what is owed, announcements
   recorded as offers, the deferred store (refused copies as offers, F7's fix, which since v0.8 the
   ties of §4.2 make at the block's installation), copies taken in at installation, repair, and a
@@ -277,9 +283,7 @@ chunk of the group, so they hold for each:
     candidates (§5.3, §8.3). The rest of its mesh is announced the chunk at the acknowledgement:
     a HAVE naming it, any while it is unacknowledged (the spec's first new one among them), or a
     window timeout of a copy the source wrote, a push or an answer, while its connection still
-    holds the copy's slot. The step then has one more case:
-    the neighbour is the source, the node was not a push target, and the chunk is not acknowledged
-    yet.
+    holds the copy's slot. Until then, the step's fourth case above holds on the source's links.
   - The source's `fwd` stands for two operations, the planned pushes and the announcements at the
     acknowledgement, and may push or announce to either, as forwarding at any node may. What the
     source's HAVE names, and when it sends it (§5.1's P4), is not checked here.
@@ -448,7 +452,7 @@ not in the models.
 
 | piece | proof | traces | the build |
 |---|---|---|---|
-| transport | 264 of 264 conditions, 1043 theorems | 9 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered; the chunk announced again to a peer back in the mesh after a close lost a queued push; and to a peer that joined after the publish; at `ACK`, the source's other mesh peer announced the chunk at the acknowledgement, by a HAVE and by a window timeout; and a written answer's timeout acknowledging the chunk before the answer arrives), 7 known answers (at `PUBLISH`: F1, a skipped push counted, offered to nobody; a refused push lost; F7, a refused copy lost; F11, an announcement ignored by the receiver's limit; F9, without the resync, nothing offers the chunk to a peer back in the mesh after a close lost a queued push, nor to a late joiner; at `ACK`, §5.1's open item: the pushed connection closes with the copy in flight, and the source's other mesh peer is offered nothing) | 23 minutes (rebuilt in place, below) |
+| transport | 264 of 264 conditions, 1043 theorems | 9 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered; the chunk announced again to a peer back in the mesh after a close lost a queued push; and to a peer that joined after the publish; at `ACK`, the source's other mesh peer announced the chunk at the acknowledgement, by a HAVE and by a window timeout; and a written answer's timeout acknowledging the chunk before the answer arrives), 7 known answers (at `PUBLISH`: F1, a skipped push counted, offered to nobody; a refused push lost; F7, a refused copy lost; F11, an announcement ignored by the receiver's limit; F9, without the resync, nothing offers the chunk to a peer back in the mesh after a close lost a queued push, nor to a late joiner; at `ACK`, §5.1's open item: the source's one push is lost with its connection, written and in flight or skipped with its offer owed, the same state either way (the solver's witness skips it), and the source's other mesh peer is offered nothing) | 23 minutes (rebuilt in place, below) |
 | asking | 378 of 378 conditions, 1143 theorems | 6 non-vacuity (an offer answered; an offerer parked by another chunk, asked once more by the last resort; an offer before the block asked for at installation; an offer over an IHAVE limit asked for by the heartbeat's retry; one from a parked offerer, asked once more by the last resort the heartbeat's retry arms; an ask lost with its connection, the announcer's offer on the new one asked for by the retry), 5 known answers (F2: without the last resort an offerer parked by another chunk is never asked; answers lost twice without owed answers; an offer before the block never asked without the ledger; an offer over an IHAVE limit never asked without the heartbeat's retry; the last-resort count kept across a close, the ask it counted lost with the connection never made again) | 4.8 minutes |
 | asking, under equivocation | 704 of 704 conditions, 1913 theorems | 6 non-vacuity (an offer answered; on the other block, an answer that waits ties its sender and closes its promise; a node on the other block with a tied sender switches, the sender is asked and the chunk validates; the last resort; the ledger; an ask lost with its connection, the announcer asked afresh on the new one), 5 known answers (without `ROOT_TIED`, at the switch every announcer parked and asked once more with nothing on its way; without `NO_REASK_OPEN`, a third ask to a provider before the switch; without the last resort; without the ledger; the last-resort counts kept across a close) | 25 minutes |
 | counting | twelve theorems and the lemma `count_mono` they use, two of the twelve known answers (below) | none | a second |
@@ -475,7 +479,8 @@ theorem does:
   chunks (`K ≤ count (rcv src)`; in the transport, `publish` sets the source's `rcv`); then every
   node reachable from the source along the mesh is complete. A chunk the source withholds has its
   own per-link step, by inspection: the transport piece with no source (`one_source` allows none),
-  or with the source publishing it to the mesh it has, possibly none.
+  or with the source publishing it to the mesh it has, possibly none, at `ACK` on the source's
+  links under the condition above.
 - **A source that drops out** (`stops_from_holders`, `completes_from_holders`): for a node n and a
   set S of at least K distinct chunks (`K ≤ count S`), where for each chunk of S some node that
   reaches n along the mesh has received it or has stopped (`holder`), n has stopped, and with

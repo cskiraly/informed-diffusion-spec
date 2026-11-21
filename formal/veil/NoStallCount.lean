@@ -6,8 +6,8 @@ import Lean
 is pending, a node that has its block holds every chunk a mesh neighbour received, or has stopped
 pulling the group (the transport delivers the chunk or leaves the neighbour's offer, and the asking
 resolves the offer). Where the source announces at a chunk's acknowledgement, they give it on the
-source's links only as said below. A node that has not stopped holds only chunks it received: it rebuilds only
-after its decode claim (`NoStallTransport`'s `stored`). The step from there to Q1 is counting, here
+source's links only as said below. A node that has not stopped holds only chunks it received: it
+rebuilds only after its decode claim (`NoStallTransport`'s `stored`). The step from there to Q1 is counting, here
 in plain Lean, without Veil:
 
 - a node stops pulling at its K-th received chunk, and the source, stopped, has at least K in `rcv`
@@ -29,10 +29,10 @@ step the counting uses on a source's link must be had that way. The link from th
 hypotheses is by inspection.
 
 The mesh is the one of the quiet state: the transport's mesh changes (peers join and leave it,
-connections close), and its per-link step holds for every link the quiet state has, so the
-induction runs along those. Under equivocation
+connections close), and its per-link step holds for every link the quiet state has (on the source's
+links at `ACK`, as above), so the induction runs along those. Under equivocation
 (`NoStallEquiv.lean`) the step holds for the links into nodes that installed the builder's block,
-and the same theorem runs along the mesh restricted to them
+with the same condition at `ACK`, and the same theorem runs along the mesh restricted to them
 (`every_installed_reachable_node_completes`).
 
 Three corollaries of the per-link step as proved:
@@ -42,7 +42,8 @@ Three corollaries of the per-link step as proved:
   no source (`one_source` allows none, and no invariant names the source), or, where the source
   announces it on a later join (§5.4: at the source, every chunk of a group it publishes), its model
   with the source publishing to the mesh it has, possibly none; so the per-link step holds for it
-  too. Its copies then come from nodes that hold it without having received it: a decoded node's
+  too, at `ACK` on the source's links under the same condition. Its copies then come from nodes that
+  hold it without having received it: a decoded node's
   repair, pushed or owed, or an announcement on a join (§5.4).
 - **The source drops out** (`stops_from_holders`, `completes_from_holders`,
   `completes_from_holders_installed`): a node stops once K distinct chunks have each been received
@@ -108,7 +109,7 @@ theorem every_connected_node_stops {Node : Type} {N : Nat} (K : Nat)
       omega
 
 /-- Q1: every node connected to the source is complete, once its decode, no longer pending, has
-returned with an honest builder's code -/
+returned with an honest builder's code, given the per-link step on every link (`link`) -/
 theorem every_connected_node_completes {Node : Type} {N : Nat} (K : Nat)
     (mesh : Node → Node → Prop) (src : Node)
     (rcv : Node → Fin N → Bool) (stop complete : Node → Prop)
@@ -122,8 +123,9 @@ theorem every_connected_node_completes {Node : Type} {N : Nat} (K : Nat)
   decoded n (every_connected_node_stops K mesh src rcv stop source_stopped stopped_has_K
     K_has_stopped link n h)
 
-/-- Q1 under equivocation (`NoStallEquiv.lean`): the per-link step holds for the links into nodes
-that installed the builder's block (`inst`), the block the chunks name, and a node on the proposer's
+/-- Q1 under equivocation (`NoStallEquiv.lean`): the per-link step (`link`, a hypothesis) holds for
+the links into nodes that installed the builder's block (`inst`), the block the chunks name (on the
+source's links at `ACK`, under the header's condition), and a node on the proposer's
 other block forwards nothing of the group until it switches. So the counting runs along the mesh
 restricted to such nodes: every node the source reaches through them is complete. -/
 theorem every_installed_reachable_node_completes {Node : Type} {N : Nat} (K : Nat)
@@ -169,7 +171,8 @@ theorem every_honest_reachable_node_stops {Node : Type} {N : Nat} (K : Nat)
       omega
 
 /-- Q1 with malicious peers: every honest node the source reaches along links between honest nodes,
-into nodes that installed the block, is complete, once its decode, no longer pending, has returned -/
+into nodes that installed the block, is complete, once its decode, no longer pending, has returned,
+given the per-link step on those links (`link`) -/
 theorem every_honest_reachable_node_completes {Node : Type} {N : Nat} (K : Nat)
     (mesh : Node → Node → Prop) (honest inst : Node → Prop) (src : Node)
     (rcv : Node → Fin N → Bool) (stop complete : Node → Prop)

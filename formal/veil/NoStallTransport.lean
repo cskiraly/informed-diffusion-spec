@@ -944,9 +944,11 @@ sat trace [ack_by_answer_timeout] {
     ∃ M N, source M ∧ planned N ∧ installed N ∧ ¬ holds N ∧ offered N M ∧ slotHeld M N)
 }
 
--- `protocol.md` §5.1's open item, a chunk never acknowledged: the source pushes it to the one peer it
--- chose, whose connection closes with the copy in flight, before a HAVE or the timeout. The source's
--- other mesh peer, with its block, holds neither the chunk nor its offer when the transport is done.
+-- `protocol.md` §5.1's open item, a chunk never acknowledged: the source's one push, to the peer it
+-- chose, is lost with its connection before a HAVE or a timeout, either written and in flight or
+-- skipped by projection with its offer owed. The close leaves the same state either way; the solver's
+-- witness is the second. The source's other mesh peer, with its block, holds neither the chunk nor
+-- its offer when the transport is done.
 -- The witness ends there: the transport quiet, the chunk unacknowledged, no copy holding a slot, no
 -- node but the source holding the chunk, and no node holding an offer of it, so no ask is due. In
 -- the spec a decode claim's HAVE, a join, heartbeat gossip outside the mesh (§6.4, not modelled
