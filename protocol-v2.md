@@ -2833,9 +2833,10 @@ a control-only entry of the normal lane. It keeps its place in line. When the tr
 take that write at once (`protocol.md` §7.3), the writer calls `write_waits` as it starts to wait,
 and the window wake lets the first writer in line that can write try again, if room is free. A write
 that completes at once does not call `write_waits`. A client that cannot tell when a write starts
-to wait, as with a blocking write call, may call `write_waits` before a control write from the line:
-`writing(p)` is already true from `next_to_send`'s return, so the early wake changes only the order
-of the schedule.
+to wait, as with a blocking write call, may call `write_waits` before a control write from the line.
+That is safe: `writing(p)` is true from `next_to_send`'s return, so `front` already skips the
+writer. Its cost is a change of schedule: the woken writer takes room only if no writer ahead of it
+in line can write (`front`).
 
 **Open: room left unused after a queue edit.** A writer takes room only if its chosen entry
 fits: `in_flight + need <= W_BYTES`, or the window is empty (`acquire_room`). The first writer in
@@ -2914,7 +2915,8 @@ column cells by at most 36 ms at the median (seed 7).
   of the normal lane, which takes no room and reaches the lane's head when a writer's queued chunks
   are discarded (a dropped or expired group). The wake acts at the write, whatever the entry, so it
   covers that path with the other two. A client whose write call blocks may call `write_waits`
-  before a control write from the line instead, which changes only the order of the schedule.
+  before a control write from the line instead, at the cost of a change of schedule: the woken
+  writer takes room only if no writer ahead of it in line can write (`front`).
   `toy/write_wait_known.py --doc v2` checks all three paths: no wake before the write, a wake once
   the write waits, and none for a writer not in line. `protocol.md`
   has no such third path: its control-only entry gives back the writer's slot
@@ -2923,8 +2925,8 @@ column cells by at most 36 ms at the median (seed 7).
   `protocol.md`'s counts slots.
 - *Replaced: the wake before the write* (v0.10.7's). It woke the next writer in line before every
   control write of a writer in line, whether or not the write then waited. A write that completes at
-  once leaves its writer able to write, and waking another then changes only the order of the
-  schedule.
+  once leaves its writer able to write, and waking another then would change the schedule of the
+  node's writers where nothing else changes.
 - *The recorded cells* (`golden-v2.txt`, against v0.10.6's). Twelve move in their digest only:
   `push`, `hold`, `announce`, `none`, `withholders`, `silent`, `cap-wait`, `dcb20`, `rr-stripe`,
   `without-a`, `ihave-limits` and `push-deep`. Two move in their numbers too: `loss-thin` (p50 807
