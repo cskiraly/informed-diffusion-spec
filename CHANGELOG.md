@@ -1,9 +1,10 @@
 # Changelog
 
-Each release is a tag; its heading below names the tag's commit, and `protocol.md` names its version
-at the top. Changes after the latest tag are on `main`; when there are any, this file's first entry
-names them. A release changes the text and its checks, not earlier measurements: each measurement
-says which code it ran (`protocol.md` §9 for the SEACAST post's figures).
+Each release is a tag, and `protocol.md` names its version at the top. A release's heading below
+names the tag's commit from the next release on, since a commit cannot name itself. Changes after
+the latest tag are on `main`; when there are any, this file's first entry names them. A release
+changes the text and its checks, not earlier measurements: each measurement says which code it ran
+(`protocol.md` §9 for the SEACAST post's figures).
 
 Each entry opens with a one-line summary and lists its changes by kind. **Rules** come first: they
 change what a node does, under `protocol.md`, `protocol-v2.md` or its bindings. **Added**,
