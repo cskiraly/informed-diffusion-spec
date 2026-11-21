@@ -9,9 +9,10 @@ and 1 when a cell's run fails (a break that no longer matches protocol.md's text
 
 Checked, as in formal/diffusion.qnt:
 - W1 window: in_flight equals the writers holding a slot plus the chunks in `sent`, and is at most W
-  (after every event, at the node it ran on);
-- W2 wake-up: with a slot free, the first writer in line that can write has a run queued (a writer whose
-  write has not completed, §7.3, is woken by its transport, and keeps its place but not the front, §7.1);
+  (after each event at a node, at that node);
+- W2 wake-up, checked with W1: with a slot free, the first writer in line that can write has a run queued
+  (a writer whose write has not completed, §7.3, is woken by its transport, and keeps its place but not the
+  front, §7.1);
 - S1 stale ask: no ask leaves (Sim.transmit) for a chunk the sender holds or no longer pulls;
 - P4: a HAVE the source writes names at most one chunk it has not yet sent (the lead HAVE);
 - A1 penalties: no node penalises another (the toy counts them; nothing read the counter before).
