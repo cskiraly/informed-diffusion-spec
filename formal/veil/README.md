@@ -9,14 +9,15 @@ solver; the plain-Lean files are theorems.
 - `ClaimWins.lean`: an honest node is never penalised for an ask, "the claim wins" (A1, §4.5);
 - `SenderFault.lean`: nor for a chunk that fails level 1, its slot checked since v0.10, nor for a
   malformed HAVE or IHAVE bitmap (A1's other three penalties, §3, §4.2, §4.3, §4.4), so A1 holds at
-  every place `protocol.md` penalises a peer;
+  every place `protocol.md` penalises a peer (its four `penalise` calls, by inspection);
 - `NoStallTransport.lean`, `NoStallAsk.lean` and `NoStallCount.lean`: no stall (Q1). For any one
   chunk, when the transport has nothing left to do, a node with its block holds every chunk a mesh
   neighbour received, has stopped pulling, or holds that neighbour's offer, or, where the source
   announces at the chunk's acknowledgement (§5.1's default), the neighbour is the source and the
-  chunk is not acknowledged yet; when the asking machinery
-  has nothing left to do, every such offer is resolved; and, counting in plain Lean, every honest node
-  reachable from the source along mesh links stops at K and completes. The mesh may change on the
+  chunk is not acknowledged yet; when the asking machinery has nothing left to do, every such offer
+  is resolved; and, counting in plain Lean, every honest node reachable from the source along mesh
+  links stops at K and completes, where the source announces at the publish or each chunk the
+  counting needs is acknowledged (below). The mesh may change on the
   way (peers join and leave it, connections close), with F9's rule, `protocol.md` §5.4 since v0.8: a
   peer that joins the mesh is announced what the node holds. How the pieces make Q1 is below. The
   counting also gives Q1 with a builder that releases only K of the N chunks, with a source that
@@ -50,31 +51,35 @@ v0.8's). Each header names the sections and the version it follows. `protocol.md
 The models have four of the changes below, as their items say: the source's announcement at the
 acknowledgement, level 1's check of the slot, the IHAVE bitmap's penalty, and the drop of an
 adversary's tie whose slot left the live window. They do not have the others, and whether each
-result carries over to those is not checked:
+result carries over to those is not checked. Where an item says that a result stands without the
+change being modelled (by an assumption, by range, by the models' choices), that is read from the
+rule, by inspection:
 - **v0.9, the source's announcements at the acknowledgement** (§5.1): the source announces a chunk to
   the mesh peers it did not push it to, and its HAVE names it, at the chunk's acknowledgement: the
   first HAVE naming it from any peer, or a window timeout of a copy of it. Since v0.10.3 this is
   `SOURCE_OFFERS = ACK`, the default, and `PUBLISH` is the source's other choice. Both transport
-  models have it as a setting (below): at `ACK` the source's peers not chosen to be pushed the
-  chunk wait for the acknowledgement, which the models take as an environment event, a HAVE or a
-  timeout, since the window is not modelled. Their result then has one more case: the neighbour
-  is the source, and the chunk is not acknowledged yet. §5.1's open item, a chunk that is never
-  acknowledged, is a known answer there. The source's HAVE is an environment event at any time,
-  so it covers both settings' timing, `origin_written` included.
+  models have it as a setting (below): at `ACK`, mesh peers outside the push plan wait for the
+  acknowledgement, which the models take as an environment event, a HAVE or a timeout, since the
+  window is not modelled. Their result then has one more case: the neighbour is the source, and
+  the chunk is not acknowledged yet. §5.1's open item, a chunk that is never acknowledged, is a
+  known answer there. What the source's HAVE names, and when it sends it (§5.1's P4, and
+  `origin_written` at `PUBLISH`), is outside these proofs: a HAVE is an environment event that
+  only keeps its receiver from pushing or announcing the chunk to its sender.
   v0.9's §7.3, on what the transport below the writer should hold, is not modelled: the models'
   queues may refuse any entry, and drain.
 - **v0.10, four rules for what waits for its block** (§4.2, §6.1, §8.1), and where each stands:
   - a deferred copy beyond its sender's limit of unknown groups is ignored, and a tie beyond §8.2's
     limits on ties (`tie_room`) ties nothing: the models assume §8.2's limits admit the one group
     modelled, its ties included (below);
-  - at installation, a tied index the group does not have is dropped, and
-  - when a group's count becomes known, what named an index at or beyond it goes: both act only on
-    indices out of range, and the chunk modelled is in range;
+  - at installation, a tied index the group does not have is dropped. When a group's count becomes
+    known, what named an index at or beyond it goes. Both act only on indices out of range, and the
+    chunk modelled is in range;
   - what waits for a root that never installs goes when the slot its sender's first copy named
     leaves the live window, or when its group expires (`drop_stale_waits`). An honest copy names
-    its block's slot, which level 1 checks, so an honest tie goes only at the group's end, which the
-    models' lifetimes outlast. An adversary chooses that slot, so its tie to the builder's root can
-    go before the block installs: `NoStallEquivAdv.lean` has this (below).
+    its block's slot, which level 1 checks, so an honest tie cannot age out while the group is live;
+    the models assume lifetimes that outlast diffusion. An adversary chooses that slot, so its tie
+    to the builder's root can go before the block installs: `NoStallEquivAdv.lean` has this
+    (below).
 - **v0.10, level 1 checks the slot** (§3): it rejects a copy whose slot is not its block's.
   `SenderFault.lean` has it (below); in the other models such a copy fails level 1 as any copy
   that is not the committed piece does.
@@ -87,10 +92,12 @@ result carries over to those is not checked:
   ordered list are tried in an order keyed by a secret the node draws. The models let the retry ask
   any unparked announcer, so they cover every order.
 - **v0.10.3, the constants in three kinds** (§8.3), with reference values for gossipsub's two IHAVE
-  limits: no rule changed, and the models take those limits as any values. `GOSSIP_RETRANSMISSION`
-  is now a bound, at least 3. The v0.7 asking models answer a peer's first eligible ask, and any
-  later one or not, as the run chooses; the equivocation models the first three, and any later one
-  or not; so each covers every value the bound allows.
+  limits. The models take those limits as any values. `GOSSIP_RETRANSMISSION` is now a bound, at
+  least 3. The v0.7 asking models answer a peer's first eligible ask, and any later one or not, as
+  the run chooses; the equivocation models the first three, and any later one or not; so each
+  covers every value the bound allows. One value changed: `MAX_SEGMENT_SIZE` is a fixed 32 KiB
+  where it was `2 * UNIT`, which changes level 1 for a builder whose `UNIT` differs.
+  `SenderFault.lean`'s `good` stands for every check of level 1 but the block's, this one included.
 - **v0.10.4** (§4.1, §5.1, §5.4):
   - an IDONTWANT entry that is not a HAVE bitmap is kept as stock gossipsub keeps an id, where every
     entry went to `on_have`. The models have no stock ids as state; `NoStallAskAdv.lean`'s header
@@ -99,13 +106,14 @@ result carries over to those is not checked:
     models (above);
   - §5.1 and §5.4 say what heartbeat gossip tells of the source outside the mesh; the models follow
     mesh links only.
-- **v0.10.5 and v0.10.8:** no rule changed.
+- **v0.10.1, v0.10.2, v0.10.5 and v0.10.8:** no rule changed.
 - **v0.10.6, open: the compressed bytes** (§1). No rule changed: a group's root still commits the
   bytes its builder's compressor produced, as `Agreement.lean` takes it.
 - **v0.10.7, a writer that cannot write does not hold the window's line** (§7.1, §7.2). The window
-  is not modelled: the toy's monitor W2 checks this rule, and the twin transcribes it. It is what
-  the models' assumption that every queue drains needs (below): a peer that stops reading now holds
-  up only its own connection.
+  is not modelled. The toy's monitor W2 checks a part of it: with a slot free, the first writer in
+  line that can write has a run queued. The twin transcribes it. It bears on the models' assumption
+  that every queue drains (below): a peer that stops reading no longer holds up the line, though the
+  slots its connection holds stay taken until they are released or time out.
 
 ## The claim wins (`ClaimWins.lean`)
 
@@ -196,9 +204,10 @@ a root and a slot and carries a piece (its index, the descriptor, the proof and 
 `good` stands for every check of §3 but the block's. Messages are sets, so any order, loss and
 duplication; expiry, the window, §8.2's limits and refused deferrals only drop messages or state. A
 HAVE or IHAVE bit stands for a bitmap's bit, which covers the length check because an honest bitmap
-drops its trailing zero bytes (§2); an honest node announces what it can serve, any index in `mine`
-or of a chunk it stores. v0.10's two checks add no rule: an honest node sends a chunk as level 1
-passed it, its slot included, and announces only what passed level 1 (`gateLevel1`). The header
+drops its trailing zero bytes (§2). An honest node may announce any index in `mine` or of a chunk
+it stores, which covers what it can serve. v0.10's two checks add no rule: an honest node sends a
+chunk as level 1 passed it, its slot included, and announces only what passed level 1, or what its
+decode claim names (`gateLevel1`). The header
 says the rest.
 
 | switch | rule | where |
@@ -254,11 +263,15 @@ chunk of the group, so they hold for each:
   announces is a setting (§5.1, `SOURCE_OFFERS`).
   - At `PUBLISH`, publishing makes the source's forwarding to every mesh peer due.
   - At `ACK`, the default, publishing makes it due only to the peers the source chose to push the
-    chunk to, at least one where its mesh is not empty (§8.3's `R` at least 1). The rest of its
-    mesh is announced the chunk at the acknowledgement: a HAVE naming it, or a window timeout of a
-    copy the source wrote while its connection still holds the copy's slot. The step then has one
-    more case: the neighbour is the source, the node was not a push target, and the chunk is not
-    acknowledged yet.
+    chunk to: any set of them, none included, so the model covers every `R` and every set of
+    candidates (§5.3, §8.3). The rest of its mesh is announced the chunk at the acknowledgement:
+    the first HAVE that newly names it, or a window timeout of a copy the source wrote, a push or
+    an answer, while its connection still holds the copy's slot. The step then has one more case:
+    the neighbour is the source, the node was not a push target, and the chunk is not acknowledged
+    yet.
+  - The source's `fwd` stands for two operations, the planned pushes and the announcements at the
+    acknowledgement, and may push or announce to either, as forwarding at any node may. What the
+    source's HAVE names, and when it sends it (§5.1's P4), is not checked here.
 - **The asking** (`NoStallAsk`): when it has nothing left to do, every offer to a node that has its
   block is resolved: the node holds the chunk or has stopped pulling. It models one ask in its
   window, the retry, parks from promises that fall due at any time, the last resort, the writer's
@@ -275,9 +288,9 @@ chunk of the group, so they hold for each:
 
 Each piece treats what the others do as its **environment**: events at any time, any number of
 times, that are not part of its own pending work. The transport's environment: blocks installing,
-stop-pull, the decode storing the chunk, HAVEs learned (true, possibly never sent), answers bringing
-the chunk, the mesh changing, the source's choice of push targets, and, at `ACK`, the
-acknowledgement's window timeout. The asking's: offers from honest holders (before the block, kept in
+stop-pull, the decode storing the chunk, HAVEs learned (true, possibly never sent), answers written
+and bringing the chunk, the mesh changing, the source's choice of push targets, and, at `ACK`, a
+window timeout that acknowledges the chunk. The asking's: offers from honest holders (before the block, kept in
 the ledger; a new connection's resync among them), the chunk arriving by push, stop-pull, HAVEs
 learned, blocks installing, parks from the group's other chunks (F2's way), and connections closing.
 How the spec's events fall into the pieces:
@@ -290,7 +303,7 @@ How the spec's events fall into the pieces:
 | a chunk arrives with the block (§4.2) | `recvChunk` | `arriveOther` |
 | a chunk arrives ahead of the block: deferred, or refused and its sender an offer at installation (§4.2's tie) | `recvChunk` | none, or `offerEarly` |
 | an announcement arrives (§4.4) | `recvIhave` | `offerEarly` before the block, else `offerAsk`, `offerInWindow`, `offerParked`, `offerParkedArm`; over an IHAVE limit `offerHeldBack` (by the loop, from an unparked offerer; by §4.4's bitmap reading, from any) |
-| an ask written, handled, answered, owed; an answer written (§4.1, §4.5, §7.2) | none | `writeAsk`, `recvAsk`, `owedToQueue`, `writeAns` |
+| an ask written, handled, answered, owed; an answer written (§4.1, §4.5, §7.2) | an answer written: `answerArrives` with the answer still in flight, which takes its window slot (§7.1) | `writeAsk`, `recvAsk`, `owedToQueue`, `writeAns` |
 | an answer arrives (§4.2) | `answerArrives` | `recvAns` |
 | a window ends, a retry (the heartbeat's too, for what an IHAVE limit held back, §6.4), a promise falls due, the last resort (§6.1) | none | `windowElapse`, `retry…`, `promiseDue`, `lr…`; another chunk's promise: `parkOther` |
 | a HAVE arrives (§4.3) | `learnClaim` | `learnClaim` |
@@ -326,16 +339,20 @@ parts of it):
 - no traffic outside the mesh: heartbeat gossip (§6.4) and the source's stripes (§5.1) are left
   out;
 - lifetimes that outlast diffusion;
-- a send window that lets every queue drain, adversaries' too (W2 in `../README.md`, checked on
-  small instances only). Since v0.10.7 (§7.1), a peer that stops reading holds up only its own
-  connection, so the assumption fails only for that peer's queue, which these models leave out;
+- a send window that lets every queue drain, adversaries' too. This is an assumption: W2
+  (`../README.md`) checks a narrower rule on small instances, that with a slot free the first writer
+  in line that can write has a run queued. Since v0.10.7 (§7.1), a peer that stops reading no
+  longer holds up the line, so the assumption fails only for that peer's own queue, which these
+  models leave out;
 - an honest builder's code;
 - the one group admitted by §8.2's limits, its ties included (`tie_room`), so a copy that waits
   always ties its sender (§4.2);
-- at `ACK`, for Q1 through the source's links, that the chunk is acknowledged. The counting takes
-  the transport's step as its hypothesis, and on those links the step holds once the chunk is
-  acknowledged. §5.1 names a chunk that is never acknowledged as open, and `ka_never_acknowledged`
-  reaches it.
+- at `ACK`, for Q1 through the source's links, that each chunk the counting needs there is
+  acknowledged, or that the neighbour received it, stopped, or holds the source's offer of it. The
+  counting takes the per-link step as its hypothesis, for every chunk and link it uses; on the
+  source's links the transport gives that step only so. The composition is by inspection. §5.1
+  names a chunk that is never acknowledged as open, and `ka_never_acknowledged` reaches it; Q3
+  does not force an acknowledgement.
 
 **F11, found here and closed in v0.7.** Up to v0.6, §8.2 let a node handle at most
 `MAX_IHAVE_MESSAGES` (4096) IHAVE-bearing RPCs per peer and heartbeat and ignore the rest. A node
@@ -419,7 +436,7 @@ not in the models.
 
 | piece | proof | traces | the build |
 |---|---|---|---|
-| transport | 264 of 264 conditions, 1041 theorems | 8 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered; the chunk announced again to a peer back in the mesh after a close lost a queued push; and to a peer that joined after the publish; at `ACK`, the source's other mesh peer announced the chunk at the acknowledgement, by a HAVE and by a window timeout), 7 known answers (at `PUBLISH`: F1, a skipped push counted, offered to nobody; a refused push lost; F7, a refused copy lost; F11, an announcement ignored by the receiver's limit; F9, without the resync, nothing offers the chunk to a peer back in the mesh after a close lost a queued push, nor to a late joiner; at `ACK`, §5.1's open item: the pushed connection closes with the copy in flight, and the source's other mesh peer is offered nothing) | 23 minutes (rebuilt in place, below) |
+| transport | 264 of 264 conditions, 1043 theorems | 9 non-vacuity (a push delivered; an announcement recorded as an offer; a copy deferred and taken in; a refused copy offered; the chunk announced again to a peer back in the mesh after a close lost a queued push; and to a peer that joined after the publish; at `ACK`, the source's other mesh peer announced the chunk at the acknowledgement, by a HAVE and by a window timeout; and a written answer's timeout acknowledging the chunk before the answer arrives), 7 known answers (at `PUBLISH`: F1, a skipped push counted, offered to nobody; a refused push lost; F7, a refused copy lost; F11, an announcement ignored by the receiver's limit; F9, without the resync, nothing offers the chunk to a peer back in the mesh after a close lost a queued push, nor to a late joiner; at `ACK`, §5.1's open item: the pushed connection closes with the copy in flight, and the source's other mesh peer is offered nothing) | 23 minutes (rebuilt in place, below) |
 | asking | 378 of 378 conditions, 1143 theorems | 6 non-vacuity (an offer answered; an offerer parked by another chunk, asked once more by the last resort; an offer before the block asked for at installation; an offer over an IHAVE limit asked for by the heartbeat's retry; one from a parked offerer, asked once more by the last resort the heartbeat's retry arms; an ask lost with its connection, the announcer's offer on the new one asked for by the retry), 5 known answers (F2: without the last resort an offerer parked by another chunk is never asked; answers lost twice without owed answers; an offer before the block never asked without the ledger; an offer over an IHAVE limit never asked without the heartbeat's retry; the last-resort count kept across a close, the ask it counted lost with the connection never made again) | 4.8 minutes |
 | asking, under equivocation | 704 of 704 conditions, 1913 theorems | 6 non-vacuity (an offer answered; on the other block, an answer that waits ties its sender and closes its promise; a node on the other block with a tied sender switches, the sender is asked and the chunk validates; the last resort; the ledger; an ask lost with its connection, the announcer asked afresh on the new one), 5 known answers (without `ROOT_TIED`, at the switch every announcer parked and asked once more with nothing on its way; without `NO_REASK_OPEN`, a third ask to a provider before the switch; without the last resort; without the ledger; the last-resort counts kept across a close) | 25 minutes |
 | counting | twelve theorems and the lemma `count_mono` they use, two of the twelve known answers (below) | none | a second |
@@ -475,7 +492,7 @@ Copies of the per-chunk pieces with adversaries (`adv`, any set of nodes but the
 environment, and the counting through honest nodes (`every_honest_reachable_node_completes`):
 **when no honest node has anything left to do, every honest node the source reaches along links
 between honest nodes, into nodes that installed the block, is complete, whatever the other peers
-do.**
+do**, under Q1's assumptions, among them at `ACK` the acknowledgement on the source's links (above).
 - **In the transport** an adversary sends authentic copies only of a chunk it holds: a copy that is
   not the committed piece fails level 1, and one naming a root that never installs waits; either has
   an id of its own (§2), so it neither displaces an authentic copy nor makes one look seen. It
@@ -554,7 +571,7 @@ proposes the rule: it is in the file so that the option's asking part is checked
 
 | piece | proof | traces | the build |
 |---|---|---|---|
-| transport, with adversaries | 288 of 288 conditions, 1114 theorems | 17: the transport's 15, with an adversary's false HAVE as the acknowledgement in place of an honest one; a false claim; an adversary's offer left in a quiet state | 24 minutes (rebuilt in place, below) |
+| transport, with adversaries | 288 of 288 conditions, 1116 theorems | 18: the transport's 16, with an adversary's false HAVE as the acknowledgement in place of an honest one; a false claim; an adversary's offer left in a quiet state | 24 minutes (rebuilt in place, below) |
 | asking (v0.7's), with adversaries | 448 of 448 conditions, 1324 theorems | 14: the asking's 11, `adv_withholds`, `ka_count_per_chunk` (bound to the adversary's offer coming first) and its control | 7.3 minutes |
 | asking under v0.8's rules, with adversaries and the offers' expiry | 1134 of 1134 conditions (42 × 27: 41 actions and the initializer, 26 clauses and `doesNotThrow`), 2626 theorems | 30: `NoStallEquiv.lean`'s 11 (their nodes honest); an ask left at an adversary; an adversary tied to another root after the block, alone and beside an honest offer that resolves; a tie released; a tie dropped; an adversary's tie to the builder's root dropped before the block, its slot stale; an ask gone with expired offers; F13 by a dropped tie, by the expiry without the queued asks' part, and by the expiry without the promise's; under `byGroup`, an offer answered and a tie released, and the known answer without it; F14's five and its control | 26 minutes (rebuilt in place, below) |
 
@@ -594,8 +611,9 @@ there. For each honest per-chunk piece, with any finite number of nodes:
 
 - **the transport goes quiet** (`NoStallTransport.lean`, `quiet`): in every run in which the
   transport's environment eventually stops (a block installing, the decode claim, the decode's
-  store, a learned claim, an answer that brings the chunk, the mesh and its connections changing,
-  the source's choice of push targets, and at `ACK` the acknowledgement's window timeout), and
+  store, a learned claim, an answer written or bringing the chunk, the mesh and its connections
+  changing, the source's choice of push targets, and at `ACK` a window timeout that acknowledges
+  the chunk), and
   each of its nine machinery actions (all its own but `dropIhave`, F11's known answer) is weakly
   fair, the transport eventually has nothing left to do, for good (`◇ □ ¬ work`), whatever rules
   are on;
@@ -613,9 +631,11 @@ step that changes the state has an own action's effect or no environment action'
 would exclude every run that ends with a node stopped, whose `stopPull` then changes nothing, so that
 every later step has its effect (with fields as functions), and so, in the transport, every run with
 a source: a theorem under it would be empty. With Q1, by the same composition by
-inspection, and given that every decode that starts eventually returns (Q1's counting assumes
-decoding succeeds), every honest node the source reaches through nodes with the builder's block
-eventually completes.
+inspection, under Q1's assumptions, and given that every decode that starts eventually returns
+(Q1's counting assumes decoding succeeds), every honest node the source reaches through nodes with
+the builder's block eventually completes. At `ACK` this needs each chunk the counting uses on the
+source's links acknowledged before the environment stops, since both acknowledgements are
+environment events.
 
 **Why**: every step of a piece lowers a lexicographic tuple of counts of relations, its levels,
 highest first; the environment may raise it, finitely often. `QuietRanking.lean` (plain Lean, on

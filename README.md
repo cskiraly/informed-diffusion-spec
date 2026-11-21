@@ -46,13 +46,13 @@ names how SEACAST diffuses.
 - [`formal/veil/`](formal/veil/): properties of v0.8's rules and four later changes, proved in Veil
   for any number of nodes, groups and chunks:
   - A1, an honest node is never penalised: for an ask, for a chunk that fails level 1, or for a
-    malformed HAVE or IHAVE bitmap, at every place `protocol.md` penalises a peer. For an ask, it
-    needs no assumption under the live window (`protocol.md` §8.1,
-    with a group's key fixing its slot, §1), and, for groups without a slot, the bound on the
-    tombstone;
+    malformed HAVE or IHAVE bitmap: at every place `protocol.md` penalises a peer, as read from its
+    code. For an ask, it needs no assumption under the live window (`protocol.md` §8.1, with a
+    group's key fixing its slot, §1), and, for groups without a slot, the bound on the tombstone;
   - no stall (Q1): no quiet state in which an honest node reachable from the source along mesh
     links is incomplete, under the assumptions its README states, with the mesh changing and
-    connections closing;
+    connections closing. Where the source announces at a chunk's acknowledgement (§5.1's default),
+    the source's links need the chunks acknowledged; §5.1 leaves open a chunk that never is;
   - Q1 under equivocation, with §4.2's ties and §6.1's rule against a second ask of a peer at once,
     for the nodes the source reaches through nodes that installed the builder's block
     (`NoStallEquiv.lean`);
@@ -67,7 +67,8 @@ names how SEACAST diffuses.
     root commits, and two honest nodes never deliver different payloads for a group, under the
     codec's assumptions its README lists, an MDS code and a binding hash among them.
 
-  The models do not have the rules `protocol.md` changed since v0.8; their README lists them.
+  The models have four of the rules `protocol.md` changed since v0.8. Their README lists the
+  changes, and which of them the models have.
 - [`formal/twin/`](formal/twin/): a transcription of `protocol.md`'s Python into Lean, function by
   function, executable, checked against the toy by trace replay. `check.sh`, which builds the twin,
   replays small traces of the toy through it and runs controls that must fail, passes at this
