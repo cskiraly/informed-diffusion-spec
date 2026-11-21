@@ -1841,9 +1841,10 @@ to write, and a wake before it would change the schedule of the node's writers w
 changes. A client that cannot tell when its write starts to wait may still wake before the write.
 Its cost is that change of schedule: the woken writer takes a slot only if no writer ahead of it
 in line can write (`front`) and a slot is free. `toy/write_wait_known.py` checks four cases on each
-of the two paths, with p the writer that writes control and q the other writer in line: q is not
-woken before p's write, q is woken once the write waits, and q is not woken when p is not in line
-or when no slot is free. Where p is in line, it keeps its place at the head.
+of the two paths, with p the writer that writes control and q the other writer in line: q has no
+run queued when `next_to_send` returns p's control, q has one after p's write starts to wait, and q
+has none when p is not in line or when no slot is free. Where p is in line, it keeps its place at
+the head.
 
 ### 7.2 Choosing what to send, at the moment of sending [c8, c9, c12, c14]
 

@@ -44,7 +44,7 @@ by index (`WantIndex`) is little-endian.
   it in place of the wake before the write.
 - `toy/node.py`: the toy calls `write_waits` where a writer's transport first takes no more.
 - `formal/twin/`: the twin follows the wake at the wait (`write_waits`, `wake_front` without its
-  argument, `next_to_send` without its wake before a control write).
+  argument, and no wake in `next_to_send`'s urgent branch or its branch of owed offers alone).
 - `toy/golden.txt`, `toy/golden-v2.txt`: `rr-stripe` and `push-deep` move in their digests only;
   every other cell keeps its digest.
 - `formal/toy/monitor.py`: one break a run.

@@ -2925,9 +2925,10 @@ column cells by at most 36 ms at the median (seed 7).
   can queue an extra run even for a write that completes at once. Admission is unchanged: a writer
   takes room only while room is free, and never ahead of a writer in line that can write.
   `toy/write_wait_known.py --doc v2` checks four cases on each of the three paths, with p the writer
-  that writes control and q the other writer in line: q is not woken before p's write, q is woken
-  once the write waits, and q is not woken when p is not in line or when the window is full. Where p
-  is in line, it keeps its place at the head. `protocol.md` has no such third path: its
+  that writes control and q the other writer in line: q has no run queued when `next_to_send`
+  returns p's control, q has one after p's write starts to wait, and q has none when p is not in
+  line or when the window is full. Where p is in line, it keeps its place at the head.
+  `protocol.md` has no such third path: its
   control-only entry goes through `release_unused_slot`, which gives back the writer's slot and
   also takes the writer out of the line when it holds none, so there a control-only entry is never
   written from the line.
