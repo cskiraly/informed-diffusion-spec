@@ -5,7 +5,7 @@ Changes after the latest tag are on `main`; when there are any, this file's firs
 release changes the text and its checks, not earlier measurements: each measurement says which code it
 ran (`protocol.md` §9 for the SEACAST post's figures).
 
-## v0.10.8, 2026-11-20
+## v0.10.8, 2026-11-21
 
 The Lean twin's record comes into the repository, and the twin is no longer called a draft.
 `formal/refine/` holds the first piece of a refinement from the twin to a Veil model. No rule, value
@@ -59,7 +59,7 @@ moves.
 - **`formal/`'s bullets**: `formal/twin/` is no longer called a draft and points to its record, and
   `formal/refine/` gains a bullet.
 
-## v0.10.7, 2026-11-20
+## v0.10.7, 2026-11-20 (`c67d0e5`)
 
 The Lean twin of `protocol.md`'s Python comes into the repository as a draft, and `formal/README.md`
 opens with a map of how the checks fit together. `protocol.md` changes one rule: a writer that

@@ -10,7 +10,7 @@ name since 2026-10-19; v0.4 was published as Informed Diffusion, which now names
 part (§0, "The parts").*
 
 *Draft 1, 2026-10-07. A sibling of [`protocol.md`](protocol.md), which it contains as one
-setting (§6.1). That was draft v0.3 when this was written and is v0.10.7 since 2026-11-20, with
+setting (§6.1). That was draft v0.3 when this was written and is v0.10.8 since 2026-11-21, with
 the same section numbers; "v0.3" below means that document.*
 
 *Each later version of `protocol.md` is carried into this document in the same way; §5 lists what
@@ -3144,6 +3144,8 @@ carried into them, with the date each was carried where it came later than the v
   can write. This draft carries both into its window in bytes (§4.11), with its own `wake_front`
   over `W_BYTES`, and wakes on a third path it has, a control-only entry of the normal lane;
   `line_stall_known.py --doc v2` and `control_wake_known.py` show them.
+- v0.10.8 (2026-11-21): `protocol.md` is the same but for its version line, and the Lean twin's
+  record and a first piece of a refinement come into `formal/`; nothing to carry.
 
 ## 6. Settings
 
